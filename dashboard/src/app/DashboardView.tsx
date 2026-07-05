@@ -2,6 +2,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Lottie from 'lottie-react';
+import mainCharacter from '../../public/animations/main_character.json';
+import { supabase } from '@/lib/supabase';
 import { triggerWorker } from './actions';
 import { 
   Search, 
@@ -130,6 +133,19 @@ interface DashboardViewProps {
 
 export default function DashboardView({ initialRepos, initialLogs }: DashboardViewProps) {
   const router = useRouter();
+
+  // Local synced state for live queries
+  const [repos, setRepos] = useState<Repo[]>(initialRepos);
+  const [logs, setLogs] = useState<Log[]>(initialLogs);
+
+  // Sync state if initialProps change
+  useEffect(() => {
+    setRepos(initialRepos);
+  }, [initialRepos]);
+
+  useEffect(() => {
+    setLogs(initialLogs);
+  }, [initialLogs]);
   
   // Interactive filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -164,18 +180,18 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   // Derive unique languages
   const languages = useMemo(() => {
     const list = new Set<string>();
-    initialRepos.forEach(r => {
+    repos.forEach(r => {
       if (r.language) list.add(r.language);
     });
     return ['All', ...Array.from(list)];
-  }, [initialRepos]);
+  }, [repos]);
 
   // Statistics and owner profile resolution
   const ownerFollowStatus = useMemo(() => {
     const statusMap = new Map<string, { followed: boolean; unfollowed: boolean; follow_skipped: boolean; follow_back: boolean; reason: string | null }>();
     
     // Sort ascending by graded_at so that later records correctly override earlier states
-    const sorted = [...initialRepos].sort((a, b) => new Date(a.graded_at || 0).getTime() - new Date(b.graded_at || 0).getTime());
+    const sorted = [...repos].sort((a, b) => new Date(a.graded_at || 0).getTime() - new Date(b.graded_at || 0).getTime());
     
     sorted.forEach(repo => {
       statusMap.set(repo.owner.toLowerCase(), {
@@ -187,11 +203,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       });
     });
     return statusMap;
-  }, [initialRepos]);
+  }, [repos]);
 
   const stats = useMemo(() => {
-    const total = initialRepos.length;
-    const starred = initialRepos.filter(r => r.starred).length;
+    const total = repos.length;
+    const starred = repos.filter(r => r.starred).length;
     
     let followed = 0;
     let unfollowed = 0;
@@ -205,15 +221,15 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       if (status.follow_back) mutuals++;
     });
 
-    const totalGrade = initialRepos.reduce((acc, r) => acc + (r.grade || 0), 0);
+    const totalGrade = repos.reduce((acc, r) => acc + (r.grade || 0), 0);
     const avgGrade = total > 0 ? (totalGrade / total) : 0;
 
     return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals };
-  }, [initialRepos, ownerFollowStatus]);
+  }, [repos, ownerFollowStatus]);
 
   // Apply filters and sorting
   const filteredRepos = useMemo(() => {
-    return initialRepos
+    return repos
       .filter(repo => {
         const matchesSearch = 
           `${repo.owner}/${repo.name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -247,7 +263,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         if (sortBy === 'stars') return b.stars - a.stars;
         return new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime();
       });
-  }, [initialRepos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter, sortBy, ownerFollowStatus]);
+  }, [repos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter, sortBy, ownerFollowStatus]);
 
   // Group filtered repos by unique owner for Profile Card view
   const filteredProfiles = useMemo(() => {
@@ -295,14 +311,27 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     return Array.from(profilesMap.values());
   }, [filteredRepos, followedFilter, ownerFollowStatus]);
 
-  // Handle reload action with visual delay/indication
+  // Handle reload action with direct async fetches
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    router.refresh();
-    setTimeout(() => {
+    try {
+      const [reposRes, logsRes] = await Promise.all([
+        supabase.from('repos').select('*'),
+        supabase.from('logs').select('*').limit(50)
+      ]);
+      if (reposRes.data) {
+        setRepos(reposRes.data);
+      }
+      if (logsRes.data) {
+        setLogs(logsRes.data);
+      }
+      router.refresh();
+    } catch (err) {
+      console.error("Refresh failed:", err);
+    } finally {
       setIsRefreshing(false);
-    }, 800);
+    }
   };
 
   // Handle run trigger
@@ -317,7 +346,21 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     setTriggerStatus({ success: result.success, message: result.success ? result.message : result.error });
 
     if (result.success) {
-      router.refresh();
+      // Trigger a direct refetch so the logs data updates immediately
+      setIsRefreshing(true);
+      try {
+        const [reposRes, logsRes] = await Promise.all([
+          supabase.from('repos').select('*'),
+          supabase.from('logs').select('*').limit(50)
+        ]);
+        if (reposRes.data) setRepos(reposRes.data);
+        if (logsRes.data) setLogs(logsRes.data);
+        router.refresh();
+      } catch (err) {
+        console.error("Post-trigger refresh failed:", err);
+      } finally {
+        setIsRefreshing(false);
+      }
     }
   };
 
@@ -746,6 +789,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   </div>
                 ))}
               </div>
+            ) : (followedFilter !== 'All' ? filteredProfiles.length === 0 : filteredRepos.length === 0) ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-4 w-full bg-[#0b0b0d] border border-zinc-900 rounded-xl">
+                <div className="w-48 h-48 flex items-center justify-center">
+                  <Lottie animationData={mainCharacter} loop={true} className="w-48 h-48" />
+                </div>
+                <p className="text-white font-semibold text-sm font-mono uppercase tracking-wider">No results found</p>
+                <p className="text-zinc-550 text-xs font-mono">Try adjusting your filters</p>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {followedFilter !== 'All' ? (
@@ -1006,14 +1057,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                         </td>
                       </tr>
                     ))
-                  ) : initialLogs.length === 0 ? (
+                  ) : logs.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-5 py-10 text-center text-zinc-600">
                         No operations logged.
                       </td>
                     </tr>
                   ) : (
-                    [...initialLogs]
+                    [...logs]
                       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                       .map((log) => (
                         <tr key={log.id} className="hover:bg-zinc-900/10 transition text-zinc-350">
