@@ -33,6 +33,12 @@ const Github = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const cleanSnippet = (text: string) => {
+  if (!text) return '';
+  // Strip HTML tags using regex
+  return text.replace(/<[^>]*>/g, '').trim();
+};
+
 interface Repo {
   id: number;
   github_url: string;
@@ -448,7 +454,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                         {repo.readme_snippet && (
                           <div className="mt-3">
                             <p className="text-sm text-slate-450 line-clamp-3 leading-relaxed">
-                              {repo.readme_snippet.split('\n')[0] || 'No snippet description available.'}
+                              {cleanSnippet(repo.readme_snippet).split('\n').filter(line => line.trim() !== '')[0] || 'No snippet description available.'}
                             </p>
                           </div>
                         )}
@@ -603,7 +609,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto font-mono text-sm text-slate-350 bg-slate-950/60 leading-relaxed whitespace-pre-wrap select-text flex-1">
-              {selectedRepo.readme_snippet || 'No README data saved.'}
+              {cleanSnippet(selectedRepo.readme_snippet) || 'No README data saved.'}
             </div>
             
             {/* Modal Footer */}
