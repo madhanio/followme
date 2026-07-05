@@ -90,6 +90,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [activeTab, setActiveTab] = useState<'repos' | 'logs'>('repos');
   const [sortBy, setSortBy] = useState<'date' | 'grade' | 'stars'>('date');
 
+  // Refreshing State
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Triggering State
   const [isTriggering, setIsTriggering] = useState(false);
   const [triggerStatus, setTriggerStatus] = useState<{ success?: boolean; message?: string } | null>(null);
@@ -154,6 +157,17 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       });
   }, [initialRepos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter, sortBy]);
 
+  // Handle reload action with visual delay/indication
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    router.refresh();
+    // Keep skeletal animation running for at least 600ms so it feels real and visual
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 800);
+  };
+
   // Handle run trigger
   const handleTrigger = async () => {
     if (isTriggering) return;
@@ -196,11 +210,12 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
           <div className="flex items-center space-x-3 w-full sm:w-auto">
             <button
-              onClick={() => router.refresh()}
-              className="p-2 text-zinc-400 hover:text-white rounded-lg border border-zinc-800 bg-[#0f0f11] hover:bg-zinc-900 transition-all cursor-pointer flex items-center justify-center"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2 text-zinc-400 hover:text-white rounded-lg border border-zinc-800 bg-[#0f0f11] hover:bg-zinc-900 transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
               title="Refresh Dashboard Data"
             >
-              <RotateCw className="h-4 w-4" />
+              <RotateCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-white' : ''}`} />
             </button>
             <button
               onClick={handleTrigger}
@@ -449,7 +464,32 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             </div>
 
             {/* Repos Cards List */}
-            {filteredRepos.length === 0 ? (
+            {isRefreshing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[1, 2, 3, 4].map((n) => (
+                  <div key={n} className="bg-[#0b0b0d] border border-zinc-900 rounded-xl p-5 flex flex-col justify-between h-[230px] animate-pulse">
+                    <div>
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="space-y-2 w-2/3">
+                          <div className="h-2.5 bg-zinc-800 rounded w-1/3"></div>
+                          <div className="h-4 bg-zinc-850 rounded w-3/4"></div>
+                        </div>
+                        <div className="h-6 bg-zinc-800 rounded w-16"></div>
+                      </div>
+                      <div className="h-3 bg-zinc-900 rounded w-1/2 mb-4"></div>
+                      <div className="space-y-2 mt-4">
+                        <div className="h-3 bg-zinc-850 rounded"></div>
+                        <div className="h-3 bg-zinc-850 rounded w-5/6"></div>
+                      </div>
+                    </div>
+                    <div className="border-t border-zinc-900 pt-3.5 mt-4 flex justify-between">
+                      <div className="h-4 bg-zinc-900 rounded w-24"></div>
+                      <div className="h-4 bg-zinc-900 rounded w-12"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredRepos.length === 0 ? (
               <div className="text-center py-16 bg-[#09090b] border border-zinc-900 rounded-xl flex flex-col items-center justify-center space-y-3">
                 <GithubIcon className="h-8 w-8 text-zinc-700" />
                 <h3 className="font-mono text-sm font-semibold text-zinc-400">No matching records found</h3>
