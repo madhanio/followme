@@ -410,17 +410,17 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       `}</style>
 
       {/* Top Banner Details */}
-      <header className="border-b border-zinc-900/80 bg-[#0c0c0e]/95 backdrop-blur-md sticky top-0 z-40">
+      <header className="border-b border-zinc-900 bg-[#0c0c0e]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className={`flex items-center space-x-4 ${isFirstMount ? 'animate-startup-logo' : ''}`}>
-            <div className="h-12 w-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-inner hover:border-indigo-500/40 transition duration-300">
-              <GithubIcon className="h-7 w-7 text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+          <div className={`flex items-center space-x-3 ${isFirstMount ? 'animate-startup-logo' : ''}`}>
+            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-805 flex items-center justify-center shadow-inner">
+              <GithubIcon className="h-5 w-5 text-zinc-300" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-wider text-white flex items-center gap-2.5">
-                FollowMe <span className="text-[9px] tracking-widest uppercase font-mono px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/25 text-indigo-400 rounded-full font-bold">Beta</span>
+              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                FollowMe <span className="text-[10px] tracking-widest uppercase font-mono px-2 py-0.5 border border-zinc-700 bg-zinc-800/40 text-zinc-550 rounded font-normal">Beta</span>
               </h1>
-              <p className="text-[11px] text-zinc-400 font-mono mt-0.5">Automated discovery & active peer evaluation</p>
+              <p className="text-xs text-zinc-500 font-mono">Automated discovery & active peer evaluation</p>
             </div>
           </div>
 
@@ -428,7 +428,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="p-2.5 text-zinc-400 hover:text-white rounded-lg border border-zinc-850 bg-[#0f0f11] hover:bg-zinc-900 transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
+              className="p-2 text-zinc-400 hover:text-white rounded-lg border border-zinc-800 bg-[#0f0f11] hover:bg-zinc-900 transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
               title="Refresh Dashboard Data"
             >
               <RotateCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-white' : ''}`} />
@@ -436,10 +436,10 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             <button
               onClick={handleTrigger}
               disabled={isTriggering}
-              className={`flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg font-mono text-xs tracking-wider uppercase transition-all duration-300 border cursor-pointer w-full sm:w-auto ${
+              className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-lg font-mono text-xs tracking-wider uppercase transition-all duration-200 border cursor-pointer w-full sm:w-auto ${
                 isTriggering 
                   ? 'bg-zinc-950 text-zinc-650 border-zinc-900 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-400 hover:to-indigo-500 hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] text-white border-transparent hover:scale-[1.02] transform active:scale-95 shadow-[0_4px_12px_rgba(99,102,241,0.15)]'
+                  : 'bg-white hover:bg-zinc-200 text-black border-transparent hover:scale-[1.01]'
               }`}
             >
               {isTriggering ? (
@@ -449,7 +449,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                 </>
               ) : (
                 <>
-                  <Play className="h-3 w-3 fill-white text-white" />
+                  <Play className="h-3 w-3 fill-black text-black" />
                   <span>Run Evaluation Job</span>
                 </>
               )}
@@ -481,19 +481,19 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       )}
 
       {/* Stats Row Strip */}
-      <section className="bg-[#0b0b0d] border-b border-zinc-900/80 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-y-4 gap-x-4">
+      <section className="bg-[#0b0b0d] border-b border-zinc-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5">
             
             {/* Stat Card 1 */}
             <div 
-              className={`pl-4 py-1.5 border-l border-zinc-850 md:border-l-0 md:border-r border-zinc-900/60 lg:border-r ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '150ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Total Graded</span>
-              <span className="text-3xl font-black text-white tracking-tight block mt-0.5">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Total Graded</span>
+              <span className="text-2xl font-extrabold text-white tracking-tight">
                 {isRefreshing ? (
-                  <span className="h-8 w-14 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
+                  <span className="h-5 w-10 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
                 ) : (
                   <AnimatedCounter value={stats.total} active={isFirstMount} />
                 )}
@@ -502,13 +502,13 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 2 */}
             <div 
-              className={`pl-4 py-1.5 border-l border-zinc-850 md:border-l-0 md:border-r border-zinc-900/60 lg:border-r ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '210ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Avg Quality</span>
-              <span className="text-xl font-bold text-white tracking-tight flex items-baseline mt-1.5">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Avg Quality</span>
+              <span className="text-xl font-bold text-white tracking-tight flex items-baseline">
                 {isRefreshing ? (
-                  <span className="h-6 w-12 bg-zinc-850 rounded animate-pulse inline-block"></span>
+                  <span className="h-5 w-12 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
                 ) : (
                   <>
                     <AnimatedDecimalCounter value={stats.avgGrade} active={isFirstMount} />
@@ -520,13 +520,13 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 3 */}
             <div 
-              className={`pl-4 py-1.5 border-l border-zinc-850 md:border-l-0 md:border-r border-zinc-900/60 lg:border-r ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '270ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Starred</span>
-              <span className="text-xl font-bold text-emerald-400 flex items-center gap-1.5 mt-1.5">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Starred</span>
+              <span className="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
                 {isRefreshing ? (
-                  <span className="h-6 w-10 bg-zinc-850 rounded animate-pulse inline-block"></span>
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
                 ) : (
                   <>
                     <AnimatedCounter value={stats.starred} active={isFirstMount} />
@@ -538,13 +538,13 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 4 */}
             <div 
-              className={`pl-4 py-1.5 border-l border-zinc-850 md:border-l-0 md:border-r border-zinc-900/60 lg:border-r ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '330ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Followed</span>
-              <span className="text-xl font-bold text-emerald-400 flex items-center gap-1.5 mt-1.5">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Followed</span>
+              <span className="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
                 {isRefreshing ? (
-                  <span className="h-6 w-10 bg-zinc-850 rounded animate-pulse inline-block"></span>
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
                 ) : (
                   <>
                     <AnimatedCounter value={stats.followed} active={isFirstMount} />
@@ -556,13 +556,13 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 5 */}
             <div 
-              className={`pl-4 py-1.5 border-l border-zinc-850 md:border-l-0 md:border-r border-zinc-900/60 lg:border-r ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '390ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Mutuals</span>
-              <span className="text-xl font-bold text-zinc-450 flex items-center gap-1.5 mt-1.5">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Mutuals</span>
+              <span className="text-xl font-bold text-zinc-400 flex items-center gap-1.5">
                 {isRefreshing ? (
-                  <span className="h-6 w-10 bg-zinc-850 rounded animate-pulse inline-block"></span>
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
                 ) : (
                   <>
                     <AnimatedCounter value={stats.mutuals} active={isFirstMount} />
@@ -574,17 +574,17 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 6 */}
             <div 
-              className={`pl-4 py-1.5 border-l border-zinc-850 md:border-l-0 md:border-r border-zinc-900/60 md:border-r ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '450ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Unfollowed</span>
-              <span className="text-xl font-bold text-zinc-550 flex items-center gap-1.5 mt-1.5">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Unfollowed</span>
+              <span className="text-xl font-bold text-zinc-500 flex items-center gap-1.5">
                 {isRefreshing ? (
-                  <span className="h-6 w-10 bg-zinc-850 rounded animate-pulse inline-block"></span>
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
                 ) : (
                   <>
                     <AnimatedCounter value={stats.unfollowed} active={isFirstMount} />
-                    <UserMinus className="h-3.5 w-3.5 text-zinc-600" />
+                    <UserMinus className="h-3.5 w-3.5 text-zinc-650" />
                   </>
                 )}
               </span>
@@ -592,13 +592,13 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 7 */}
             <div 
-              className={`pl-4 py-1.5 border-l border-zinc-850 md:border-l-0 col-span-2 md:col-span-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '510ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Skipped</span>
-              <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1.5">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Skipped</span>
+              <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5">
                 {isRefreshing ? (
-                  <span className="h-6 w-10 bg-zinc-850 rounded animate-pulse inline-block"></span>
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
                 ) : (
                   <>
                     <AnimatedCounter value={stats.skipped} active={isFirstMount} />
@@ -812,146 +812,131 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {followedFilter !== 'All' ? (
-                  filteredProfiles.map((profile, idx) => {
-                    const gradeBorder = profile.avgGrade >= 8 
-                      ? 'border-l-4 border-l-emerald-500' 
-                      : profile.avgGrade >= 5 
-                        ? 'border-l-4 border-l-amber-500' 
-                        : 'border-l-4 border-l-rose-500';
-
-                    return (
-                      <div
-                        key={profile.owner}
-                        className={`bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-indigo-500/5 flex flex-col justify-between ${gradeBorder} ${isFirstMount ? 'animate-startup-card' : ''}`}
-                        style={isFirstMount ? { animationDelay: `${idx * 80}ms` } : {}}
-                      >
-                        <div>
-                          {/* Header: Avatar, Username and External Link */}
-                          <div className="flex items-center space-x-3.5 mb-4">
-                            <img 
-                              src={`https://github.com/${profile.owner}.png`} 
-                              alt={profile.owner} 
-                              className="h-10 w-10 rounded-full border border-zinc-850 bg-zinc-900 object-cover" 
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
-                              }}
-                            />
-                            <div>
-                              <a
-                                href={`https://github.com/${profile.owner}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-bold text-zinc-100 hover:text-white transition flex items-center space-x-1.5"
-                              >
-                                <span>@{profile.owner}</span>
-                                <ExternalLink className="h-3 w-3 text-zinc-500" />
-                              </a>
-                              <span className="text-[10px] text-zinc-500 font-mono">Developer Profile</span>
-                            </div>
-                          </div>
-
-                          {/* Summary details */}
-                          <div className="grid grid-cols-2 gap-3.5 bg-[#070708] border border-zinc-900/60 p-3 rounded-lg font-mono text-xs mb-4">
-                            <div>
-                              <span className="text-[10px] text-zinc-550 block">Graded Repos</span>
-                              <span className="text-zinc-200 font-semibold">{profile.reposCount} {profile.reposCount === 1 ? 'repo' : 'repos'}</span>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-zinc-550 block">Avg Quality Score</span>
-                              <span className="text-zinc-200 font-semibold flex items-baseline">
-                                {profile.avgGrade.toFixed(1)}
-                                <span className="text-[10px] text-zinc-650 ml-0.5">/10</span>
-                              </span>
-                            </div>
+                  filteredProfiles.map((profile, idx) => (
+                    <div
+                      key={profile.owner}
+                      className={`bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between ${isFirstMount ? 'animate-startup-card' : ''}`}
+                      style={isFirstMount ? { animationDelay: `${idx * 80}ms` } : {}}
+                    >
+                      <div>
+                        {/* Header: Avatar, Username and External Link */}
+                        <div className="flex items-center space-x-3.5 mb-4">
+                          <img 
+                            src={`https://github.com/${profile.owner}.png`} 
+                            alt={profile.owner} 
+                            className="h-10 w-10 rounded-full border border-zinc-850 bg-zinc-900 object-cover" 
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
+                            }}
+                          />
+                          <div>
+                            <a
+                              href={`https://github.com/${profile.owner}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-bold text-zinc-100 hover:text-white transition flex items-center space-x-1.5"
+                            >
+                              <span>@{profile.owner}</span>
+                              <ExternalLink className="h-3 w-3 text-zinc-500" />
+                            </a>
+                            <span className="text-[10px] text-zinc-500 font-mono">Developer Profile</span>
                           </div>
                         </div>
 
-                        {/* Operational tags */}
-                        <div className="flex flex-wrap items-center justify-between border-t border-zinc-900 pt-3.5 mt-2 gap-2">
-                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-                            {/* Follow Status Badge */}
-                            {profile.followStatus.followed && (
-                              <span className="inline-flex items-center space-x-1 bg-teal-500/5 border border-teal-500/15 text-teal-400 px-2 py-0.5 rounded">
-                                Followed
-                              </span>
-                            )}
-                            {profile.followStatus.follow_back && (
-                              <span className="inline-flex items-center space-x-1 bg-indigo-500/5 border border-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-bold">
-                                Mutual Follow
-                              </span>
-                            )}
-                            {profile.followStatus.unfollowed && (
-                              <span className="inline-flex items-center space-x-1 bg-zinc-850 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
-                                Unfollowed
-                              </span>
-                            )}
-                            {profile.followStatus.follow_skipped && (
-                              <span 
-                                className="inline-flex items-center space-x-1 bg-zinc-900 border border-zinc-850 text-zinc-500 px-1.5 py-0.5 rounded text-[9px]"
-                                title={profile.followStatus.reason || 'Skipped'}
-                              >
-                                Skipped
-                              </span>
-                            )}
-                            {!profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_skipped && (
-                              <span className="inline-flex items-center space-x-1 bg-zinc-900 border border-zinc-850 text-zinc-450 px-2 py-0.5 rounded">
-                                Pending
-                              </span>
-                            )}
-
-                            {/* Starred Badge */}
-                            {profile.isStarred && (
-                              <span className="inline-flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded">
-                                <Star className="h-2.5 w-2.5 fill-amber-500/20 text-amber-400" />
-                                <span>Starred</span>
-                              </span>
-                            )}
+                        {/* Summary details */}
+                        <div className="grid grid-cols-2 gap-3.5 bg-[#070708] border border-zinc-900/60 p-3 rounded-lg font-mono text-xs mb-4">
+                          <div>
+                            <span className="text-[10px] text-zinc-550 block">Graded Repos</span>
+                            <span className="text-zinc-200 font-semibold">{profile.reposCount} {profile.reposCount === 1 ? 'repo' : 'repos'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-zinc-550 block">Avg Quality Score</span>
+                            <span className="text-zinc-200 font-semibold flex items-baseline">
+                              {profile.avgGrade.toFixed(1)}
+                              <span className="text-[10px] text-zinc-650 ml-0.5">/10</span>
+                            </span>
                           </div>
                         </div>
                       </div>
-                    );
-                  })
-                ) : (
-                  filteredRepos.map((repo, idx) => {
-                    const gradeBorder = repo.grade >= 8 
-                      ? 'border-l-4 border-l-emerald-500' 
-                      : repo.grade >= 5 
-                        ? 'border-l-4 border-l-amber-500' 
-                        : 'border-l-4 border-l-rose-500';
 
-                    return (
-                      <div
-                        key={repo.id}
-                        className={`bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-indigo-500/5 flex flex-col justify-between ${gradeBorder} ${isFirstMount ? 'animate-startup-card' : ''}`}
-                        style={isFirstMount ? { animationDelay: `${idx * 80}ms` } : {}}
-                      >
-                        <div>
-                          {/* Name, Quality and GitHub URL */}
-                          <div className="flex items-start justify-between space-x-3 mb-2">
-                            <div className="truncate">
-                              <span className="text-[10px] text-zinc-500 font-mono block">@{repo.owner}</span>
-                              <a
-                                href={repo.github_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-bold text-zinc-100 hover:text-white transition flex items-center space-x-1.5 truncate"
-                              >
-                                <span>{repo.name}</span>
-                                <ExternalLink className="h-3 w-3 text-zinc-500" />
-                              </a>
-                            </div>
-                            <div className={getGradeColor(repo.grade)}>
-                              Grade {repo.grade}
-                            </div>
-                          </div>
-
-                          {/* Stars and language */}
-                          <div className="flex items-center space-x-3.5 text-[11px] font-mono text-zinc-505 mb-3.5">
-                            <span className="flex items-center space-x-1">
-                              <Star className="h-3 w-3 fill-amber-400/10 text-amber-550" />
-                              <span>{repo.stars}</span>
+                      {/* Operational tags */}
+                      <div className="flex flex-wrap items-center justify-between border-t border-zinc-900 pt-3.5 mt-2 gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                          {/* Follow Status Badge */}
+                          {profile.followStatus.followed && (
+                            <span className="inline-flex items-center space-x-1 bg-teal-500/5 border border-teal-500/15 text-teal-400 px-2 py-0.5 rounded">
+                              Followed
                             </span>
-                            {repo.language && (
+                          )}
+                          {profile.followStatus.follow_back && (
+                            <span className="inline-flex items-center space-x-1 bg-indigo-500/5 border border-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-bold">
+                              Mutual Follow
+                            </span>
+                          )}
+                          {profile.followStatus.unfollowed && (
+                            <span className="inline-flex items-center space-x-1 bg-zinc-850 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
+                              Unfollowed
+                            </span>
+                          )}
+                          {profile.followStatus.follow_skipped && (
+                            <span 
+                              className="inline-flex items-center space-x-1 bg-zinc-900 border border-zinc-850 text-zinc-500 px-1.5 py-0.5 rounded text-[9px]"
+                              title={profile.followStatus.reason || 'Skipped'}
+                            >
+                              Skipped
+                            </span>
+                          )}
+                          {!profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_skipped && (
+                            <span className="inline-flex items-center space-x-1 bg-zinc-900 border border-zinc-850 text-zinc-450 px-2 py-0.5 rounded">
+                              Pending
+                            </span>
+                          )}
+
+                          {/* Starred Badge */}
+                          {profile.isStarred && (
+                            <span className="inline-flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded">
+                              <Star className="h-2.5 w-2.5 fill-amber-500/20 text-amber-400" />
+                              <span>Starred</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  filteredRepos.map((repo, idx) => (
+                    <div
+                      key={repo.id}
+                      className={`bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between ${isFirstMount ? 'animate-startup-card' : ''}`}
+                      style={isFirstMount ? { animationDelay: `${idx * 80}ms` } : {}}
+                    >
+                      <div>
+                        {/* Name, Quality and GitHub URL */}
+                        <div className="flex items-start justify-between space-x-3 mb-2">
+                          <div className="truncate">
+                            <span className="text-[10px] text-zinc-500 font-mono block">@{repo.owner}</span>
+                            <a
+                              href={repo.github_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-bold text-zinc-100 hover:text-white transition flex items-center space-x-1.5 truncate"
+                            >
+                              <span>{repo.name}</span>
+                              <ExternalLink className="h-3 w-3 text-zinc-500" />
+                            </a>
+                          </div>
+                          <div className="text-[10px] font-mono border border-zinc-800 bg-[#0f0f11] px-2 py-0.5 rounded text-zinc-400">
+                            Grade {repo.grade}
+                          </div>
+                        </div>
+
+                        {/* Stars and language */}
+                        <div className="flex items-center space-x-3.5 text-[11px] font-mono text-zinc-505 mb-3.5">
+                          <span className="flex items-center space-x-1">
+                            <Star className="h-3 w-3 fill-amber-400/10 text-amber-550" />
+                            <span>{repo.stars}</span>
+                          </span>
+                          {repo.language && (
                               <span className="flex items-center space-x-1">
                                 <Code className="h-3 w-3 text-zinc-450" />
                                 <span>{repo.language}</span>
@@ -1043,9 +1028,8 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                           )}
                         </div>
                       </div>
-                    );
-                  })
-                )}
+                    ))
+                  )}
               </div>
             )}
           </div>
