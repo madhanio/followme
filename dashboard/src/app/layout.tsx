@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sans',
+});
 
 export const metadata: Metadata = {
   title: 'FollowMe - GitHub AI Automation Dashboard',
@@ -20,7 +27,7 @@ export default function RootLayout({
         MozOsxFontSmoothing: 'grayscale',
       }}
     >
-      <body className="min-h-full bg-[#070708] text-slate-100 flex flex-col font-sans">
+      <body className={`${inter.className} min-h-full bg-[#070708] text-slate-100 flex flex-col font-sans`}>
         {children}
       </body>
     </html>
