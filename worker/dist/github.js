@@ -26,11 +26,10 @@ else {
  */
 async function searchRecentRepos(topics) {
     try {
-        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const dateString = sevenDaysAgo.toISOString().split('T')[0];
-        // Build query e.g. "created:>=2026-06-28 topic:ai OR topic:machine-learning OR topic:flutter"
-        const topicQuery = topics.map((t) => `topic:${t}`).join(' OR ');
-        const q = `created:>=${dateString} (${topicQuery})`;
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const dateString = thirtyDaysAgo.toISOString().split('T')[0];
+        // Search query: created in last 30 days, stars > 10
+        const q = `created:>=${dateString} stars:>10`;
         const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=20`;
         console.log(`Searching GitHub repos with URL: ${url}`);
         const res = await fetch(url, { headers: HEADERS });
