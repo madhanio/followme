@@ -4,26 +4,25 @@ import DashboardView from './DashboardView';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  // Fetch repos ordered by grade desc, then stars desc
+  // Simplify fetch to select all rows with no filters or ordering
   const { data: repos, error: reposError } = await supabase
     .from('repos')
-    .select('*')
-    .order('grade', { ascending: false })
-    .order('stars', { ascending: false });
+    .select('*');
 
+  console.log("Supabase Repos Fetch:", { dataCount: repos?.length, error: reposError });
   if (reposError) {
-    console.error('Error fetching repos:', reposError.message);
+    console.error('Error fetching repos details:', reposError.message);
   }
 
   // Fetch recent logs
   const { data: logs, error: logsError } = await supabase
     .from('logs')
     .select('*')
-    .order('timestamp', { ascending: false })
     .limit(50);
 
+  console.log("Supabase Logs Fetch:", { dataCount: logs?.length, error: logsError });
   if (logsError) {
-    console.error('Error fetching logs:', logsError.message);
+    console.error('Error fetching logs details:', logsError.message);
   }
 
   return (
