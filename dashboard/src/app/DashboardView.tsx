@@ -291,15 +291,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       {/* Top Banner Details */}
       <header className="border-b border-zinc-900 bg-[#0c0c0e]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className={`flex items-center space-x-3.5 ${isFirstMount ? 'animate-startup-logo' : ''}`}>
-            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-inner">
-              <GithubIcon className="h-5 w-5 text-zinc-300" />
-            </div>
+          <div className={`flex items-center space-x-3 ${isFirstMount ? 'animate-startup-logo' : ''}`}>
+            <img src="/F-mark.png" alt="Logo" className="h-8 w-8 object-contain" />
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                FollowMe <span className="text-[10px] tracking-widest uppercase font-mono px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded">Beta</span>
-              </h1>
-              <p className="text-xs text-zinc-500 font-mono">Automated discovery & active peer evaluation</p>
+              <div className="flex items-center gap-2">
+                <img src="/followme-wordmark.png" alt="FollowMe" className="h-6 object-contain" />
+                <span className="text-[10px] tracking-widest uppercase font-mono px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded">Beta</span>
+              </div>
+              <p className="text-xs text-zinc-500 font-mono mt-1">Automated discovery & active peer evaluation</p>
             </div>
           </div>
 
@@ -566,7 +565,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                 
                 {/* Follow Pills */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-zinc-550 mr-1">Follow Status:</span>
+                  <span className="text-zinc-550 mr-1">Profile Follow Status:</span>
                   {(['All', 'Yes', 'No', 'Unfollowed', 'Skipped'] as const).map((opt) => (
                     <button
                       key={opt}
@@ -783,35 +782,37 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                       </td>
                     </tr>
                   ) : (
-                    initialLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-zinc-900/10 transition text-zinc-350">
-                        <td className="px-5 py-3 text-zinc-550 whitespace-nowrap">
-                          {new Date(log.timestamp).toLocaleString()}
-                        </td>
-                        <td className="px-5 py-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] border ${
-                            log.action === 'SYSTEM' ? 'bg-zinc-900 border-zinc-800 text-zinc-400' :
-                            log.action === 'GRADE' ? 'bg-indigo-950/40 border-indigo-900/30 text-indigo-400' :
-                            log.action === 'STAR' ? 'bg-amber-950/40 border-amber-900/30 text-amber-400' :
-                            log.action === 'FOLLOW' ? 'bg-teal-950/40 border-teal-900/30 text-teal-400' :
-                            log.action === 'SKIP_FOLLOW' ? 'bg-amber-950/20 border-amber-900/30 text-amber-500/90' :
-                            'bg-zinc-900/40 border-zinc-850 text-zinc-450'
-                          }`}>
-                            {log.action}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3">
-                          {log.status === 'SUCCESS' ? (
-                            <span className="text-emerald-500 font-bold">SUCCESS</span>
-                          ) : (
-                            <span className="text-rose-500 font-bold">FAILED</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-zinc-300 max-w-md truncate" title={log.message}>
-                          {log.message}
-                        </td>
-                      </tr>
-                    ))
+                    [...initialLogs]
+                      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                      .map((log) => (
+                        <tr key={log.id} className="hover:bg-zinc-900/10 transition text-zinc-350">
+                          <td className="px-5 py-3 text-zinc-550 whitespace-nowrap">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] border ${
+                              log.action === 'SYSTEM' ? 'bg-zinc-900 border-zinc-800 text-zinc-400' :
+                              log.action === 'GRADE' ? 'bg-indigo-950/40 border-indigo-900/30 text-indigo-400' :
+                              log.action === 'STAR' ? 'bg-amber-950/40 border-amber-900/30 text-amber-400' :
+                              log.action === 'FOLLOW' ? 'bg-teal-950/40 border-teal-900/30 text-teal-400' :
+                              log.action === 'SKIP_FOLLOW' ? 'bg-amber-950/20 border-amber-900/30 text-amber-500/90' :
+                              'bg-zinc-900/40 border-zinc-850 text-zinc-450'
+                            }`}>
+                              {log.action}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            {log.status === 'SUCCESS' ? (
+                              <span className="text-emerald-500 font-bold">SUCCESS</span>
+                            ) : (
+                              <span className="text-rose-500 font-bold">FAILED</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-zinc-300 max-w-md truncate" title={log.message}>
+                            {log.message}
+                          </td>
+                        </tr>
+                      ))
                   )}
                 </tbody>
               </table>

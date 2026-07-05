@@ -10,6 +10,10 @@ Automated GitHub repo discovery, NVIDIA NIM LLM grading, and auto follow/star to
 ![Vercel](https://img.shields.io/badge/Dashboard-Vercel-black?logo=vercel&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+## Dashboard
+
+![FollowMe Dashboard](assets/dashboard.png)
+
 ## How It Works
 
 1. **Discovery**: Scheduled job searches GitHub for active repositories created in the last 7 days matching targeted topic tags.
