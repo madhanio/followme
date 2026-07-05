@@ -1,0 +1,33 @@
+-- Create repos table
+CREATE TABLE IF NOT EXISTS repos (
+    id BIGINT PRIMARY KEY, -- GitHub Repo ID to avoid duplicates
+    github_url TEXT NOT NULL,
+    owner TEXT NOT NULL,
+    name TEXT NOT NULL,
+    stars INTEGER NOT NULL DEFAULT 0,
+    language TEXT,
+    topics TEXT[] DEFAULT '{}',
+    readme_snippet TEXT,
+    grade INTEGER,
+    graded_at TIMESTAMPTZ,
+    followed BOOLEAN DEFAULT FALSE,
+    starred BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create logs table for tracking actions
+CREATE TABLE IF NOT EXISTS logs (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    action TEXT NOT NULL, -- e.g., 'DISCOVER', 'GRADE', 'STAR', 'FOLLOW', 'SYSTEM'
+    repo_id BIGINT REFERENCES repos(id) ON DELETE SET NULL,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    status TEXT NOT NULL, -- 'SUCCESS', 'FAILED'
+    message TEXT
+);
+
+-- Indexing for performance
+CREATE INDEX IF NOT EXISTS idx_repos_grade ON repos(grade);
+CREATE INDEX IF NOT EXISTS idx_repos_language ON repos(language);
+CREATE INDEX IF NOT EXISTS idx_repos_followed ON repos(followed);
+CREATE INDEX IF NOT EXISTS idx_repos_starred ON repos(starred);
+CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC);
