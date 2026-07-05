@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS repos (
     graded_at TIMESTAMPTZ,
     followed BOOLEAN DEFAULT FALSE,
     starred BOOLEAN DEFAULT FALSE,
+    followed_at TIMESTAMPTZ,
+    follow_back BOOLEAN DEFAULT FALSE,
+    unfollowed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -30,4 +33,6 @@ CREATE INDEX IF NOT EXISTS idx_repos_grade ON repos(grade);
 CREATE INDEX IF NOT EXISTS idx_repos_language ON repos(language);
 CREATE INDEX IF NOT EXISTS idx_repos_followed ON repos(followed);
 CREATE INDEX IF NOT EXISTS idx_repos_starred ON repos(starred);
+CREATE INDEX IF NOT EXISTS idx_repos_follow_back ON repos(follow_back);
+CREATE INDEX IF NOT EXISTS idx_repos_unfollowed ON repos(unfollowed);
 CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC);

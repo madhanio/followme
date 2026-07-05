@@ -55,7 +55,7 @@ export async function saveRepo(
   starred: boolean
 ) {
   try {
-    const { error } = await supabase.from('repos').upsert({
+    const upsertData: any = {
       id: repo.id,
       github_url: repo.github_url,
       owner: repo.owner,
@@ -68,7 +68,13 @@ export async function saveRepo(
       graded_at: new Date().toISOString(),
       followed,
       starred,
-    });
+    };
+
+    if (followed) {
+      upsertData.followed_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase.from('repos').upsert(upsertData);
 
     if (error) {
       console.error(`Error saving repo ${repo.owner}/${repo.name}:`, error.message);

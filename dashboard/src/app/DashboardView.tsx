@@ -50,8 +50,11 @@ interface Repo {
   readme_snippet: string;
   grade: number;
   graded_at: string;
-  followed: boolean;
-  starred: boolean;
+  followed?: boolean;
+  starred?: boolean;
+  followed_at?: string;
+  follow_back?: boolean;
+  unfollowed?: boolean;
 }
 
 interface Log {
@@ -75,7 +78,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [searchTerm, setSearchTerm] = useState('');
   const [minGrade, setMinGrade] = useState<number>(0);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('All');
-  const [followedFilter, setFollowedFilter] = useState<'All' | 'Yes' | 'No'>('All');
+  const [followedFilter, setFollowedFilter] = useState<'All' | 'Yes' | 'No' | 'Unfollowed'>('All');
   const [starredFilter, setStarredFilter] = useState<'All' | 'Yes' | 'No'>('All');
   const [activeTab, setActiveTab] = useState<'repos' | 'logs'>('repos');
 
@@ -100,10 +103,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     const total = initialRepos.length;
     const starred = initialRepos.filter(r => r.starred).length;
     const followed = initialRepos.filter(r => r.followed).length;
+    const mutuals = initialRepos.filter(r => r.follow_back).length;
     const totalGrade = initialRepos.reduce((acc, r) => acc + (r.grade || 0), 0);
     const avgGrade = total > 0 ? (totalGrade / total).toFixed(1) : '0';
 
-    return { total, starred, followed, avgGrade };
+    return { total, starred, followed, avgGrade, mutuals };
   }, [initialRepos]);
 
   // Apply filters
@@ -120,7 +124,8 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       const matchesFollow = 
         followedFilter === 'All' || 
         (followedFilter === 'Yes' && repo.followed) || 
-        (followedFilter === 'No' && !repo.followed);
+        (followedFilter === 'No' && !repo.followed && !repo.unfollowed) ||
+        (followedFilter === 'Unfollowed' && repo.unfollowed);
 
       const matchesStar = 
         starredFilter === 'All' || 
@@ -229,7 +234,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         )}
 
         {/* Stats Grid */}
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-md transition hover:border-slate-700">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Evaluated</p>
             <h3 className="text-3xl font-extrabold mt-2 text-white">{stats.total}</h3>
@@ -252,6 +257,13 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             <h3 className="text-3xl font-extrabold mt-2 text-teal-400 flex items-center space-x-2">
               <span>{stats.followed}</span>
               <UserPlus className="h-6 w-6 text-teal-400" />
+            </h3>
+          </div>
+          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-md transition hover:border-slate-700">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Mutuals</p>
+            <h3 className="text-3xl font-extrabold mt-2 text-indigo-400 flex items-center space-x-2">
+              <span>{stats.mutuals}</span>
+              <CheckCircle className="h-6 w-6 text-indigo-400" />
             </h3>
           </div>
         </section>
@@ -380,8 +392,8 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               {/* Followed Status */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase text-slate-400">Followed Owner</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['All', 'Yes', 'No'] as const).map((opt) => (
+                <div className="grid grid-cols-2 gap-2">
+                  {(['All', 'Yes', 'No', 'Unfollowed'] as const).map((opt) => (
                     <button
                       key={opt}
                       onClick={() => setFollowedFilter(opt)}

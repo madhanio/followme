@@ -148,3 +148,57 @@ export async function followUser(username: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Unfollows a GitHub user.
+ */
+export async function unfollowUser(username: string): Promise<boolean> {
+  if (!GITHUB_TOKEN) {
+    console.warn('Cannot unfollow user: GITHUB_TOKEN is missing');
+    return false;
+  }
+  try {
+    const url = `https://api.github.com/user/following/${username}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: HEADERS,
+    });
+
+    if (res.status === 204) {
+      console.log(`Successfully unfollowed ${username}`);
+      return true;
+    } else {
+      const text = await res.text();
+      console.error(`Failed to unfollow ${username}: ${res.status} - ${text}`);
+      return false;
+    }
+  } catch (err: any) {
+    console.error(`Error unfollowing ${username}:`, err.message || err);
+    return false;
+  }
+}
+
+/**
+ * Checks if another user follows the authenticated user.
+ */
+export async function checkIfFollowsBack(username: string): Promise<boolean> {
+  if (!GITHUB_TOKEN || !GITHUB_USERNAME) {
+    console.warn('Cannot check follow-back status: GITHUB_TOKEN or GITHUB_USERNAME is missing');
+    return false;
+  }
+  try {
+    const url = `https://api.github.com/users/${username}/following/${GITHUB_USERNAME}`;
+    const res = await fetch(url, { headers: HEADERS });
+    
+    // 204 means username follows GITHUB_USERNAME, 404 means they don't
+    if (res.status === 204) {
+      console.log(`User ${username} follows back ${GITHUB_USERNAME}`);
+      return true;
+    }
+    
+    return false;
+  } catch (err: any) {
+    console.error(`Error checking follow back status for ${username}:`, err.message || err);
+    return false;
+  }
+}

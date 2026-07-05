@@ -7,6 +7,8 @@ exports.searchRecentRepos = searchRecentRepos;
 exports.fetchRepoReadme = fetchRepoReadme;
 exports.starRepo = starRepo;
 exports.followUser = followUser;
+exports.unfollowUser = unfollowUser;
+exports.checkIfFollowsBack = checkIfFollowsBack;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -141,6 +143,58 @@ async function followUser(username) {
     }
     catch (err) {
         console.error(`Error following ${username}:`, err.message || err);
+        return false;
+    }
+}
+/**
+ * Unfollows a GitHub user.
+ */
+async function unfollowUser(username) {
+    if (!GITHUB_TOKEN) {
+        console.warn('Cannot unfollow user: GITHUB_TOKEN is missing');
+        return false;
+    }
+    try {
+        const url = `https://api.github.com/user/following/${username}`;
+        const res = await fetch(url, {
+            method: 'DELETE',
+            headers: HEADERS,
+        });
+        if (res.status === 204) {
+            console.log(`Successfully unfollowed ${username}`);
+            return true;
+        }
+        else {
+            const text = await res.text();
+            console.error(`Failed to unfollow ${username}: ${res.status} - ${text}`);
+            return false;
+        }
+    }
+    catch (err) {
+        console.error(`Error unfollowing ${username}:`, err.message || err);
+        return false;
+    }
+}
+/**
+ * Checks if another user follows the authenticated user.
+ */
+async function checkIfFollowsBack(username) {
+    if (!GITHUB_TOKEN || !GITHUB_USERNAME) {
+        console.warn('Cannot check follow-back status: GITHUB_TOKEN or GITHUB_USERNAME is missing');
+        return false;
+    }
+    try {
+        const url = `https://api.github.com/users/${username}/following/${GITHUB_USERNAME}`;
+        const res = await fetch(url, { headers: HEADERS });
+        // 204 means username follows GITHUB_USERNAME, 404 means they don't
+        if (res.status === 204) {
+            console.log(`User ${username} follows back ${GITHUB_USERNAME}`);
+            return true;
+        }
+        return false;
+    }
+    catch (err) {
+        console.error(`Error checking follow back status for ${username}:`, err.message || err);
         return false;
     }
 }

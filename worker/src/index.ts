@@ -2,9 +2,9 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
-import { searchRecentRepos, fetchRepoReadme, starRepo, followUser } from './github';
+import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack } from './github';
 import { gradeRepository } from './nvidia';
-import { isRepoGraded, saveRepo, logAction } from './supabase';
+import { supabase, isRepoGraded, saveRepo, logAction } from './supabase';
 
 dotenv.config();
 
@@ -175,6 +175,86 @@ app.get('/health', (req: Request, res: Response) => {
 cron.schedule(CRON_SCHEDULE, () => {
   console.log('Triggering automated cron job...');
   runAutomationJob().catch(console.error);
+});
+
+async function runCleanupJob() {
+  console.log('Starting FollowMe cleanup job...');
+  await logAction('SYSTEM', null, 'SUCCESS', 'Cleanup job started');
+
+  try {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: repos, error } = await supabase
+      .from('repos')
+      .select('id, owner, name')
+      .eq('followed', true)
+      .eq('unfollowed', false)
+      .eq('follow_back', false)
+      .lte('followed_at', threeDaysAgo);
+
+    if (error) {
+      console.error('Error fetching repos for cleanup:', error.message);
+      throw error;
+    }
+
+    if (!repos || repos.length === 0) {
+      console.log('No users found to check for follow-back cleanup.');
+      await logAction('SYSTEM', null, 'SUCCESS', 'Cleanup job finished: no actions needed');
+      return;
+    }
+
+    console.log(`Found ${repos.length} users to check for follow-back status.`);
+
+    for (const repo of repos) {
+      const followsBack = await checkIfFollowsBack(repo.owner);
+
+      if (followsBack) {
+        // Update database
+        const { error: updateErr } = await supabase
+          .from('repos')
+          .update({ follow_back: true })
+          .eq('id', repo.id);
+
+        if (updateErr) {
+          console.error(`Error updating follow_back for ${repo.owner}:`, updateErr.message);
+        } else {
+          await logAction('FOLLOW_BACK', repo.id, 'SUCCESS', `Confirmed user ${repo.owner} followed back`);
+        }
+      } else {
+        // Unfollow
+        const unfollowedSuccess = await unfollowUser(repo.owner);
+
+        if (unfollowedSuccess) {
+          const { error: updateErr } = await supabase
+            .from('repos')
+            .update({ unfollowed: true, followed: false })
+            .eq('id', repo.id);
+
+          if (updateErr) {
+            console.error(`Error updating unfollowed status for ${repo.owner}:`, updateErr.message);
+          } else {
+            await logAction('UNFOLLOW', repo.id, 'SUCCESS', `Unfollowed user ${repo.owner} (no follow-back within 3 days)`);
+          }
+        } else {
+          await logAction('UNFOLLOW', repo.id, 'FAILED', `Failed to unfollow user ${repo.owner}`);
+        }
+      }
+
+      // Small delay between checks
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+
+    console.log('Cleanup job completed.');
+    await logAction('SYSTEM', null, 'SUCCESS', `Cleanup job completed successfully.`);
+  } catch (err: any) {
+    console.error('Error during cleanup job:', err.message || err);
+    await logAction('SYSTEM', null, 'FAILED', `Cleanup job failed: ${err.message || 'Unknown error'}`);
+  }
+}
+
+// Set up cleanup Cron schedule (every 6 hours)
+cron.schedule('0 */6 * * *', () => {
+  console.log('Triggering automated cleanup cron job...');
+  runCleanupJob().catch(console.error);
 });
 
 // Start Server
