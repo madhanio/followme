@@ -249,6 +249,52 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       });
   }, [initialRepos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter, sortBy, ownerFollowStatus]);
 
+  // Group filtered repos by unique owner for Profile Card view
+  const filteredProfiles = useMemo(() => {
+    if (followedFilter === 'All') return [];
+
+    const profilesMap = new Map<string, {
+      owner: string;
+      reposCount: number;
+      avgGrade: number;
+      totalGrade: number;
+      isStarred: boolean;
+      followStatus: { followed: boolean; unfollowed: boolean; follow_skipped: boolean; follow_back: boolean; reason: string | null };
+    }>();
+
+    filteredRepos.forEach(repo => {
+      const ownerLower = repo.owner.toLowerCase();
+      const existing = profilesMap.get(ownerLower);
+      const ownerStatus = ownerFollowStatus.get(ownerLower) || {
+        followed: !!repo.followed,
+        unfollowed: !!repo.unfollowed,
+        follow_skipped: !!repo.follow_skipped,
+        follow_back: !!repo.follow_back,
+        reason: repo.follow_skip_reason || null
+      };
+
+      if (!existing) {
+        profilesMap.set(ownerLower, {
+          owner: repo.owner,
+          reposCount: 1,
+          totalGrade: repo.grade || 0,
+          avgGrade: repo.grade || 0,
+          isStarred: !!repo.starred,
+          followStatus: ownerStatus,
+        });
+      } else {
+        existing.reposCount += 1;
+        existing.totalGrade += (repo.grade || 0);
+        existing.avgGrade = existing.totalGrade / existing.reposCount;
+        if (repo.starred) {
+          existing.isStarred = true;
+        }
+      }
+    });
+
+    return Array.from(profilesMap.values());
+  }, [filteredRepos, followedFilter, ownerFollowStatus]);
+
   // Handle reload action with visual delay/indication
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -700,141 +746,227 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   </div>
                 ))}
               </div>
-            ) : filteredRepos.length === 0 ? (
-              <div className="text-center py-16 bg-[#09090b] border border-zinc-900 rounded-xl flex flex-col items-center justify-center space-y-3">
-                <GithubIcon className="h-8 w-8 text-zinc-700" />
-                <h3 className="font-mono text-sm font-semibold text-zinc-400">No matching records found</h3>
-                <p className="text-xs text-zinc-650 max-w-xs font-mono">
-                  Modify the filter rules or run the active evaluation job to query new candidates.
-                </p>
-              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredRepos.map((repo, idx) => (
-                  <div
-                    key={repo.id}
-                    className={`bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 transition-all flex flex-col justify-between ${isFirstMount ? 'animate-startup-card' : ''}`}
-                    style={isFirstMount ? { animationDelay: `${idx * 80}ms` } : {}}
-                  >
-                    <div>
-                      {/* Name, Quality and GitHub URL */}
-                      <div className="flex items-start justify-between space-x-3 mb-2">
-                        <div className="truncate">
-                          <span className="text-[10px] text-zinc-500 font-mono block">@{repo.owner}</span>
-                          <a
-                            href={repo.github_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-bold text-zinc-100 hover:text-white transition flex items-center space-x-1.5 truncate"
-                          >
-                            <span>{repo.name}</span>
-                            <ExternalLink className="h-3 w-3 text-zinc-500" />
-                          </a>
-                        </div>
-                        <div className={`px-2.5 py-1 rounded text-xs font-mono border ${getGradeColor(repo.grade)}`}>
-                          Grade {repo.grade}
-                        </div>
-                      </div>
-
-                      {/* Stars and language */}
-                      <div className="flex items-center space-x-3.5 text-[11px] font-mono text-zinc-505 mb-3.5">
-                        <span className="flex items-center space-x-1">
-                          <Star className="h-3 w-3 fill-amber-400/10 text-amber-500/80" />
-                          <span>{repo.stars}</span>
-                        </span>
-                        {repo.language && (
-                          <span className="flex items-center space-x-1">
-                            <Code className="h-3 w-3 text-zinc-450" />
-                            <span>{repo.language}</span>
-                          </span>
-                        )}
-                        <span className="text-[10px] text-zinc-650">
-                          {new Date(repo.graded_at).toLocaleDateString()}
-                        </span>
-                      </div>
-
-                      {/* Snippet Description */}
-                      {repo.readme_snippet && (
-                        <div className="text-xs text-zinc-450 bg-[#070708] border border-zinc-900/60 p-2.5 rounded-lg font-mono line-clamp-3 leading-relaxed mb-4">
-                          {cleanSnippet(repo.readme_snippet).split('\n').filter(line => line.trim() !== '')[0] || 'No readme description.'}
-                        </div>
-                      )}
-
-                      {/* Tags */}
-                      {repo.topics && repo.topics.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-4">
-                          {repo.topics.slice(0, 3).map((topic) => (
-                            <span
-                              key={topic}
-                              className="text-[9px] font-mono px-2 py-0.5 bg-[#0e0e11] border border-zinc-850 text-zinc-550 rounded"
+                {followedFilter !== 'All' ? (
+                  filteredProfiles.map((profile, idx) => (
+                    <div
+                      key={profile.owner}
+                      className={`bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 transition-all flex flex-col justify-between ${isFirstMount ? 'animate-startup-card' : ''}`}
+                      style={isFirstMount ? { animationDelay: `${idx * 80}ms` } : {}}
+                    >
+                      <div>
+                        {/* Header: Avatar, Username and External Link */}
+                        <div className="flex items-center space-x-3.5 mb-4">
+                          <img 
+                            src={`https://github.com/${profile.owner}.png`} 
+                            alt={profile.owner} 
+                            className="h-10 w-10 rounded-full border border-zinc-850 bg-zinc-900 object-cover" 
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
+                            }}
+                          />
+                          <div>
+                            <a
+                              href={`https://github.com/${profile.owner}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-bold text-zinc-100 hover:text-white transition flex items-center space-x-1.5"
                             >
-                              #{topic}
-                            </span>
-                          ))}
+                              <span>@{profile.owner}</span>
+                              <ExternalLink className="h-3 w-3 text-zinc-500" />
+                            </a>
+                            <span className="text-[10px] text-zinc-500 font-mono">Developer Profile</span>
+                          </div>
                         </div>
-                      )}
-                    </div>
 
-                    {/* Operational Badges */}
-                    <div className="flex flex-wrap items-center justify-between border-t border-zinc-900 pt-3.5 mt-2 gap-2">
-                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-                        {repo.starred ? (
-                          <span className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500 px-2 py-0.5 rounded">
-                            Starred
-                          </span>
-                        ) : (
-                          <span className="text-zinc-650 px-1">Unstarred</span>
-                        )}
-                        
-                        {(() => {
-                          const oStatus = ownerFollowStatus.get(repo.owner.toLowerCase());
-                          if (!oStatus) return null;
-
-                          return (
-                            <>
-                              {oStatus.followed && (
-                                <span className="inline-flex items-center space-x-1 bg-teal-500/5 border border-teal-500/15 text-teal-400 px-2 py-0.5 rounded">
-                                  Followed
-                                </span>
-                              )}
-
-                              {oStatus.follow_back && (
-                                <span className="inline-flex items-center space-x-1 bg-indigo-500/5 border border-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-bold">
-                                  Mutual Follow
-                                </span>
-                              )}
-
-                              {oStatus.unfollowed && (
-                                <span className="inline-flex items-center space-x-1 bg-zinc-850 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
-                                  Unfollowed
-                                </span>
-                              )}
-
-                              {oStatus.follow_skipped && (
-                                <span 
-                                  className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500/80 px-2 py-0.5 rounded"
-                                  title={oStatus.reason || 'Skipped'}
-                                >
-                                  Skipped: {oStatus.reason || 'Target Check'}
-                                </span>
-                              )}
-                            </>
-                          );
-                        })()}
+                        {/* Summary details */}
+                        <div className="grid grid-cols-2 gap-3.5 bg-[#070708] border border-zinc-900/60 p-3 rounded-lg font-mono text-xs mb-4">
+                          <div>
+                            <span className="text-[10px] text-zinc-550 block">Graded Repos</span>
+                            <span className="text-zinc-200 font-semibold">{profile.reposCount} {profile.reposCount === 1 ? 'repo' : 'repos'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-zinc-550 block">Avg Quality Score</span>
+                            <span className="text-zinc-200 font-semibold flex items-baseline">
+                              {profile.avgGrade.toFixed(1)}
+                              <span className="text-[10px] text-zinc-650 ml-0.5">/10</span>
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      {repo.readme_snippet && (
-                        <button
-                          onClick={() => setSelectedRepo(repo)}
-                          className="text-[10px] font-mono font-semibold text-zinc-300 hover:text-white transition flex items-center space-x-1 bg-[#0f0f12] border border-zinc-850 hover:border-zinc-800 px-2 py-1 rounded cursor-pointer"
-                        >
-                          <BookOpen className="h-3 w-3" />
-                          <span>Readme</span>
-                        </button>
-                      )}
+                      {/* Operational tags */}
+                      <div className="flex flex-wrap items-center justify-between border-t border-zinc-900 pt-3.5 mt-2 gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                          {/* Follow Status Badge */}
+                          {profile.followStatus.followed && (
+                            <span className="inline-flex items-center space-x-1 bg-teal-500/5 border border-teal-500/15 text-teal-400 px-2 py-0.5 rounded">
+                              Followed
+                            </span>
+                          )}
+                          {profile.followStatus.follow_back && (
+                            <span className="inline-flex items-center space-x-1 bg-indigo-500/5 border border-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-bold">
+                              Mutual Follow
+                            </span>
+                          )}
+                          {profile.followStatus.unfollowed && (
+                            <span className="inline-flex items-center space-x-1 bg-zinc-850 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
+                              Unfollowed
+                            </span>
+                          )}
+                          {profile.followStatus.follow_skipped && (
+                            <span 
+                              className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500/80 px-2 py-0.5 rounded"
+                              title={profile.followStatus.reason || 'Skipped'}
+                            >
+                              Skipped: {profile.followStatus.reason || 'Target Check'}
+                            </span>
+                          )}
+                          {!profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_skipped && (
+                            <span className="inline-flex items-center space-x-1 bg-zinc-900 border border-zinc-850 text-zinc-450 px-2 py-0.5 rounded">
+                              Pending
+                            </span>
+                          )}
+
+                          {/* Starred Badge */}
+                          {profile.isStarred && (
+                            <span className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500 px-2 py-0.5 rounded">
+                              <Star className="h-2.5 w-2.5 fill-amber-500/20 text-amber-500" />
+                              <span>Starred Repos</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  filteredRepos.map((repo, idx) => (
+                    <div
+                      key={repo.id}
+                      className={`bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 transition-all flex flex-col justify-between ${isFirstMount ? 'animate-startup-card' : ''}`}
+                      style={isFirstMount ? { animationDelay: `${idx * 80}ms` } : {}}
+                    >
+                      <div>
+                        {/* Name, Quality and GitHub URL */}
+                        <div className="flex items-start justify-between space-x-3 mb-2">
+                          <div className="truncate">
+                            <span className="text-[10px] text-zinc-500 font-mono block">@{repo.owner}</span>
+                            <a
+                              href={repo.github_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-bold text-zinc-100 hover:text-white transition flex items-center space-x-1.5 truncate"
+                            >
+                              <span>{repo.name}</span>
+                              <ExternalLink className="h-3 w-3 text-zinc-500" />
+                            </a>
+                          </div>
+                          <div className={`px-2.5 py-1 rounded text-xs font-mono border ${getGradeColor(repo.grade)}`}>
+                            Grade {repo.grade}
+                          </div>
+                        </div>
+
+                        {/* Stars and language */}
+                        <div className="flex items-center space-x-3.5 text-[11px] font-mono text-zinc-505 mb-3.5">
+                          <span className="flex items-center space-x-1">
+                            <Star className="h-3 w-3 fill-amber-400/10 text-amber-500/80" />
+                            <span>{repo.stars}</span>
+                          </span>
+                          {repo.language && (
+                            <span className="flex items-center space-x-1">
+                              <Code className="h-3 w-3 text-zinc-450" />
+                              <span>{repo.language}</span>
+                            </span>
+                          )}
+                          <span className="text-[10px] text-zinc-650">
+                            {new Date(repo.graded_at).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        {/* Snippet Description */}
+                        {repo.readme_snippet && (
+                          <div className="text-xs text-zinc-450 bg-[#070708] border border-zinc-900/60 p-2.5 rounded-lg font-mono line-clamp-3 leading-relaxed mb-4">
+                            {cleanSnippet(repo.readme_snippet).split('\n').filter(line => line.trim() !== '')[0] || 'No readme description.'}
+                          </div>
+                        )}
+
+                        {/* Topics Tags */}
+                        {repo.topics && repo.topics.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-4">
+                            {repo.topics.slice(0, 3).map((topic) => (
+                              <span
+                                key={topic}
+                                className="text-[9px] font-mono px-2 py-0.5 bg-[#0e0e11] border border-zinc-850 text-zinc-550 rounded"
+                              >
+                                #{topic}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Operational Badges */}
+                      <div className="flex flex-wrap items-center justify-between border-t border-zinc-900 pt-3.5 mt-2 gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                          {repo.starred ? (
+                            <span className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500 px-2 py-0.5 rounded">
+                              Starred
+                            </span>
+                          ) : (
+                            <span className="text-zinc-650 px-1">Unstarred</span>
+                          )}
+                          
+                          {(() => {
+                            const oStatus = ownerFollowStatus.get(repo.owner.toLowerCase());
+                            if (!oStatus) return null;
+
+                            return (
+                              <>
+                                {oStatus.followed && (
+                                  <span className="inline-flex items-center space-x-1 bg-teal-500/5 border border-teal-500/15 text-teal-400 px-2 py-0.5 rounded">
+                                    Followed
+                                  </span>
+                                )}
+
+                                {oStatus.follow_back && (
+                                  <span className="inline-flex items-center space-x-1 bg-indigo-500/5 border border-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-bold">
+                                    Mutual Follow
+                                  </span>
+                                )}
+
+                                {oStatus.unfollowed && (
+                                  <span className="inline-flex items-center space-x-1 bg-zinc-850 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
+                                    Unfollowed
+                                  </span>
+                                )}
+
+                                {oStatus.follow_skipped && (
+                                  <span 
+                                    className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500/80 px-2 py-0.5 rounded"
+                                    title={oStatus.reason || 'Skipped'}
+                                  >
+                                    Skipped: {oStatus.reason || 'Target Check'}
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        {repo.readme_snippet && (
+                          <button
+                            onClick={() => setSelectedRepo(repo)}
+                            className="text-[10px] font-mono font-semibold text-zinc-300 hover:text-white transition flex items-center space-x-1 bg-[#0f0f12] border border-zinc-850 hover:border-zinc-800 px-2 py-1 rounded cursor-pointer"
+                          >
+                            <BookOpen className="h-3 w-3" />
+                            <span>Readme</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -846,13 +978,13 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               <span className="text-[10px] font-mono text-zinc-550">Last 50 entries</span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse font-mono text-xs">
+            <div className="overflow-x-auto min-h-[500px]">
+              <table className="w-full text-left border-collapse font-mono text-xs table-fixed">
                 <thead>
                   <tr className="border-b border-zinc-900 text-zinc-550 bg-zinc-950/20 text-[10px] uppercase tracking-wider">
-                    <th className="px-5 py-3">Timestamp</th>
-                    <th className="px-5 py-3">Action</th>
-                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3 w-[220px]">Timestamp</th>
+                    <th className="px-5 py-3 w-[140px]">Action</th>
+                    <th className="px-5 py-3 w-[120px]">Status</th>
                     <th className="px-5 py-3">Context & Message</th>
                   </tr>
                 </thead>
