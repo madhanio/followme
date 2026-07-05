@@ -66,6 +66,8 @@ async function runAutomationJob() {
 
       let followed = false;
       let starred = false;
+      let starResult: { success: boolean; message: string } | null = null;
+      let followResult: { success: boolean; message: string } | null = null;
 
       // 4. Auto follow / star if grade is above or equal to threshold
       if (grading.grade >= GRADE_THRESHOLD) {
@@ -76,9 +78,9 @@ async function runAutomationJob() {
         if (starSuccess) {
           starred = true;
           stats.starred++;
-          await logAction('STAR', repo.id, 'SUCCESS', `Starred repository ${repo.owner}/${repo.name}`);
+          starResult = { success: true, message: `Starred repository ${repo.owner}/${repo.name}` };
         } else {
-          await logAction('STAR', repo.id, 'FAILED', `Failed to star repository ${repo.owner}/${repo.name}`);
+          starResult = { success: false, message: `Failed to star repository ${repo.owner}/${repo.name}` };
         }
 
         // Follow owner
@@ -86,13 +88,13 @@ async function runAutomationJob() {
         if (followSuccess) {
           followed = true;
           stats.followed++;
-          await logAction('FOLLOW', repo.id, 'SUCCESS', `Followed user ${repo.owner}`);
+          followResult = { success: true, message: `Followed user ${repo.owner}` };
         } else {
-          await logAction('FOLLOW', repo.id, 'FAILED', `Failed to follow user ${repo.owner}`);
+          followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
         }
       }
 
-      // Save repository to database
+      // 5. Save repository to database (must happen before logging actions to avoid FK constraint error)
       await saveRepo(
         {
           id: repo.id,
@@ -108,6 +110,14 @@ async function runAutomationJob() {
         followed,
         starred
       );
+
+      // 6. Log interactions after repo is successfully saved
+      if (starResult) {
+        await logAction('STAR', repo.id, starResult.success ? 'SUCCESS' : 'FAILED', starResult.message);
+      }
+      if (followResult) {
+        await logAction('FOLLOW', repo.id, followResult.success ? 'SUCCESS' : 'FAILED', followResult.message);
+      }
 
       await logAction(
         'GRADE',
