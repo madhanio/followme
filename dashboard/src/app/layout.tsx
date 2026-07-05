@@ -20,9 +20,6 @@ export default function RootLayout({
         MozOsxFontSmoothing: 'grayscale',
       }}
     >
-      <head>
-        <link rel="icon" href="/F-mark.png" />
-      </head>
       <body className="min-h-full bg-[#070708] text-slate-100 flex flex-col font-sans">
         {children}
       </body>

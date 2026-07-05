@@ -291,14 +291,15 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       {/* Top Banner Details */}
       <header className="border-b border-zinc-900 bg-[#0c0c0e]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className={`flex items-center space-x-3 ${isFirstMount ? 'animate-startup-logo' : ''}`}>
-            <img src="/F-mark.png" alt="Logo" className="h-8 w-8 object-contain" />
+          <div className={`flex items-center space-x-3.5 ${isFirstMount ? 'animate-startup-logo' : ''}`}>
+            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-inner">
+              <GithubIcon className="h-5 w-5 text-zinc-300" />
+            </div>
             <div>
-              <div className="flex items-center gap-2">
-                <img src="/followme-wordmark.png" alt="FollowMe" className="h-6 object-contain" />
-                <span className="text-[10px] tracking-widest uppercase font-mono px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded">Beta</span>
-              </div>
-              <p className="text-xs text-zinc-500 font-mono mt-1">Automated discovery & active peer evaluation</p>
+              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                FollowMe <span className="text-[10px] tracking-widest uppercase font-mono px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded">Beta</span>
+              </h1>
+              <p className="text-xs text-zinc-500 font-mono">Automated discovery & active peer evaluation</p>
             </div>
           </div>
 
