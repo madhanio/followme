@@ -170,19 +170,46 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     return ['All', ...Array.from(list)];
   }, [initialRepos]);
 
-  // Statistics
+  // Statistics and owner profile resolution
+  const ownerFollowStatus = useMemo(() => {
+    const statusMap = new Map<string, { followed: boolean; unfollowed: boolean; follow_skipped: boolean; follow_back: boolean; reason: string | null }>();
+    
+    // Sort ascending by graded_at so that later records correctly override earlier states
+    const sorted = [...initialRepos].sort((a, b) => new Date(a.graded_at || 0).getTime() - new Date(b.graded_at || 0).getTime());
+    
+    sorted.forEach(repo => {
+      statusMap.set(repo.owner.toLowerCase(), {
+        followed: !!repo.followed,
+        unfollowed: !!repo.unfollowed,
+        follow_skipped: !!repo.follow_skipped,
+        follow_back: !!repo.follow_back,
+        reason: repo.follow_skip_reason || null
+      });
+    });
+    return statusMap;
+  }, [initialRepos]);
+
   const stats = useMemo(() => {
     const total = initialRepos.length;
     const starred = initialRepos.filter(r => r.starred).length;
-    const followed = initialRepos.filter(r => r.followed).length;
-    const unfollowed = initialRepos.filter(r => r.unfollowed).length;
-    const skipped = initialRepos.filter(r => r.follow_skipped).length;
-    const mutuals = initialRepos.filter(r => r.follow_back).length;
+    
+    let followed = 0;
+    let unfollowed = 0;
+    let skipped = 0;
+    let mutuals = 0;
+
+    ownerFollowStatus.forEach((status) => {
+      if (status.followed) followed++;
+      if (status.unfollowed) unfollowed++;
+      if (status.follow_skipped) skipped++;
+      if (status.follow_back) mutuals++;
+    });
+
     const totalGrade = initialRepos.reduce((acc, r) => acc + (r.grade || 0), 0);
     const avgGrade = total > 0 ? (totalGrade / total) : 0;
 
     return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals };
-  }, [initialRepos]);
+  }, [initialRepos, ownerFollowStatus]);
 
   // Apply filters and sorting
   const filteredRepos = useMemo(() => {
@@ -196,12 +223,17 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         
         const matchesLang = selectedLanguage === 'All' || repo.language === selectedLanguage;
         
+        const ownerStatus = ownerFollowStatus.get(repo.owner.toLowerCase());
+        const isFollowed = ownerStatus ? ownerStatus.followed : false;
+        const isUnfollowed = ownerStatus ? ownerStatus.unfollowed : false;
+        const isSkipped = ownerStatus ? ownerStatus.follow_skipped : false;
+
         const matchesFollow = 
           followedFilter === 'All' || 
-          (followedFilter === 'Yes' && repo.followed) || 
-          (followedFilter === 'No' && !repo.followed && !repo.unfollowed && !repo.follow_skipped) ||
-          (followedFilter === 'Unfollowed' && repo.unfollowed) ||
-          (followedFilter === 'Skipped' && repo.follow_skipped);
+          (followedFilter === 'Yes' && isFollowed) || 
+          (followedFilter === 'No' && !isFollowed && !isUnfollowed && !isSkipped) ||
+          (followedFilter === 'Unfollowed' && isUnfollowed) ||
+          (followedFilter === 'Skipped' && isSkipped);
 
         const matchesStar = 
           starredFilter === 'All' || 
@@ -215,7 +247,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         if (sortBy === 'stars') return b.stars - a.stars;
         return new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime();
       });
-  }, [initialRepos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter, sortBy]);
+  }, [initialRepos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter, sortBy, ownerFollowStatus]);
 
   // Handle reload action with visual delay/indication
   const handleRefresh = async () => {
@@ -371,7 +403,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Total Graded</span>
               <span className="text-xl font-bold text-white tracking-tight">
-                <AnimatedCounter value={stats.total} active={isFirstMount} />
+                {isRefreshing ? (
+                  <span className="h-5 w-10 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
+                ) : (
+                  <AnimatedCounter value={stats.total} active={isFirstMount} />
+                )}
               </span>
             </div>
 
@@ -382,8 +418,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Avg Quality</span>
               <span className="text-xl font-bold text-white tracking-tight flex items-baseline">
-                <AnimatedDecimalCounter value={stats.avgGrade} active={isFirstMount} />
-                <span className="text-xs text-zinc-650 ml-1">/ 10</span>
+                {isRefreshing ? (
+                  <span className="h-5 w-12 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
+                ) : (
+                  <>
+                    <AnimatedDecimalCounter value={stats.avgGrade} active={isFirstMount} />
+                    <span className="text-xs text-zinc-650 ml-1">/ 10</span>
+                  </>
+                )}
               </span>
             </div>
 
@@ -392,10 +434,16 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '270ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Starred</span>
-              <span className="text-xl font-bold text-amber-400 flex items-center gap-1.5">
-                <AnimatedCounter value={stats.starred} active={isFirstMount} />
-                <Star className="h-3.5 w-3.5 fill-amber-400/20 text-amber-400" />
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Starred</span>
+              <span className="text-xl font-bold text-amber-450 flex items-center gap-1.5">
+                {isRefreshing ? (
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
+                ) : (
+                  <>
+                    <AnimatedCounter value={stats.starred} active={isFirstMount} />
+                    <Star className="h-3.5 w-3.5 fill-amber-400/20 text-amber-455" />
+                  </>
+                )}
               </span>
             </div>
 
@@ -406,8 +454,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Followed</span>
               <span className="text-xl font-bold text-teal-400 flex items-center gap-1.5">
-                <AnimatedCounter value={stats.followed} active={isFirstMount} />
-                <UserPlus className="h-3.5 w-3.5 text-teal-400" />
+                {isRefreshing ? (
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
+                ) : (
+                  <>
+                    <AnimatedCounter value={stats.followed} active={isFirstMount} />
+                    <UserPlus className="h-3.5 w-3.5 text-teal-405" />
+                  </>
+                )}
               </span>
             </div>
 
@@ -418,8 +472,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Mutuals</span>
               <span className="text-xl font-bold text-indigo-400 flex items-center gap-1.5">
-                <AnimatedCounter value={stats.mutuals} active={isFirstMount} />
-                <CheckCircle className="h-3.5 w-3.5 text-indigo-400" />
+                {isRefreshing ? (
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
+                ) : (
+                  <>
+                    <AnimatedCounter value={stats.mutuals} active={isFirstMount} />
+                    <CheckCircle className="h-3.5 w-3.5 text-indigo-405" />
+                  </>
+                )}
               </span>
             </div>
 
@@ -430,8 +490,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Unfollowed</span>
               <span className="text-xl font-bold text-zinc-400 flex items-center gap-1.5">
-                <AnimatedCounter value={stats.unfollowed} active={isFirstMount} />
-                <UserMinus className="h-3.5 w-3.5 text-zinc-400" />
+                {isRefreshing ? (
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
+                ) : (
+                  <>
+                    <AnimatedCounter value={stats.unfollowed} active={isFirstMount} />
+                    <UserMinus className="h-3.5 w-3.5 text-zinc-405" />
+                  </>
+                )}
               </span>
             </div>
 
@@ -442,8 +508,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Skipped</span>
               <span className="text-xl font-bold text-amber-500/80 flex items-center gap-1.5">
-                <AnimatedCounter value={stats.skipped} active={isFirstMount} />
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500/85" />
+                {isRefreshing ? (
+                  <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
+                ) : (
+                  <>
+                    <AnimatedCounter value={stats.skipped} active={isFirstMount} />
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500/85" />
+                  </>
+                )}
               </span>
             </div>
 
@@ -714,32 +786,41 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                           <span className="text-zinc-650 px-1">Unstarred</span>
                         )}
                         
-                        {repo.followed && (
-                          <span className="inline-flex items-center space-x-1 bg-teal-500/5 border border-teal-500/15 text-teal-400 px-2 py-0.5 rounded">
-                            Followed
-                          </span>
-                        )}
+                        {(() => {
+                          const oStatus = ownerFollowStatus.get(repo.owner.toLowerCase());
+                          if (!oStatus) return null;
 
-                        {repo.follow_back && (
-                          <span className="inline-flex items-center space-x-1 bg-indigo-500/5 border border-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-bold">
-                            Mutual Follow
-                          </span>
-                        )}
+                          return (
+                            <>
+                              {oStatus.followed && (
+                                <span className="inline-flex items-center space-x-1 bg-teal-500/5 border border-teal-500/15 text-teal-400 px-2 py-0.5 rounded">
+                                  Followed
+                                </span>
+                              )}
 
-                        {repo.unfollowed && (
-                          <span className="inline-flex items-center space-x-1 bg-zinc-850 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
-                            Unfollowed
-                          </span>
-                        )}
+                              {oStatus.follow_back && (
+                                <span className="inline-flex items-center space-x-1 bg-indigo-500/5 border border-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-bold">
+                                  Mutual Follow
+                                </span>
+                              )}
 
-                        {repo.follow_skipped && (
-                          <span 
-                            className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500/80 px-2 py-0.5 rounded"
-                            title={repo.follow_skip_reason || 'Skipped'}
-                          >
-                            Skipped: {repo.follow_skip_reason || 'Target Check'}
-                          </span>
-                        )}
+                              {oStatus.unfollowed && (
+                                <span className="inline-flex items-center space-x-1 bg-zinc-850 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
+                                  Unfollowed
+                                </span>
+                              )}
+
+                              {oStatus.follow_skipped && (
+                                <span 
+                                  className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500/80 px-2 py-0.5 rounded"
+                                  title={oStatus.reason || 'Skipped'}
+                                >
+                                  Skipped: {oStatus.reason || 'Target Check'}
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {repo.readme_snippet && (
@@ -776,7 +857,24 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-900/60">
-                  {initialLogs.length === 0 ? (
+                  {isRefreshing ? (
+                    [1, 2, 3, 4, 5].map((n) => (
+                      <tr key={n} className="animate-pulse">
+                        <td className="px-5 py-3">
+                          <div className="h-3.5 bg-zinc-850 rounded w-24"></div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="h-4 bg-zinc-900 rounded w-16"></div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="h-3.5 bg-zinc-850 rounded w-12"></div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="h-3.5 bg-zinc-900 rounded w-4/5"></div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : initialLogs.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-5 py-10 text-center text-zinc-600">
                         No operations logged.
