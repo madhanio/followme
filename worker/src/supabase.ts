@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -10,7 +11,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Missing Supabase URL or Anon Key. Database functions may fail.');
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+  auth: {
+    persistSession: false,
+  },
+  realtime: {
+    transport: ws as any,
+  },
+});
 
 export async function isRepoGraded(repoId: number): Promise<boolean> {
   try {
