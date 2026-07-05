@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 export async function triggerWorker() {
-  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
+  const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
   const secret = process.env.WORKER_SECRET || 'dev_secret';
 
   try {
