@@ -88,11 +88,11 @@ export async function searchRecentRepos(topics: string[]): Promise<RepoMetadata[
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const dateString = thirtyDaysAgo.toISOString().split('T')[0];
 
-    // Search query: created in last 30 days, stars > 10
-    const q = `created:>=${dateString} stars:>10`;
+    // Search query: created in last 30 days, modest stars (2 to 150) to target peer/student projects
+    const q = `created:>=${dateString} stars:2..150`;
     const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(
       q
-    )}&sort=stars&order=desc&per_page=20`;
+    )}&sort=updated&order=desc&per_page=25`;
 
     console.log(`Searching GitHub repos with URL: ${url}`);
     const res = await fetch(url, { headers: HEADERS });

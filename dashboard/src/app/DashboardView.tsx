@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { triggerWorker } from './actions';
 import { 
@@ -43,6 +43,56 @@ const cleanSnippet = (text: string) => {
   if (!text) return '';
   return text.replace(/<[^>]*>/g, '').trim();
 };
+
+// Numeric CountUp animation component
+function AnimatedCounter({ value, duration = 500, active = true }: { value: number; duration?: number; active?: boolean }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setDisplayValue(value);
+      return;
+    }
+
+    let startTimestamp: number | null = null;
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      setDisplayValue(Math.floor(progress * value));
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }, [value, duration, active]);
+
+  return <span>{displayValue}</span>;
+}
+
+// Decimal CountUp animation component
+function AnimatedDecimalCounter({ value, duration = 500, active = true }: { value: number; duration?: number; active?: boolean }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setDisplayValue(value);
+      return;
+    }
+
+    let startTimestamp: number | null = null;
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      setDisplayValue(progress * value);
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }, [value, duration, active]);
+
+  return <span>{displayValue.toFixed(1)}</span>;
+}
 
 interface Repo {
   id: number;
@@ -90,6 +140,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [activeTab, setActiveTab] = useState<'repos' | 'logs'>('repos');
   const [sortBy, setSortBy] = useState<'date' | 'grade' | 'stars'>('date');
 
+  // Animation States
+  const [isFirstMount, setIsFirstMount] = useState(true);
+
   // Refreshing State
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -99,6 +152,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
   // Selected Repo Modal
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
+
+  useEffect(() => {
+    // End first mount phase after all startup animations complete (1.2 seconds)
+    const timer = setTimeout(() => {
+      setIsFirstMount(false);
+    }, 1250);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Derive unique languages
   const languages = useMemo(() => {
@@ -118,7 +179,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     const skipped = initialRepos.filter(r => r.follow_skipped).length;
     const mutuals = initialRepos.filter(r => r.follow_back).length;
     const totalGrade = initialRepos.reduce((acc, r) => acc + (r.grade || 0), 0);
-    const avgGrade = total > 0 ? (totalGrade / total).toFixed(1) : '0';
+    const avgGrade = total > 0 ? (totalGrade / total) : 0;
 
     return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals };
   }, [initialRepos]);
@@ -152,7 +213,6 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       .sort((a, b) => {
         if (sortBy === 'grade') return b.grade - a.grade;
         if (sortBy === 'stars') return b.stars - a.stars;
-        // Default: date (newest first)
         return new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime();
       });
   }, [initialRepos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter, sortBy]);
@@ -162,7 +222,6 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     if (isRefreshing) return;
     setIsRefreshing(true);
     router.refresh();
-    // Keep skeletal animation running for at least 600ms so it feels real and visual
     setTimeout(() => {
       setIsRefreshing(false);
     }, 800);
@@ -184,19 +243,55 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     }
   };
 
+  // Grade color ramp (green -> sky -> yellow -> red)
   const getGradeColor = (grade: number) => {
-    if (grade >= 8) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-    if (grade >= 6) return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
-    if (grade >= 4) return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-    return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+    if (grade >= 8) return 'bg-emerald-950/20 text-emerald-400 border border-emerald-900/60';
+    if (grade >= 6) return 'bg-sky-950/20 text-sky-400 border border-sky-900/60';
+    if (grade >= 4) return 'bg-amber-950/20 text-amber-500 border border-amber-900/60';
+    return 'bg-rose-950/20 text-rose-500 border border-rose-900/60';
   };
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#070708] text-slate-100 font-sans selection:bg-zinc-800 selection:text-zinc-100 antialiased">
+      {/* Startup Animation Keyframe Blocks */}
+      <style jsx global>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(16px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-startup-logo {
+          animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-startup-stat {
+          opacity: 0;
+          animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-startup-card {
+          opacity: 0;
+          animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+
       {/* Top Banner Details */}
       <header className="border-b border-zinc-900 bg-[#0c0c0e]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3.5">
+          <div className={`flex items-center space-x-3.5 ${isFirstMount ? 'animate-startup-logo' : ''}`}>
             <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-inner">
               <GithubIcon className="h-5 w-5 text-zinc-300" />
             </div>
@@ -268,46 +363,90 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       <section className="bg-[#0b0b0d] border-b border-zinc-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5">
-            <div className="border-l border-zinc-800 pl-4 py-1">
+            
+            {/* Stat Card 1 */}
+            <div 
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              style={isFirstMount ? { animationDelay: '150ms' } : {}}
+            >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Total Graded</span>
-              <span className="text-xl font-bold text-white tracking-tight">{stats.total}</span>
+              <span className="text-xl font-bold text-white tracking-tight">
+                <AnimatedCounter value={stats.total} active={isFirstMount} />
+              </span>
             </div>
-            <div className="border-l border-zinc-800 pl-4 py-1">
+
+            {/* Stat Card 2 */}
+            <div 
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              style={isFirstMount ? { animationDelay: '210ms' } : {}}
+            >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Avg Quality</span>
               <span className="text-xl font-bold text-white tracking-tight flex items-baseline">
-                {stats.avgGrade} <span className="text-xs text-zinc-650 ml-1">/ 10</span>
+                <AnimatedDecimalCounter value={stats.avgGrade} active={isFirstMount} />
+                <span className="text-xs text-zinc-650 ml-1">/ 10</span>
               </span>
             </div>
-            <div className="border-l border-zinc-800 pl-4 py-1">
+
+            {/* Stat Card 3 */}
+            <div 
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              style={isFirstMount ? { animationDelay: '270ms' } : {}}
+            >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Starred</span>
               <span className="text-xl font-bold text-amber-400 flex items-center gap-1.5">
-                {stats.starred} <Star className="h-3.5 w-3.5 fill-amber-400/20" />
+                <AnimatedCounter value={stats.starred} active={isFirstMount} />
+                <Star className="h-3.5 w-3.5 fill-amber-400/20 text-amber-400" />
               </span>
             </div>
-            <div className="border-l border-zinc-800 pl-4 py-1">
+
+            {/* Stat Card 4 */}
+            <div 
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              style={isFirstMount ? { animationDelay: '330ms' } : {}}
+            >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Followed</span>
               <span className="text-xl font-bold text-teal-400 flex items-center gap-1.5">
-                {stats.followed} <UserPlus className="h-3.5 w-3.5" />
+                <AnimatedCounter value={stats.followed} active={isFirstMount} />
+                <UserPlus className="h-3.5 w-3.5 text-teal-400" />
               </span>
             </div>
-            <div className="border-l border-zinc-800 pl-4 py-1">
+
+            {/* Stat Card 5 */}
+            <div 
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              style={isFirstMount ? { animationDelay: '390ms' } : {}}
+            >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Mutuals</span>
               <span className="text-xl font-bold text-indigo-400 flex items-center gap-1.5">
-                {stats.mutuals} <CheckCircle className="h-3.5 w-3.5" />
+                <AnimatedCounter value={stats.mutuals} active={isFirstMount} />
+                <CheckCircle className="h-3.5 w-3.5 text-indigo-400" />
               </span>
             </div>
-            <div className="border-l border-zinc-800 pl-4 py-1">
+
+            {/* Stat Card 6 */}
+            <div 
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              style={isFirstMount ? { animationDelay: '450ms' } : {}}
+            >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Unfollowed</span>
               <span className="text-xl font-bold text-zinc-400 flex items-center gap-1.5">
-                {stats.unfollowed} <UserMinus className="h-3.5 w-3.5" />
+                <AnimatedCounter value={stats.unfollowed} active={isFirstMount} />
+                <UserMinus className="h-3.5 w-3.5 text-zinc-400" />
               </span>
             </div>
-            <div className="border-l border-zinc-800 pl-4 py-1">
+
+            {/* Stat Card 7 */}
+            <div 
+              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              style={isFirstMount ? { animationDelay: '510ms' } : {}}
+            >
               <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Skipped</span>
               <span className="text-xl font-bold text-amber-500/80 flex items-center gap-1.5">
-                {stats.skipped} <AlertTriangle className="h-3.5 w-3.5" />
+                <AnimatedCounter value={stats.skipped} active={isFirstMount} />
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500/85" />
               </span>
             </div>
+
           </div>
         </div>
       </section>
@@ -427,7 +566,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                 
                 {/* Follow Pills */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-zinc-500 mr-1">Follow Status:</span>
+                  <span className="text-zinc-550 mr-1">Follow Status:</span>
                   {(['All', 'Yes', 'No', 'Unfollowed', 'Skipped'] as const).map((opt) => (
                     <button
                       key={opt}
@@ -435,7 +574,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                       className={`px-2.5 py-1 rounded-md text-[10px] border tracking-wider transition cursor-pointer ${
                         followedFilter === opt
                           ? 'bg-zinc-100 border-transparent text-black font-semibold'
-                          : 'bg-transparent border-zinc-850 hover:border-zinc-800 text-zinc-400'
+                          : 'bg-transparent border-zinc-855 hover:border-zinc-800 text-zinc-400'
                       }`}
                     >
                       {opt === 'Yes' ? 'Followed' : opt === 'No' ? 'Pending' : opt}
@@ -445,7 +584,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
                 {/* Starred Pills */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-zinc-500 mr-1">Starred Status:</span>
+                  <span className="text-zinc-550 mr-1">Starred Status:</span>
                   {(['All', 'Yes', 'No'] as const).map((opt) => (
                     <button
                       key={opt}
@@ -499,10 +638,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredRepos.map((repo) => (
+                {filteredRepos.map((repo, idx) => (
                   <div
                     key={repo.id}
-                    className="bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 transition-all flex flex-col justify-between"
+                    className={`bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 transition-all flex flex-col justify-between ${isFirstMount ? 'animate-startup-card' : ''}`}
+                    style={isFirstMount ? { animationDelay: `${idx * 80}ms` } : {}}
                   >
                     <div>
                       {/* Name, Quality and GitHub URL */}
@@ -525,7 +665,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                       </div>
 
                       {/* Stars and language */}
-                      <div className="flex items-center space-x-3.5 text-[11px] font-mono text-zinc-500 mb-3.5">
+                      <div className="flex items-center space-x-3.5 text-[11px] font-mono text-zinc-505 mb-3.5">
                         <span className="flex items-center space-x-1">
                           <Star className="h-3 w-3 fill-amber-400/10 text-amber-500/80" />
                           <span>{repo.stars}</span>
@@ -536,14 +676,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                             <span>{repo.language}</span>
                           </span>
                         )}
-                        <span className="text-[10px] text-zinc-600">
+                        <span className="text-[10px] text-zinc-650">
                           {new Date(repo.graded_at).toLocaleDateString()}
                         </span>
                       </div>
 
                       {/* Snippet Description */}
                       {repo.readme_snippet && (
-                        <div className="text-xs text-zinc-400 bg-[#070708] border border-zinc-900/60 p-2.5 rounded-lg font-mono line-clamp-3 leading-relaxed mb-4">
+                        <div className="text-xs text-zinc-450 bg-[#070708] border border-zinc-900/60 p-2.5 rounded-lg font-mono line-clamp-3 leading-relaxed mb-4">
                           {cleanSnippet(repo.readme_snippet).split('\n').filter(line => line.trim() !== '')[0] || 'No readme description.'}
                         </div>
                       )}
@@ -554,7 +694,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                           {repo.topics.slice(0, 3).map((topic) => (
                             <span
                               key={topic}
-                              className="text-[9px] font-mono px-2 py-0.5 bg-[#0e0e11] border border-zinc-850 text-zinc-500 rounded"
+                              className="text-[9px] font-mono px-2 py-0.5 bg-[#0e0e11] border border-zinc-850 text-zinc-550 rounded"
                             >
                               #{topic}
                             </span>
@@ -681,7 +821,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       </main>
 
       {/* Simple Footer */}
-      <footer className="mt-auto border-t border-zinc-950 bg-[#060607] py-6 text-center text-[10px] font-mono text-zinc-600">
+      <footer className="mt-auto border-t border-zinc-950 bg-[#060607] py-6 text-center text-[10px] font-mono text-zinc-650">
         <p>FollowMe Dashboard — Verified evaluation runs logged in real time</p>
       </footer>
 
@@ -731,4 +871,3 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     </div>
   );
 }
-
