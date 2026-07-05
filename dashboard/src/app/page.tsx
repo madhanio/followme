@@ -18,6 +18,7 @@ export default async function DashboardPage() {
   const { data: logs, error: logsError } = await supabase
     .from('logs')
     .select('*')
+    .order('timestamp', { ascending: false })
     .limit(50);
 
   console.log("Supabase Logs Fetch:", { dataCount: logs?.length, error: logsError });

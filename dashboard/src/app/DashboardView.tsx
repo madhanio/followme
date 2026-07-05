@@ -318,7 +318,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     try {
       const [reposRes, logsRes] = await Promise.all([
         supabase.from('repos').select('*'),
-        supabase.from('logs').select('*').limit(50)
+        supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50)
       ]);
       if (reposRes.data) {
         setRepos(reposRes.data);
@@ -351,7 +351,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       try {
         const [reposRes, logsRes] = await Promise.all([
           supabase.from('repos').select('*'),
-          supabase.from('logs').select('*').limit(50)
+          supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50)
         ]);
         if (reposRes.data) setRepos(reposRes.data);
         if (logsRes.data) setLogs(logsRes.data);
