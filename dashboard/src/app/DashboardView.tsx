@@ -15,10 +15,16 @@ import {
   CheckCircle, 
   XCircle,
   ExternalLink,
-  Code
+  Code,
+  ShieldAlert,
+  ArrowUpDown,
+  CornerDownRight,
+  TrendingUp,
+  UserMinus,
+  AlertTriangle
 } from 'lucide-react';
 
-const Github = (props: React.SVGProps<SVGSVGElement>) => (
+const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     viewBox="0 0 24 24"
     stroke="currentColor"
@@ -35,7 +41,6 @@ const Github = (props: React.SVGProps<SVGSVGElement>) => (
 
 const cleanSnippet = (text: string) => {
   if (!text) return '';
-  // Strip HTML tags using regex
   return text.replace(/<[^>]*>/g, '').trim();
 };
 
@@ -55,6 +60,8 @@ interface Repo {
   followed_at?: string;
   follow_back?: boolean;
   unfollowed?: boolean;
+  follow_skipped?: boolean;
+  follow_skip_reason?: string;
 }
 
 interface Log {
@@ -78,9 +85,10 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [searchTerm, setSearchTerm] = useState('');
   const [minGrade, setMinGrade] = useState<number>(0);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('All');
-  const [followedFilter, setFollowedFilter] = useState<'All' | 'Yes' | 'No' | 'Unfollowed'>('All');
+  const [followedFilter, setFollowedFilter] = useState<'All' | 'Yes' | 'No' | 'Unfollowed' | 'Skipped'>('All');
   const [starredFilter, setStarredFilter] = useState<'All' | 'Yes' | 'No'>('All');
   const [activeTab, setActiveTab] = useState<'repos' | 'logs'>('repos');
+  const [sortBy, setSortBy] = useState<'date' | 'grade' | 'stars'>('date');
 
   // Triggering State
   const [isTriggering, setIsTriggering] = useState(false);
@@ -103,38 +111,48 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     const total = initialRepos.length;
     const starred = initialRepos.filter(r => r.starred).length;
     const followed = initialRepos.filter(r => r.followed).length;
+    const unfollowed = initialRepos.filter(r => r.unfollowed).length;
+    const skipped = initialRepos.filter(r => r.follow_skipped).length;
     const mutuals = initialRepos.filter(r => r.follow_back).length;
     const totalGrade = initialRepos.reduce((acc, r) => acc + (r.grade || 0), 0);
     const avgGrade = total > 0 ? (totalGrade / total).toFixed(1) : '0';
 
-    return { total, starred, followed, avgGrade, mutuals };
+    return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals };
   }, [initialRepos]);
 
-  // Apply filters
+  // Apply filters and sorting
   const filteredRepos = useMemo(() => {
-    return initialRepos.filter(repo => {
-      const matchesSearch = 
-        `${repo.owner}/${repo.name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (repo.topics && repo.topics.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())));
-      
-      const matchesGrade = repo.grade >= minGrade;
-      
-      const matchesLang = selectedLanguage === 'All' || repo.language === selectedLanguage;
-      
-      const matchesFollow = 
-        followedFilter === 'All' || 
-        (followedFilter === 'Yes' && repo.followed) || 
-        (followedFilter === 'No' && !repo.followed && !repo.unfollowed) ||
-        (followedFilter === 'Unfollowed' && repo.unfollowed);
+    return initialRepos
+      .filter(repo => {
+        const matchesSearch = 
+          `${repo.owner}/${repo.name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (repo.topics && repo.topics.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())));
+        
+        const matchesGrade = repo.grade >= minGrade;
+        
+        const matchesLang = selectedLanguage === 'All' || repo.language === selectedLanguage;
+        
+        const matchesFollow = 
+          followedFilter === 'All' || 
+          (followedFilter === 'Yes' && repo.followed) || 
+          (followedFilter === 'No' && !repo.followed && !repo.unfollowed && !repo.follow_skipped) ||
+          (followedFilter === 'Unfollowed' && repo.unfollowed) ||
+          (followedFilter === 'Skipped' && repo.follow_skipped);
 
-      const matchesStar = 
-        starredFilter === 'All' || 
-        (starredFilter === 'Yes' && repo.starred) || 
-        (starredFilter === 'No' && !repo.starred);
+        const matchesStar = 
+          starredFilter === 'All' || 
+          (starredFilter === 'Yes' && repo.starred) || 
+          (starredFilter === 'No' && !repo.starred);
 
-      return matchesSearch && matchesGrade && matchesLang && matchesFollow && matchesStar;
-    });
-  }, [initialRepos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter]);
+        return matchesSearch && matchesGrade && matchesLang && matchesFollow && matchesStar;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'grade') return b.grade - a.grade;
+        if (sortBy === 'stars') return b.stars - a.stars;
+        // Default: date (newest first)
+        return new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime();
+      });
+  }, [initialRepos, searchTerm, minGrade, selectedLanguage, followedFilter, starredFilter, sortBy]);
 
   // Handle run trigger
   const handleTrigger = async () => {
@@ -148,61 +166,60 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     setTriggerStatus({ success: result.success, message: result.success ? result.message : result.error });
 
     if (result.success) {
-      // Refresh page data
       router.refresh();
     }
   };
 
   const getGradeColor = (grade: number) => {
-    if (grade >= 9) return 'from-emerald-400 to-green-600 shadow-emerald-950/40 text-emerald-950';
-    if (grade >= 7) return 'from-teal-400 to-indigo-500 shadow-teal-950/40 text-teal-950';
-    if (grade >= 5) return 'from-amber-400 to-orange-500 shadow-amber-950/40 text-amber-950';
-    return 'from-rose-500 to-red-600 shadow-rose-950/40 text-rose-50';
+    if (grade >= 8) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    if (grade >= 6) return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+    if (grade >= 4) return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-teal-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
-              <Github className="h-6 w-6 text-white" />
+    <div className="flex-1 flex flex-col min-h-screen bg-[#070708] text-slate-100 font-sans selection:bg-zinc-800 selection:text-zinc-100 antialiased">
+      {/* Top Banner Details */}
+      <header className="border-b border-zinc-900 bg-[#0c0c0e]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3.5">
+            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-inner">
+              <GithubIcon className="h-5 w-5 text-zinc-300" />
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-teal-300 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                FollowMe
+              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                FollowMe <span className="text-[10px] tracking-widest uppercase font-mono px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded">Beta</span>
               </h1>
-              <p className="text-xs text-slate-400">GitHub AI-Powered Evaluator</p>
+              <p className="text-xs text-zinc-500 font-mono">Automated discovery & active peer evaluation</p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3 w-full sm:w-auto">
             <button
               onClick={() => router.refresh()}
-              className="p-2 text-slate-400 hover:text-white rounded-lg border border-slate-800 bg-slate-900/40 hover:bg-slate-900 transition-all cursor-pointer"
+              className="p-2 text-zinc-400 hover:text-white rounded-lg border border-zinc-800 bg-[#0f0f11] hover:bg-zinc-900 transition-all cursor-pointer flex items-center justify-center"
               title="Refresh Dashboard Data"
             >
-              <RotateCw className="h-5 w-5" />
+              <RotateCw className="h-4 w-4" />
             </button>
             <button
               onClick={handleTrigger}
               disabled={isTriggering}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-xl font-medium transition-all duration-300 cursor-pointer shadow-lg ${
+              className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-lg font-mono text-xs tracking-wider uppercase transition-all duration-200 border cursor-pointer w-full sm:w-auto ${
                 isTriggering 
-                  ? 'bg-indigo-600/40 text-slate-300 border border-indigo-700/50 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-teal-400 to-indigo-600 hover:from-teal-300 hover:to-indigo-500 text-white shadow-indigo-600/20 hover:scale-[1.02]'
+                  ? 'bg-zinc-950 text-zinc-650 border-zinc-900 cursor-not-allowed'
+                  : 'bg-white hover:bg-zinc-200 text-black border-transparent hover:scale-[1.01]'
               }`}
             >
               {isTriggering ? (
                 <>
-                  <RotateCw className="h-4 w-4 animate-spin" />
-                  <span>Triggering...</span>
+                  <RotateCw className="h-3 w-3 animate-spin" />
+                  <span>Processing...</span>
                 </>
               ) : (
                 <>
-                  <Play className="h-4 w-4 fill-white" />
-                  <span>Run Worker Job</span>
+                  <Play className="h-3 w-3 fill-black text-black" />
+                  <span>Run Evaluation Job</span>
                 </>
               )}
             </button>
@@ -210,375 +227,407 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col space-y-8">
-        
-        {/* Status Toast Banner */}
-        {triggerStatus && (
-          <div className={`p-4 rounded-xl border flex items-center justify-between shadow-xl animate-fade-in ${
+      {/* Action Status Message */}
+      {triggerStatus && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <div className={`p-4 rounded-lg border flex items-center justify-between font-mono text-xs ${
             triggerStatus.success 
-              ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300 shadow-emerald-900/10'
-              : 'bg-rose-950/40 border-rose-800 text-rose-300 shadow-rose-900/10'
+              ? 'bg-emerald-950/20 border-emerald-900/60 text-emerald-400'
+              : 'bg-rose-950/20 border-rose-900/60 text-rose-400'
           }`}>
-            <div className="flex items-center space-x-3">
-              {triggerStatus.success ? <CheckCircle className="h-5 w-5 text-emerald-400" /> : <XCircle className="h-5 w-5 text-rose-400" />}
-              <span className="text-sm font-medium">{triggerStatus.message}</span>
+            <div className="flex items-center space-x-2.5">
+              {triggerStatus.success ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-rose-500" />}
+              <span>{triggerStatus.message}</span>
             </div>
             <button 
               onClick={() => setTriggerStatus(null)}
-              className="text-xs font-semibold uppercase hover:text-white px-2 py-1 rounded hover:bg-slate-800 transition"
+              className="text-[10px] hover:text-white px-2 py-0.5 rounded border border-transparent hover:border-zinc-800 transition"
             >
-              Close
+              Dismiss
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Stats Grid */}
-        <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-md transition hover:border-slate-700">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Evaluated</p>
-            <h3 className="text-3xl font-extrabold mt-2 text-white">{stats.total}</h3>
+      {/* Stats Row Strip */}
+      <section className="bg-[#0b0b0d] border-b border-zinc-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5">
+            <div className="border-l border-zinc-800 pl-4 py-1">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Total Graded</span>
+              <span className="text-xl font-bold text-white tracking-tight">{stats.total}</span>
+            </div>
+            <div className="border-l border-zinc-800 pl-4 py-1">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Avg Quality</span>
+              <span className="text-xl font-bold text-white tracking-tight flex items-baseline">
+                {stats.avgGrade} <span className="text-xs text-zinc-650 ml-1">/ 10</span>
+              </span>
+            </div>
+            <div className="border-l border-zinc-800 pl-4 py-1">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Starred</span>
+              <span className="text-xl font-bold text-amber-400 flex items-center gap-1.5">
+                {stats.starred} <Star className="h-3.5 w-3.5 fill-amber-400/20" />
+              </span>
+            </div>
+            <div className="border-l border-zinc-800 pl-4 py-1">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Followed</span>
+              <span className="text-xl font-bold text-teal-400 flex items-center gap-1.5">
+                {stats.followed} <UserPlus className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="border-l border-zinc-800 pl-4 py-1">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Mutuals</span>
+              <span className="text-xl font-bold text-indigo-400 flex items-center gap-1.5">
+                {stats.mutuals} <CheckCircle className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="border-l border-zinc-800 pl-4 py-1">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Unfollowed</span>
+              <span className="text-xl font-bold text-zinc-400 flex items-center gap-1.5">
+                {stats.unfollowed} <UserMinus className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="border-l border-zinc-800 pl-4 py-1">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Skipped</span>
+              <span className="text-xl font-bold text-amber-500/80 flex items-center gap-1.5">
+                {stats.skipped} <AlertTriangle className="h-3.5 w-3.5" />
+              </span>
+            </div>
           </div>
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-md transition hover:border-slate-700">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Avg Repo Quality</p>
-            <h3 className="text-3xl font-extrabold mt-2 bg-gradient-to-r from-teal-400 to-indigo-400 bg-clip-text text-transparent">
-              {stats.avgGrade} <span className="text-lg text-slate-500 font-normal">/10</span>
-            </h3>
-          </div>
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-md transition hover:border-slate-700">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Auto Starred</p>
-            <h3 className="text-3xl font-extrabold mt-2 text-amber-400 flex items-center space-x-2">
-              <span>{stats.starred}</span>
-              <Star className="h-6 w-6 text-amber-400 fill-amber-400" />
-            </h3>
-          </div>
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-md transition hover:border-slate-700">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Auto Followed</p>
-            <h3 className="text-3xl font-extrabold mt-2 text-teal-400 flex items-center space-x-2">
-              <span>{stats.followed}</span>
-              <UserPlus className="h-6 w-6 text-teal-400" />
-            </h3>
-          </div>
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-md transition hover:border-slate-700">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Mutuals</p>
-            <h3 className="text-3xl font-extrabold mt-2 text-indigo-400 flex items-center space-x-2">
-              <span>{stats.mutuals}</span>
-              <CheckCircle className="h-6 w-6 text-indigo-400" />
-            </h3>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Tab Selection */}
-        <div className="flex border-b border-slate-800">
+      {/* Navigation Tabs */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col space-y-6">
+        <div className="flex border-b border-zinc-900">
           <button
             onClick={() => setActiveTab('repos')}
-            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
+            className={`px-5 py-3 font-mono text-xs uppercase tracking-wider transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
               activeTab === 'repos' 
-                ? 'border-indigo-500 text-indigo-400 bg-indigo-950/10' 
-                : 'border-transparent text-slate-400 hover:text-white hover:border-slate-700'
+                ? 'border-white text-white' 
+                : 'border-transparent text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            <Github className="h-4 w-4" />
-            <span>Discovered Repos ({filteredRepos.length})</span>
+            <GithubIcon className="h-3.5 w-3.5" />
+            <span>Target Profiles ({filteredRepos.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('logs')}
-            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
+            className={`px-5 py-3 font-mono text-xs uppercase tracking-wider transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
               activeTab === 'logs' 
-                ? 'border-indigo-500 text-indigo-400 bg-indigo-950/10' 
-                : 'border-transparent text-slate-400 hover:text-white hover:border-slate-700'
+                ? 'border-white text-white' 
+                : 'border-transparent text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            <Terminal className="h-4 w-4" />
-            <span>Activity Logs ({initialLogs.length})</span>
+            <Terminal className="h-3.5 w-3.5" />
+            <span>Worker Logs ({initialLogs.length})</span>
           </button>
         </div>
 
         {activeTab === 'repos' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="space-y-6">
             
-            {/* Filters Sidebar */}
-            <aside className="lg:col-span-1 space-y-6 bg-slate-900/30 border border-slate-800/80 p-6 rounded-2xl h-fit">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                <span className="font-bold text-sm tracking-wide text-slate-200 uppercase flex items-center space-x-2">
-                  <Filter className="h-4 w-4 text-indigo-400" />
-                  <span>Filters</span>
-                </span>
-                <button
-                  onClick={() => {
-                    setSearchTerm('');
-                    setMinGrade(0);
-                    setSelectedLanguage('All');
-                    setFollowedFilter('All');
-                    setStarredFilter('All');
-                  }}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
-                >
-                  Reset All
-                </button>
-              </div>
-
-              {/* Search */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase text-slate-400">Search</label>
-                <div className="relative">
+            {/* Horizontal Filter Bar */}
+            <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl p-4 flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                
+                {/* Search Input */}
+                <div className="relative w-full md:max-w-xs">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
                   <input
                     type="text"
-                    placeholder="Search name, topic..."
+                    placeholder="Search query, name, topic..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-9 pr-4 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                    className="w-full bg-[#070708] border border-zinc-800 rounded-lg py-2 pl-9 pr-4 text-xs font-mono text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition"
                   />
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                </div>
+
+                {/* Filter Actions */}
+                <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+                  
+                  {/* Language Selector */}
+                  <div className="flex items-center space-x-2 bg-[#070708] border border-zinc-850 px-3 py-1.5 rounded-lg">
+                    <span className="text-zinc-500">Language:</span>
+                    <select
+                      value={selectedLanguage}
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      className="bg-transparent text-zinc-300 focus:outline-none cursor-pointer"
+                    >
+                      {languages.map((lang) => (
+                        <option key={lang} value={lang} className="bg-[#0c0c0e]">{lang}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Quality Filter */}
+                  <div className="flex items-center space-x-2 bg-[#070708] border border-zinc-850 px-3 py-1.5 rounded-lg">
+                    <span className="text-zinc-500">Min Grade:</span>
+                    <select
+                      value={minGrade}
+                      onChange={(e) => setMinGrade(Number(e.target.value))}
+                      className="bg-transparent text-zinc-300 focus:outline-none cursor-pointer"
+                    >
+                      {[0, 4, 5, 6, 7, 8, 9].map((g) => (
+                        <option key={g} value={g} className="bg-[#0c0c0e]">{g || 'Any'}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Sort Filter */}
+                  <div className="flex items-center space-x-2 bg-[#070708] border border-zinc-850 px-3 py-1.5 rounded-lg">
+                    <span className="text-zinc-500">Sort By:</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className="bg-transparent text-zinc-300 focus:outline-none cursor-pointer"
+                    >
+                      <option value="date" className="bg-[#0c0c0e]">Graded Date</option>
+                      <option value="grade" className="bg-[#0c0c0e]">Quality Score</option>
+                      <option value="stars" className="bg-[#0c0c0e]">Stars Count</option>
+                    </select>
+                  </div>
+
+                  {/* Reset All Link */}
+                  {(searchTerm || minGrade > 0 || selectedLanguage !== 'All' || followedFilter !== 'All' || starredFilter !== 'All') && (
+                    <button
+                      onClick={() => {
+                        setSearchTerm('');
+                        setMinGrade(0);
+                        setSelectedLanguage('All');
+                        setFollowedFilter('All');
+                        setStarredFilter('All');
+                        setSortBy('date');
+                      }}
+                      className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Min Grade Slider */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-semibold uppercase text-slate-400 font-mono">Min Quality Grade</label>
-                  <span className="text-sm font-bold text-teal-400 bg-teal-950/40 px-2 py-0.5 rounded border border-teal-900/60">{minGrade || 'Any'}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={minGrade}
-                  onChange={(e) => setMinGrade(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400 focus:outline-none focus:ring-0"
-                />
-                <div className="flex justify-between text-[10px] font-bold text-slate-600 font-mono">
-                  <span>0</span>
-                  <span>5</span>
-                  <span>10</span>
-                </div>
-              </div>
-
-              {/* Language */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase text-slate-400">Language</label>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition"
-                >
-                  {languages.map((lang) => (
-                    <option key={lang} value={lang}>{lang}</option>
+              {/* Pills Selectors */}
+              <div className="flex flex-wrap items-center gap-6 pt-3 border-t border-zinc-900 text-xs font-mono">
+                
+                {/* Follow Pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-zinc-500 mr-1">Follow Status:</span>
+                  {(['All', 'Yes', 'No', 'Unfollowed', 'Skipped'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setFollowedFilter(opt)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] border tracking-wider transition cursor-pointer ${
+                        followedFilter === opt
+                          ? 'bg-zinc-100 border-transparent text-black font-semibold'
+                          : 'bg-transparent border-zinc-850 hover:border-zinc-800 text-zinc-400'
+                      }`}
+                    >
+                      {opt === 'Yes' ? 'Followed' : opt === 'No' ? 'Pending' : opt}
+                    </button>
                   ))}
-                </select>
-              </div>
+                </div>
 
-              {/* Starred Status */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase text-slate-400">Starred</label>
-                <div className="grid grid-cols-3 gap-2">
+                {/* Starred Pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-zinc-500 mr-1">Starred Status:</span>
                   {(['All', 'Yes', 'No'] as const).map((opt) => (
                     <button
                       key={opt}
                       onClick={() => setStarredFilter(opt)}
-                      className={`py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-md text-[10px] border tracking-wider transition cursor-pointer ${
                         starredFilter === opt
-                          ? 'bg-amber-400/10 text-amber-400 border-amber-400/40 font-bold'
-                          : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400'
+                          ? 'bg-zinc-100 border-transparent text-black font-semibold'
+                          : 'bg-transparent border-zinc-850 hover:border-zinc-800 text-zinc-400'
                       }`}
                     >
-                      {opt}
+                      {opt === 'Yes' ? 'Starred' : opt === 'No' ? 'Not Starred' : opt}
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* Followed Status */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase text-slate-400">Followed Owner</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['All', 'Yes', 'No', 'Unfollowed'] as const).map((opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => setFollowedFilter(opt)}
-                      className={`py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                        followedFilter === opt
-                          ? 'bg-teal-400/10 text-teal-400 border-teal-400/40 font-bold'
-                          : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </aside>
-
-            {/* Repos Grid */}
-            <div className="lg:col-span-3">
-              {filteredRepos.length === 0 ? (
-                <div className="text-center py-20 bg-slate-900/10 border border-slate-850 rounded-2xl flex flex-col items-center justify-center space-y-4">
-                  <Github className="h-12 w-12 text-slate-600 animate-pulse" />
-                  <h3 className="font-bold text-lg text-slate-300">No repositories found</h3>
-                  <p className="text-sm text-slate-500 max-w-sm">
-                    Try loosening your search terms or filters, or run the worker job to find new repos!
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {filteredRepos.map((repo) => (
-                    <div
-                      key={repo.id}
-                      className="group relative bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5 hover:border-slate-700/80 flex flex-col justify-between"
-                    >
-                      <div>
-                        {/* Title and Grade */}
-                        <div className="flex items-start justify-between space-x-4 mb-3">
-                          <div className="truncate">
-                            <span className="text-xs text-slate-500 font-mono block">@{repo.owner}</span>
-                            <a
-                              href={repo.github_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-lg font-bold text-slate-100 hover:text-indigo-400 transition flex items-center space-x-1.5 truncate group-hover:text-indigo-300"
-                            >
-                              <span>{repo.name}</span>
-                              <ExternalLink className="h-3 w-3 inline opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </a>
-                          </div>
-                          <div className={`h-12 w-12 shrink-0 rounded-xl bg-gradient-to-tr flex flex-col items-center justify-center shadow-lg font-mono font-black text-lg ${getGradeColor(repo.grade)}`}>
-                            <span>{repo.grade}</span>
-                            <span className="text-[8px] uppercase tracking-wider leading-none">grade</span>
-                          </div>
-                        </div>
-
-                        {/* Stars and Lang */}
-                        <div className="flex items-center space-x-4 text-xs font-mono text-slate-400 mb-4">
-                          <span className="flex items-center space-x-1">
-                            <Star className="h-3.5 w-3.5 fill-amber-400/20 text-amber-400" />
-                            <span>{repo.stars.toLocaleString()} stars</span>
-                          </span>
-                          {repo.language && (
-                            <span className="flex items-center space-x-1">
-                              <Code className="h-3.5 w-3.5 text-indigo-400" />
-                              <span>{repo.language}</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Description */}
-                        {repo.readme_snippet && (
-                          <div className="mt-3">
-                            <p className="text-sm text-slate-450 line-clamp-3 leading-relaxed">
-                              {cleanSnippet(repo.readme_snippet).split('\n').filter(line => line.trim() !== '')[0] || 'No snippet description available.'}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Topics */}
-                        {repo.topics && repo.topics.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-4">
-                            {repo.topics.slice(0, 4).map((topic) => (
-                              <span
-                                key={topic}
-                                className="text-[10px] font-mono px-2 py-0.5 bg-slate-950/80 border border-slate-800 text-slate-400 rounded-md font-semibold"
-                              >
-                                #{topic}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Action status & details button */}
-                      <div className="flex items-center justify-between border-t border-slate-800/80 pt-4 mt-6">
-                        <div className="flex items-center space-x-2.5">
-                          {repo.starred ? (
-                            <span className="inline-flex items-center space-x-1 bg-amber-400/10 border border-amber-400/20 text-amber-400 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                              <Star className="h-2.5 w-2.5 fill-amber-400" />
-                              <span>Starred</span>
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-600 font-mono">Not Starred</span>
-                          )}
-                          {repo.followed ? (
-                            <span className="inline-flex items-center space-x-1 bg-teal-400/10 border border-teal-400/20 text-teal-400 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                              <UserPlus className="h-2.5 w-2.5" />
-                              <span>Followed</span>
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-600 font-mono">Not Followed</span>
-                          )}
-                        </div>
-
-                        {repo.readme_snippet && (
-                          <button
-                            onClick={() => setSelectedRepo(repo)}
-                            className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition flex items-center space-x-1 px-2.5 py-1.5 hover:bg-slate-850 rounded-lg cursor-pointer"
-                          >
-                            <BookOpen className="h-3.5 w-3.5" />
-                            <span>Readme</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
+
+            {/* Repos Cards List */}
+            {filteredRepos.length === 0 ? (
+              <div className="text-center py-16 bg-[#09090b] border border-zinc-900 rounded-xl flex flex-col items-center justify-center space-y-3">
+                <GithubIcon className="h-8 w-8 text-zinc-700" />
+                <h3 className="font-mono text-sm font-semibold text-zinc-400">No matching records found</h3>
+                <p className="text-xs text-zinc-650 max-w-xs font-mono">
+                  Modify the filter rules or run the active evaluation job to query new candidates.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredRepos.map((repo) => (
+                  <div
+                    key={repo.id}
+                    className="bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Name, Quality and GitHub URL */}
+                      <div className="flex items-start justify-between space-x-3 mb-2">
+                        <div className="truncate">
+                          <span className="text-[10px] text-zinc-500 font-mono block">@{repo.owner}</span>
+                          <a
+                            href={repo.github_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-bold text-zinc-100 hover:text-white transition flex items-center space-x-1.5 truncate"
+                          >
+                            <span>{repo.name}</span>
+                            <ExternalLink className="h-3 w-3 text-zinc-500" />
+                          </a>
+                        </div>
+                        <div className={`px-2.5 py-1 rounded text-xs font-mono border ${getGradeColor(repo.grade)}`}>
+                          Grade {repo.grade}
+                        </div>
+                      </div>
+
+                      {/* Stars and language */}
+                      <div className="flex items-center space-x-3.5 text-[11px] font-mono text-zinc-500 mb-3.5">
+                        <span className="flex items-center space-x-1">
+                          <Star className="h-3 w-3 fill-amber-400/10 text-amber-500/80" />
+                          <span>{repo.stars}</span>
+                        </span>
+                        {repo.language && (
+                          <span className="flex items-center space-x-1">
+                            <Code className="h-3 w-3 text-zinc-450" />
+                            <span>{repo.language}</span>
+                          </span>
+                        )}
+                        <span className="text-[10px] text-zinc-600">
+                          {new Date(repo.graded_at).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      {/* Snippet Description */}
+                      {repo.readme_snippet && (
+                        <div className="text-xs text-zinc-400 bg-[#070708] border border-zinc-900/60 p-2.5 rounded-lg font-mono line-clamp-3 leading-relaxed mb-4">
+                          {cleanSnippet(repo.readme_snippet).split('\n').filter(line => line.trim() !== '')[0] || 'No readme description.'}
+                        </div>
+                      )}
+
+                      {/* Tags */}
+                      {repo.topics && repo.topics.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-4">
+                          {repo.topics.slice(0, 3).map((topic) => (
+                            <span
+                              key={topic}
+                              className="text-[9px] font-mono px-2 py-0.5 bg-[#0e0e11] border border-zinc-850 text-zinc-500 rounded"
+                            >
+                              #{topic}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Operational Badges */}
+                    <div className="flex flex-wrap items-center justify-between border-t border-zinc-900 pt-3.5 mt-2 gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                        {repo.starred ? (
+                          <span className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500 px-2 py-0.5 rounded">
+                            Starred
+                          </span>
+                        ) : (
+                          <span className="text-zinc-650 px-1">Unstarred</span>
+                        )}
+                        
+                        {repo.followed && (
+                          <span className="inline-flex items-center space-x-1 bg-teal-500/5 border border-teal-500/15 text-teal-400 px-2 py-0.5 rounded">
+                            Followed
+                          </span>
+                        )}
+
+                        {repo.follow_back && (
+                          <span className="inline-flex items-center space-x-1 bg-indigo-500/5 border border-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-bold">
+                            Mutual Follow
+                          </span>
+                        )}
+
+                        {repo.unfollowed && (
+                          <span className="inline-flex items-center space-x-1 bg-zinc-850 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
+                            Unfollowed
+                          </span>
+                        )}
+
+                        {repo.follow_skipped && (
+                          <span 
+                            className="inline-flex items-center space-x-1 bg-amber-500/5 border border-amber-500/15 text-amber-500/80 px-2 py-0.5 rounded"
+                            title={repo.follow_skip_reason || 'Skipped'}
+                          >
+                            Skipped: {repo.follow_skip_reason || 'Target Check'}
+                          </span>
+                        )}
+                      </div>
+
+                      {repo.readme_snippet && (
+                        <button
+                          onClick={() => setSelectedRepo(repo)}
+                          className="text-[10px] font-mono font-semibold text-zinc-300 hover:text-white transition flex items-center space-x-1 bg-[#0f0f12] border border-zinc-850 hover:border-zinc-800 px-2 py-1 rounded cursor-pointer"
+                        >
+                          <BookOpen className="h-3 w-3" />
+                          <span>Readme</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
-          /* Activity Logs View */
-          <div className="bg-slate-900/30 border border-slate-800 rounded-2xl overflow-hidden backdrop-blur-sm">
-            <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between">
-              <h3 className="font-bold text-slate-200">Execution History & Action Logs</h3>
-              <span className="text-xs text-slate-500">Showing last 50 actions</span>
+          /* Mono activity logs */
+          <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-zinc-900 bg-[#0c0c0e] flex items-center justify-between">
+              <h3 className="font-mono text-xs font-semibold text-zinc-300 uppercase tracking-wider">Historical Logs</h3>
+              <span className="text-[10px] font-mono text-zinc-550">Last 50 entries</span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse font-mono text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800 text-xs font-semibold uppercase text-slate-400 bg-slate-950/30">
-                    <th className="px-6 py-3.5">Timestamp</th>
-                    <th className="px-6 py-3.5">Action</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5">Details</th>
+                  <tr className="border-b border-zinc-900 text-zinc-550 bg-zinc-950/20 text-[10px] uppercase tracking-wider">
+                    <th className="px-5 py-3">Timestamp</th>
+                    <th className="px-5 py-3">Action</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Context & Message</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-sm font-mono">
+                <tbody className="divide-y divide-zinc-900/60">
                   {initialLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                        No activity logged yet.
+                      <td colSpan={4} className="px-5 py-10 text-center text-zinc-600">
+                        No operations logged.
                       </td>
                     </tr>
                   ) : (
                     initialLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-900/30 transition">
-                        <td className="px-6 py-3.5 text-slate-400 whitespace-nowrap">
+                      <tr key={log.id} className="hover:bg-zinc-900/10 transition text-zinc-350">
+                        <td className="px-5 py-3 text-zinc-550 whitespace-nowrap">
                           {new Date(log.timestamp).toLocaleString()}
                         </td>
-                        <td className="px-6 py-3.5">
-                          <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${
-                            log.action === 'SYSTEM' ? 'bg-slate-800 text-slate-300' :
-                            log.action === 'GRADE' ? 'bg-indigo-950 text-indigo-400 border border-indigo-900/30' :
-                            log.action === 'STAR' ? 'bg-amber-950 text-amber-400 border border-amber-900/30' :
-                            log.action === 'FOLLOW' ? 'bg-teal-950 text-teal-400 border border-teal-900/30' :
-                            'bg-slate-850 text-slate-400'
+                        <td className="px-5 py-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] border ${
+                            log.action === 'SYSTEM' ? 'bg-zinc-900 border-zinc-800 text-zinc-400' :
+                            log.action === 'GRADE' ? 'bg-indigo-950/40 border-indigo-900/30 text-indigo-400' :
+                            log.action === 'STAR' ? 'bg-amber-950/40 border-amber-900/30 text-amber-400' :
+                            log.action === 'FOLLOW' ? 'bg-teal-950/40 border-teal-900/30 text-teal-400' :
+                            log.action === 'SKIP_FOLLOW' ? 'bg-amber-950/20 border-amber-900/30 text-amber-500/90' :
+                            'bg-zinc-900/40 border-zinc-850 text-zinc-450'
                           }`}>
                             {log.action}
                           </span>
                         </td>
-                        <td className="px-6 py-3.5">
+                        <td className="px-5 py-3">
                           {log.status === 'SUCCESS' ? (
-                            <span className="inline-flex items-center space-x-1 text-emerald-400 font-bold">
-                              <CheckCircle className="h-3.5 w-3.5" />
-                              <span>SUCCESS</span>
-                            </span>
+                            <span className="text-emerald-500 font-bold">SUCCESS</span>
                           ) : (
-                            <span className="inline-flex items-center space-x-1 text-rose-400 font-bold">
-                              <XCircle className="h-3.5 w-3.5" />
-                              <span>FAILED</span>
-                            </span>
+                            <span className="text-rose-500 font-bold">FAILED</span>
                           )}
                         </td>
-                        <td className="px-6 py-3.5 text-slate-300 max-w-lg truncate" title={log.message}>
+                        <td className="px-5 py-3 text-zinc-300 max-w-md truncate" title={log.message}>
                           {log.message}
                         </td>
                       </tr>
@@ -591,48 +640,48 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <p>© 2026 FollowMe GitHub Automation Dashboard. Built with Next.js, Supabase, and NVIDIA NIM.</p>
+      {/* Simple Footer */}
+      <footer className="mt-auto border-t border-zinc-950 bg-[#060607] py-6 text-center text-[10px] font-mono text-zinc-600">
+        <p>FollowMe Dashboard — Verified evaluation runs logged in real time</p>
       </footer>
 
-      {/* README Snippet Preview Modal */}
+      {/* Snippet Overlay Modal */}
       {selectedRepo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl max-h-[85vh] rounded-2xl flex flex-col shadow-2xl animate-scale-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0b0b0d] border border-zinc-800 w-full max-w-3xl max-h-[80vh] rounded-xl flex flex-col shadow-2xl animate-scale-in">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between">
+            <div className="px-5 py-3.5 border-b border-zinc-900 bg-[#0c0c0e] flex items-center justify-between">
               <div>
-                <span className="text-xs text-slate-500 font-mono">README Snippet Evaluation</span>
-                <h3 className="font-bold text-lg text-slate-100 flex items-center space-x-2">
+                <span className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider">Readme snippet evaluation</span>
+                <h3 className="font-mono text-sm font-semibold text-zinc-100 flex items-center space-x-2">
                   <span>{selectedRepo.owner}/{selectedRepo.name}</span>
-                  <span className="px-2 py-0.5 bg-slate-800 text-xs font-mono text-slate-300 rounded">
+                  <span className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-400 rounded">
                     Score: {selectedRepo.grade}/10
                   </span>
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedRepo(null)}
-                className="text-slate-400 hover:text-white font-bold px-3 py-1.5 hover:bg-slate-800 rounded-lg cursor-pointer transition"
+                className="text-zinc-550 hover:text-white font-mono text-xs px-2.5 py-1 hover:bg-zinc-900 rounded border border-zinc-850 cursor-pointer transition"
               >
-                ✕ Close
+                Close
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto font-mono text-sm text-slate-350 bg-slate-950/60 leading-relaxed whitespace-pre-wrap select-text flex-1">
-              {cleanSnippet(selectedRepo.readme_snippet) || 'No README data saved.'}
+            <div className="p-5 overflow-y-auto font-mono text-xs text-zinc-300 bg-[#070708]/80 leading-relaxed whitespace-pre-wrap select-text flex-1">
+              {cleanSnippet(selectedRepo.readme_snippet) || 'No evaluation snippet.'}
             </div>
             
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/40 flex justify-end">
+            <div className="px-5 py-3 border-t border-zinc-900 bg-[#0c0c0e] flex justify-end">
               <a
                 href={selectedRepo.github_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/10 cursor-pointer"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono font-semibold rounded transition cursor-pointer"
               >
-                <span>View Full Repo on GitHub</span>
+                <span>Open in Github</span>
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
@@ -642,3 +691,4 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     </div>
   );
 }
+

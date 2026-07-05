@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.checkOwnerProfile = checkOwnerProfile;
 exports.searchRecentRepos = searchRecentRepos;
 exports.fetchRepoReadme = fetchRepoReadme;
 exports.starRepo = starRepo;
@@ -22,6 +23,57 @@ if (GITHUB_TOKEN) {
 }
 else {
     console.warn('Missing GITHUB_TOKEN. GitHub API rate limits will be highly restricted.');
+}
+/**
+ * Checks a GitHub user profile to determine if they should be followed.
+ * Two-layer targeting:
+ *   Layer 1 (high-profile skip): followers > MAX_OWNER_FOLLOWERS AND following < MIN_OWNER_FOLLOWING
+ *   Layer 2 (peer targeting): followers in 20-500 range, following > 20, ratio 0.5-2.0, account > 6 months old
+ */
+async function checkOwnerProfile(username) {
+    const MAX_OWNER_FOLLOWERS = parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10);
+    const MIN_OWNER_FOLLOWING = parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10);
+    const MAX_OWNER_AGE_DAYS = parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10);
+    try {
+        const url = `https://api.github.com/users/${username}`;
+        const res = await fetch(url, { headers: HEADERS });
+        if (!res.ok) {
+            console.warn(`Could not fetch profile for ${username}: ${res.status}`);
+            return { shouldFollow: false, skipReason: 'profile-fetch-failed' };
+        }
+        const profile = (await res.json());
+        const followers = profile.followers || 0;
+        const following = profile.following || 0;
+        const createdAt = new Date(profile.created_at || 0);
+        const accountAgeDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+        // Layer 1: High-profile skip (big name, almost never follows back)
+        if (followers > MAX_OWNER_FOLLOWERS && following < MIN_OWNER_FOLLOWING) {
+            return { shouldFollow: false, skipReason: 'high-profile' };
+        }
+        // Layer 2: Peer targeting — active, similar-sized, reciprocal-leaning accounts
+        const ratio = following > 0 ? followers / following : 999;
+        if (followers < 20) {
+            return { shouldFollow: false, skipReason: 'too-new (< 20 followers)' };
+        }
+        if (followers > MAX_OWNER_FOLLOWERS) {
+            return { shouldFollow: false, skipReason: 'too-popular (> ' + MAX_OWNER_FOLLOWERS + ' followers)' };
+        }
+        if (following < 20) {
+            return { shouldFollow: false, skipReason: 'low-following (< 20 following)' };
+        }
+        if (ratio < 0.5 || ratio > 2.0) {
+            return { shouldFollow: false, skipReason: `ratio-mismatch (ratio: ${ratio.toFixed(2)})` };
+        }
+        if (accountAgeDays < 180) {
+            return { shouldFollow: false, skipReason: 'account-too-new (< 6 months)' };
+        }
+        // Passed all filters — good follow candidate
+        return { shouldFollow: true, skipReason: null };
+    }
+    catch (err) {
+        console.error(`Error checking owner profile for ${username}:`, err.message || err);
+        return { shouldFollow: false, skipReason: 'error' };
+    }
 }
 /**
  * Searches repositories created in the last 7 days with specific topics, sorted by stars descending.

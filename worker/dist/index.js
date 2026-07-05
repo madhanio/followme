@@ -34,6 +34,7 @@ async function runAutomationJob() {
         graded: 0,
         followed: 0,
         starred: 0,
+        skipped: 0,
         failed: 0,
     };
     try {
@@ -58,10 +59,12 @@ async function runAutomationJob() {
             let starred = false;
             let starResult = null;
             let followResult = null;
-            // 4. Auto follow / star if grade is above or equal to threshold
+            // 4. Auto star / follow if grade is above threshold
+            let followSkipped = false;
+            let followSkipReason = null;
             if (grading.grade >= GRADE_THRESHOLD) {
-                console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring and following...`);
-                // Star repo
+                console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring...`);
+                // Always star a high-grade repo
                 const starSuccess = await (0, github_1.starRepo)(repo.owner, repo.name);
                 if (starSuccess) {
                     starred = true;
@@ -71,15 +74,25 @@ async function runAutomationJob() {
                 else {
                     starResult = { success: false, message: `Failed to star repository ${repo.owner}/${repo.name}` };
                 }
-                // Follow owner
-                const followSuccess = await (0, github_1.followUser)(repo.owner);
-                if (followSuccess) {
-                    followed = true;
-                    stats.followed++;
-                    followResult = { success: true, message: `Followed user ${repo.owner}` };
+                // Check owner profile before following
+                const profileCheck = await (0, github_1.checkOwnerProfile)(repo.owner);
+                if (profileCheck.shouldFollow) {
+                    console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
+                    const followSuccess = await (0, github_1.followUser)(repo.owner);
+                    if (followSuccess) {
+                        followed = true;
+                        stats.followed++;
+                        followResult = { success: true, message: `Followed user ${repo.owner}` };
+                    }
+                    else {
+                        followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+                    }
                 }
                 else {
-                    followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+                    followSkipped = true;
+                    followSkipReason = profileCheck.skipReason;
+                    stats.skipped++;
+                    console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
                 }
             }
             // 5. Save repository to database (must happen before logging actions to avoid FK constraint error)
@@ -93,7 +106,7 @@ async function runAutomationJob() {
                 topics: repo.topics,
                 readme_snippet: repo.readme_snippet,
                 grade: grading.grade,
-            }, followed, starred);
+            }, followed, starred, followSkipped, followSkipReason);
             // 6. Log interactions after repo is successfully saved
             if (starResult) {
                 await (0, supabase_1.logAction)('STAR', repo.id, starResult.success ? 'SUCCESS' : 'FAILED', starResult.message);
@@ -101,12 +114,15 @@ async function runAutomationJob() {
             if (followResult) {
                 await (0, supabase_1.logAction)('FOLLOW', repo.id, followResult.success ? 'SUCCESS' : 'FAILED', followResult.message);
             }
+            if (followSkipped) {
+                await (0, supabase_1.logAction)('SKIP_FOLLOW', repo.id, 'SUCCESS', `Skipped follow for ${repo.owner}: ${followSkipReason}`);
+            }
             await (0, supabase_1.logAction)('GRADE', repo.id, 'SUCCESS', `Graded repo: ${repo.owner}/${repo.name}. Score: ${grading.grade}. Reason: ${grading.reason}`);
             // Sleep 1.5 seconds between repositories to be respectful to APIs and limit rates
             await new Promise((resolve) => setTimeout(resolve, 1500));
         }
         console.log('FollowMe job completed successfully.', stats);
-        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Automation job finished. Graded ${stats.graded} new repos. Followed: ${stats.followed}, Starred: ${stats.starred}`);
+        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Automation job finished. Graded ${stats.graded} new repos. Followed: ${stats.followed}, Starred: ${stats.starred}, Skipped: ${stats.skipped}`);
     }
     catch (err) {
         stats.failed++;

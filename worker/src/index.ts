@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
-import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack } from './github';
+import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile } from './github';
 import { gradeRepository } from './nvidia';
 import { supabase, isRepoGraded, saveRepo, logAction } from './supabase';
 
@@ -37,6 +37,7 @@ async function runAutomationJob() {
     graded: 0,
     followed: 0,
     starred: 0,
+    skipped: 0,
     failed: 0,
   };
 
@@ -69,11 +70,14 @@ async function runAutomationJob() {
       let starResult: { success: boolean; message: string } | null = null;
       let followResult: { success: boolean; message: string } | null = null;
 
-      // 4. Auto follow / star if grade is above or equal to threshold
+      // 4. Auto star / follow if grade is above threshold
+      let followSkipped = false;
+      let followSkipReason: string | null = null;
+
       if (grading.grade >= GRADE_THRESHOLD) {
-        console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring and following...`);
-        
-        // Star repo
+        console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring...`);
+
+        // Always star a high-grade repo
         const starSuccess = await starRepo(repo.owner, repo.name);
         if (starSuccess) {
           starred = true;
@@ -83,14 +87,23 @@ async function runAutomationJob() {
           starResult = { success: false, message: `Failed to star repository ${repo.owner}/${repo.name}` };
         }
 
-        // Follow owner
-        const followSuccess = await followUser(repo.owner);
-        if (followSuccess) {
-          followed = true;
-          stats.followed++;
-          followResult = { success: true, message: `Followed user ${repo.owner}` };
+        // Check owner profile before following
+        const profileCheck = await checkOwnerProfile(repo.owner);
+        if (profileCheck.shouldFollow) {
+          console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
+          const followSuccess = await followUser(repo.owner);
+          if (followSuccess) {
+            followed = true;
+            stats.followed++;
+            followResult = { success: true, message: `Followed user ${repo.owner}` };
+          } else {
+            followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+          }
         } else {
-          followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+          followSkipped = true;
+          followSkipReason = profileCheck.skipReason;
+          stats.skipped++;
+          console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
         }
       }
 
@@ -108,7 +121,9 @@ async function runAutomationJob() {
           grade: grading.grade,
         },
         followed,
-        starred
+        starred,
+        followSkipped,
+        followSkipReason
       );
 
       // 6. Log interactions after repo is successfully saved
@@ -117,6 +132,9 @@ async function runAutomationJob() {
       }
       if (followResult) {
         await logAction('FOLLOW', repo.id, followResult.success ? 'SUCCESS' : 'FAILED', followResult.message);
+      }
+      if (followSkipped) {
+        await logAction('SKIP_FOLLOW', repo.id, 'SUCCESS', `Skipped follow for ${repo.owner}: ${followSkipReason}`);
       }
 
       await logAction(
@@ -135,7 +153,7 @@ async function runAutomationJob() {
       'SYSTEM',
       null,
       'SUCCESS',
-      `Automation job finished. Graded ${stats.graded} new repos. Followed: ${stats.followed}, Starred: ${stats.starred}`
+      `Automation job finished. Graded ${stats.graded} new repos. Followed: ${stats.followed}, Starred: ${stats.starred}, Skipped: ${stats.skipped}`
     );
   } catch (err: any) {
     stats.failed++;

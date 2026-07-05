@@ -52,7 +52,9 @@ export async function saveRepo(
     grade: number;
   },
   followed: boolean,
-  starred: boolean
+  starred: boolean,
+  followSkipped: boolean = false,
+  followSkipReason: string | null = null
 ) {
   try {
     const upsertData: any = {
@@ -68,6 +70,8 @@ export async function saveRepo(
       graded_at: new Date().toISOString(),
       followed,
       starred,
+      follow_skipped: followSkipped,
+      follow_skip_reason: followSkipReason,
     };
 
     if (followed) {

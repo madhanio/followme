@@ -21,11 +21,13 @@ async function gradeRepository(repo) {
         return { grade: 1, reason: 'NVIDIA API key not configured' };
     }
     const prompt = `
-You are an expert software engineer and open-source evaluator.
+You are an expert software developer and peer community evaluator.
 Evaluate the following GitHub repository and grade it on a scale of 1 to 10 based on:
-1. **Quality**: How well-written, documented, and structured it appears.
-2. **Originality**: Whether it is a novel tool, a creative approach, or just another boilerplate/fork.
-3. **Usefulness**: How valuable it is to developers or the general community.
+1. **Learning Effort**: Does this show active learning, dedication, and practical coding practice? (e.g., student assignments, personal experiments, build-in-public projects).
+2. **Originality**: Is it a genuine personal attempt, interesting hackathon project, or custom tool? Avoid penalizing it for being simple, but do penalize if it is an unchanged 1-to-1 clone/fork.
+3. **Usefulness & Clarity**: Is the README helpful? Does it demonstrate a working prototype?
+
+We want to discover and support active builders, students, and peers who are coding and experimenting, rather than exclusively massive corporate libraries or senior celebrity projects. Give higher scores (7+) to active, original peer builders.
 
 Repository Details:
 - Name: ${repo.owner}/${repo.name}
