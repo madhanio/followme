@@ -138,6 +138,10 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [repos, setRepos] = useState<Repo[]>(initialRepos);
   const [logs, setLogs] = useState<Log[]>(initialLogs);
 
+  const followedRepos = useMemo(() => {
+    return repos.filter(r => r.followed === true && r.unfollowed !== true);
+  }, [repos]);
+
   // Sync state if initialProps change
   useEffect(() => {
     setRepos(initialRepos);
@@ -316,19 +320,16 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
+      await fetch('/api/sync-following', { method: 'POST' });
       const [reposRes, logsRes] = await Promise.all([
         supabase.from('repos').select('*'),
         supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50)
       ]);
-      if (reposRes.data) {
-        setRepos(reposRes.data);
-      }
-      if (logsRes.data) {
-        setLogs(logsRes.data);
-      }
+      if (reposRes.data) setRepos(reposRes.data);
+      if (logsRes.data) setLogs(logsRes.data);
       router.refresh();
     } catch (err) {
-      console.error("Refresh failed:", err);
+      console.error('Refresh failed:', err);
     } finally {
       setIsRefreshing(false);
     }

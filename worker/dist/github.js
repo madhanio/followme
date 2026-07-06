@@ -42,8 +42,14 @@ async function checkOwnerProfile(username) {
             return { shouldFollow: false, skipReason: 'profile-fetch-failed' };
         }
         const profile = (await res.json());
-        const followers = profile.followers || 0;
-        const following = profile.following || 0;
+        if (profile.type !== 'User') {
+            return { shouldFollow: false, skipReason: `not-a-user (type: ${profile.type})` };
+        }
+        const followers = (profile.followers != null && profile.followers > 0) ? profile.followers : 0;
+        const following = (profile.following != null && profile.following > 0) ? profile.following : 0;
+        if (followers === 0 || following === 0) {
+            return { shouldFollow: false, skipReason: 'hidden-or-zero-stats' };
+        }
         const createdAt = new Date(profile.created_at || 0);
         const accountAgeDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
         // Layer 1: High-profile skip (big name, almost never follows back)
@@ -79,37 +85,44 @@ async function checkOwnerProfile(username) {
  * Searches repositories created in the last 7 days with specific topics, sorted by stars descending.
  */
 async function searchRecentRepos(topics) {
-    try {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const dateString = thirtyDaysAgo.toISOString().split('T')[0];
-        // Search query: created in last 30 days, stars > 10
-        const q = `created:>=${dateString} stars:>10`;
-        const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=20`;
-        console.log(`Searching GitHub repos with URL: ${url}`);
-        const res = await fetch(url, { headers: HEADERS });
-        if (!res.ok) {
-            const errMsg = await res.text();
-            throw new Error(`GitHub search failed: ${res.status} ${res.statusText} - ${errMsg}`);
+    const allReposMap = new Map();
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const dateString = fourteenDaysAgo.toISOString().split('T')[0];
+    for (const topic of topics) {
+        try {
+            // topic:${topic} stars:1..50 pushed:>${date} sort:updated
+            const q = `topic:${topic} stars:1..50 pushed:>${dateString}`;
+            const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=15`;
+            console.log(`Searching GitHub repos for topic ${topic} with URL: ${url}`);
+            const res = await fetch(url, { headers: HEADERS });
+            if (!res.ok) {
+                const errMsg = await res.text();
+                console.error(`GitHub search for topic ${topic} failed: ${res.status} - ${errMsg}`);
+                continue;
+            }
+            const data = (await res.json());
+            const items = data.items || [];
+            for (const item of items) {
+                allReposMap.set(item.id, {
+                    id: item.id,
+                    github_url: item.html_url,
+                    owner: item.owner.login,
+                    name: item.name,
+                    stars: item.stargazers_count,
+                    language: item.language || 'Unknown',
+                    topics: item.topics || [],
+                    readme_snippet: '',
+                    description: item.description || '',
+                });
+            }
+            // Small sleep to be nice to GitHub's search rate limits
+            await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-        const data = (await res.json());
-        const items = data.items || [];
-        const repos = items.map((item) => ({
-            id: item.id,
-            github_url: item.html_url,
-            owner: item.owner.login,
-            name: item.name,
-            stars: item.stargazers_count,
-            language: item.language || 'Unknown',
-            topics: item.topics || [],
-            readme_snippet: '', // To be fetched per repo
-            description: item.description || '',
-        }));
-        return repos;
+        catch (err) {
+            console.error(`Error searching topic ${topic}:`, err.message || err);
+        }
     }
-    catch (err) {
-        console.error('Error during GitHub search:', err.message || err);
-        throw err;
-    }
+    return Array.from(allReposMap.values());
 }
 /**
  * Fetches the readme content of a repository and returns a snippet (first 3000 chars).

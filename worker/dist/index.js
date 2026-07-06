@@ -95,29 +95,34 @@ async function runAutomationJob() {
                     console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
                 }
             }
-            // 5. Save repository to database (must happen before logging actions to avoid FK constraint error)
-            await (0, supabase_1.saveRepo)({
-                id: repo.id,
-                github_url: repo.github_url,
-                owner: repo.owner,
-                name: repo.name,
-                stars: repo.stars,
-                language: repo.language,
-                topics: repo.topics,
-                readme_snippet: repo.readme_snippet,
-                grade: grading.grade,
-            }, followed, starred, followSkipped, followSkipReason);
-            // 6. Log interactions after repo is successfully saved
-            if (starResult) {
-                await (0, supabase_1.logAction)('STAR', repo.id, starResult.success ? 'SUCCESS' : 'FAILED', starResult.message);
+            // 5. Save repository to database and log if followed or starred
+            if (followed || starred) {
+                await (0, supabase_1.saveRepo)({
+                    id: repo.id,
+                    github_url: repo.github_url,
+                    owner: repo.owner,
+                    name: repo.name,
+                    stars: repo.stars,
+                    language: repo.language,
+                    topics: repo.topics,
+                    readme_snippet: repo.readme_snippet,
+                    grade: grading.grade,
+                }, followed, starred, followSkipped, followSkipReason);
+                // 6. Log interactions after repo is successfully saved
+                if (starResult) {
+                    await (0, supabase_1.logAction)('STAR', repo.id, starResult.success ? 'SUCCESS' : 'FAILED', starResult.message);
+                }
+                if (followResult) {
+                    await (0, supabase_1.logAction)('FOLLOW', repo.id, followResult.success ? 'SUCCESS' : 'FAILED', followResult.message);
+                }
+                if (followSkipped) {
+                    await (0, supabase_1.logAction)('SKIP_FOLLOW', repo.id, 'SUCCESS', `Skipped follow for ${repo.owner}: ${followSkipReason}`);
+                }
+                await (0, supabase_1.logAction)('GRADE', repo.id, 'SUCCESS', `Graded repo: ${repo.owner}/${repo.name}. Score: ${grading.grade}. Reason: ${grading.reason}`);
             }
-            if (followResult) {
-                await (0, supabase_1.logAction)('FOLLOW', repo.id, followResult.success ? 'SUCCESS' : 'FAILED', followResult.message);
+            else {
+                console.log(`[Automation] Skipped database write for ${repo.owner}/${repo.name} - not followed and not starred. (Grade: ${grading.grade}, Reason: ${grading.reason})`);
             }
-            if (followSkipped) {
-                await (0, supabase_1.logAction)('SKIP_FOLLOW', repo.id, 'SUCCESS', `Skipped follow for ${repo.owner}: ${followSkipReason}`);
-            }
-            await (0, supabase_1.logAction)('GRADE', repo.id, 'SUCCESS', `Graded repo: ${repo.owner}/${repo.name}. Score: ${grading.grade}. Reason: ${grading.reason}`);
             // Sleep 1.5 seconds between repositories to be respectful to APIs and limit rates
             await new Promise((resolve) => setTimeout(resolve, 1500));
         }
