@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Lottie from 'lottie-react';
 import mainCharacter from '../../public/animations/main_character.json';
 import { supabase } from '@/lib/supabase';
-import { triggerWorker, triggerCleanup, getWorkerStatus, triggerStar, triggerUnstar, triggerFollow, triggerUnfollow, triggerLogCleanup, triggerClearStale } from './actions';
+import { triggerWorker, triggerCleanup, getWorkerStatus, triggerStar, triggerUnstar, triggerFollow, triggerUnfollow, triggerLogCleanup, triggerClearStale, triggerDeleteProfile } from './actions';
 
 // Simple in-memory cache for GitHub stats
 const githubStatsCache = new Map<string, { followers: number; following: number }>();
@@ -27,7 +27,8 @@ import {
   CornerDownRight,
   TrendingUp,
   UserMinus,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from 'lucide-react';
 
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -133,11 +134,13 @@ function ProfileCard({
   profile, 
   onFollow, 
   onUnfollow, 
+  onDelete,
   isActionLoading 
 }: { 
   profile: any; 
   onFollow: (username: string) => Promise<void>; 
   onUnfollow: (username: string) => Promise<void>;
+  onDelete: (username: string) => Promise<void>;
   isActionLoading: boolean;
 }) {
   const [stats, setStats] = useState<{ followers: number; following: number } | null>(null);
@@ -164,27 +167,10 @@ function ProfileCard({
           githubStatsCache.set(username, userStats);
           if (active) setStats(userStats);
         } else {
-          let hash = 0;
-          for (let i = 0; i < username.length; i++) {
-            hash = username.charCodeAt(i) + ((hash << 5) - hash);
-          }
-          const mockFollowers = Math.abs((hash % 850) + 12);
-          const mockFollowing = Math.abs((hash % 320) + 5);
-          const fallbackStats = { followers: mockFollowers, following: mockFollowing };
-          githubStatsCache.set(username, fallbackStats);
-          if (active) setStats(fallbackStats);
+          if (active) setStats(null);
         }
       } catch (err) {
-        let hash = 0;
-        for (let i = 0; i < username.length; i++) {
-          hash = username.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const fallbackStats = {
-          followers: Math.abs((hash % 850) + 12),
-          following: Math.abs((hash % 320) + 5)
-        };
-        githubStatsCache.set(username, fallbackStats);
-        if (active) setStats(fallbackStats);
+        if (active) setStats(null);
       } finally {
         if (active) setLoading(false);
       }
@@ -221,52 +207,64 @@ function ProfileCard({
   }
 
   return (
-    <div className="bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-5 flex flex-col justify-between min-h-[220px] transition-all duration-300">
+    <div className="bg-[#0b0b0d] border border-zinc-900 hover:border-zinc-800 rounded-xl p-4 flex flex-col justify-between min-h-[160px] transition-all duration-300">
       <div>
-        <div className="flex items-center space-x-3.5 mb-4">
+        <div className="flex items-center space-x-3.5 mb-3">
           <img 
             src={`https://github.com/${profile.owner}.png`} 
             alt={profile.owner} 
-            className="h-12 w-12 rounded-full border border-zinc-850 bg-zinc-900 object-cover" 
+            className="h-10 w-10 rounded-full border border-zinc-850 bg-zinc-900 object-cover" 
             onError={(e) => {
               (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
             }}
           />
           <div className="truncate flex-1">
-            <h3 className="text-base font-bold text-zinc-100 flex items-center space-x-1.5 truncate">
+            <h3 className="text-sm font-bold text-zinc-100 flex items-center space-x-1.5 truncate">
               <span>@{profile.owner}</span>
             </h3>
-            <div className="flex items-center space-x-2.5 text-[11px] font-mono text-zinc-500 mt-0.5">
+            <div className="flex items-center space-x-2 text-[10px] font-mono text-zinc-500 mt-0.5">
               {loading ? (
                 <span className="animate-pulse">Loading stats...</span>
-              ) : (
+              ) : stats ? (
                 <>
-                  <span>{stats?.followers ?? 0} followers</span>
+                  <span>{stats.followers} followers</span>
                   <span>•</span>
-                  <span>{stats?.following ?? 0} following</span>
+                  <span>{stats.following} following</span>
                 </>
+              ) : (
+                <span className="text-zinc-650">stats rate-limited</span>
               )}
             </div>
           </div>
-          <span className={`px-2 py-0.5 rounded text-[10px] border font-mono ${badgeColor}`}>
-            {badgeLabel}
-          </span>
+          <div className="flex items-center space-x-2">
+            <span className={`px-2 py-0.5 rounded text-[10px] border font-mono ${badgeColor}`}>
+              {badgeLabel}
+            </span>
+            <button
+              onClick={() => onDelete(profile.owner)}
+              disabled={isActionLoading}
+              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/45 text-rose-400 rounded-lg transition cursor-pointer disabled:opacity-40"
+              title="Delete Profile from DB"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         {isSkipped && profile.followStatus.reason && (
-          <div className="text-[11px] font-mono text-zinc-500 leading-relaxed bg-[#070708] border border-zinc-900/60 p-2.5 rounded-lg mb-4">
+          <div className="text-[10px] font-mono text-zinc-500 leading-relaxed bg-[#070708] border border-zinc-900/60 p-2 py-1.5 rounded-lg mb-2">
             Reason: {profile.followStatus.reason}
           </div>
         )}
       </div>
 
-      <div className="flex space-x-2 mt-4 pt-3.5 border-t border-zinc-900">
+      <div className="flex space-x-2 mt-2 pt-2.5 border-t border-zinc-900">
         {isMutual ? (
           <a
             href={`https://github.com/${profile.owner}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1 min-h-[44px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 text-xs font-bold rounded-lg cursor-pointer transition uppercase"
+            className="flex-1 min-h-[40px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 text-xs font-bold rounded-lg cursor-pointer transition uppercase"
           >
             GitHub Profile
           </a>
@@ -275,7 +273,7 @@ function ProfileCard({
             <button
               onClick={() => onUnfollow(profile.owner)}
               disabled={isActionLoading}
-              className="flex-1 min-h-[44px] flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 text-xs font-bold rounded-lg cursor-pointer transition uppercase disabled:opacity-40"
+              className="flex-1 min-h-[40px] flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 text-rose-450 border border-rose-500/25 text-xs font-bold rounded-lg cursor-pointer transition uppercase disabled:opacity-40"
             >
               Unfollow
             </button>
@@ -283,7 +281,7 @@ function ProfileCard({
               href={`https://github.com/${profile.owner}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 min-h-[44px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-350 border border-zinc-800 text-xs font-bold rounded-lg cursor-pointer transition"
+              className="px-4 min-h-[40px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-350 border border-zinc-800 text-xs font-bold rounded-lg cursor-pointer transition"
             >
               GitHub
             </a>
@@ -293,7 +291,7 @@ function ProfileCard({
             <button
               onClick={() => onFollow(profile.owner)}
               disabled={isActionLoading}
-              className="flex-1 min-h-[44px] flex items-center justify-center bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 text-xs font-bold rounded-lg cursor-pointer transition uppercase disabled:opacity-40"
+              className="flex-1 min-h-[40px] flex items-center justify-center bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 text-xs font-bold rounded-lg cursor-pointer transition uppercase disabled:opacity-40"
             >
               Follow
             </button>
@@ -301,7 +299,7 @@ function ProfileCard({
               href={`https://github.com/${profile.owner}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 min-h-[44px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-350 border border-zinc-800 text-xs font-bold rounded-lg cursor-pointer transition"
+              className="px-4 min-h-[40px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-355 border border-zinc-800 text-xs font-bold rounded-lg cursor-pointer transition"
             >
               GitHub
             </a>
@@ -416,7 +414,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       .select('*', { count: 'exact', head: true })
       .eq('followed', false)
       .eq('starred', false)
-      .eq('follow_skipped', true);
+      .eq('unfollowed', false);
     if (!error && count !== null) {
       setStaleProfilesCount(count);
     }
@@ -757,6 +755,23 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       if (logsRes.data) setLogs(logsRes.data);
     } else {
       alert(`Failed to star: ${res.error}`);
+    }
+  };
+
+  // Handle manual profile deletion from DB
+  const handleDeleteProfile = async (username: string) => {
+    if (!confirm(`Are you sure you want to permanently delete @${username} and all of their repositories from the database?`)) {
+      return;
+    }
+    setIsActionLoading(true);
+    const res = await triggerDeleteProfile(username);
+    setIsActionLoading(false);
+    if (res.success) {
+      setRepos(prev => prev.filter(r => r.owner.toLowerCase() !== username.toLowerCase()));
+      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
+      if (logsRes.data) setLogs(logsRes.data);
+    } else {
+      alert(`Failed to delete profile: ${res.error}`);
     }
   };
 
@@ -1217,6 +1232,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                     profile={profile}
                     onFollow={handleFollowUser}
                     onUnfollow={handleUnfollowUser}
+                    onDelete={handleDeleteProfile}
                     isActionLoading={isActionLoading}
                   />
                 ))}
@@ -1501,86 +1517,88 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-4 font-mono text-xs text-zinc-300 bg-[#070708]/80">
+            <div className="flex-1 overflow-y-auto p-4 font-mono text-xs">
               {cleanupOption === null ? (
                 <div className="space-y-4">
-                  <p className="text-zinc-400">Select one of the following cleanup tasks to execute:</p>
+                  <p className="text-zinc-400 font-sans text-xs">Select a maintenance task:</p>
                   
-                  {/* Option 1: Regular Cleanup */}
-                  <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-xl hover:border-zinc-850 transition flex flex-col space-y-3">
-                    <div>
-                      <h4 className="font-bold text-zinc-200 text-xs">1. Regular Cleanup</h4>
-                      <p className="text-zinc-550 text-[11px] mt-1 leading-relaxed font-sans">
-                        Unfollows anyone followed more than 7 days ago who has not followed back.
-                      </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Option 1: Regular Cleanup */}
+                    <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-xl hover:border-zinc-800 transition flex flex-col justify-between space-y-3">
+                      <div>
+                        <h4 className="font-bold text-zinc-100 text-xs">1. Bulk Unfollow</h4>
+                        <p className="text-zinc-500 text-[11px] mt-1 font-sans leading-relaxed">
+                          Unfollows anyone followed &gt;7 days ago who has not followed back.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleCleanupRun();
+                          setIsCleanupOpen(false);
+                        }}
+                        disabled={isCleaning}
+                        className="w-full min-h-[40px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border border-zinc-800 text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-50"
+                      >
+                        Run Bulk Cleanup
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        handleCleanupRun();
-                        setIsCleanupOpen(false);
-                      }}
-                      disabled={isCleaning}
-                      className="w-full min-h-[44px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border border-zinc-800 text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-50"
-                    >
-                      Run Regular Cleanup
-                    </button>
-                  </div>
 
-                  {/* Option 2: Preview & Unfollow List */}
-                  <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-xl hover:border-zinc-850 transition flex flex-col space-y-3">
-                    <div>
-                      <h4 className="font-bold text-zinc-200 text-xs">2. Preview & Unfollow List</h4>
-                      <p className="text-zinc-550 text-[11px] mt-1 leading-relaxed font-sans">
-                        Preview developers who will be unfollowed. Unfollow selectively or trigger a bulk unfollow.
-                      </p>
+                    {/* Option 2: Preview & Unfollow List */}
+                    <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-xl hover:border-zinc-800 transition flex flex-col justify-between space-y-3">
+                      <div>
+                        <h4 className="font-bold text-zinc-100 text-xs">2. Selective Unfollow</h4>
+                        <p className="text-zinc-500 text-[11px] mt-1 font-sans leading-relaxed">
+                          Preview eligible developers to unfollow them selectively or in bulk.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          fetchUnfollowList();
+                          setCleanupOption('list');
+                        }}
+                        className="w-full min-h-[40px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-205 border border-zinc-800 text-xs font-bold rounded-lg transition cursor-pointer"
+                      >
+                        Preview & Select
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        fetchUnfollowList();
-                        setCleanupOption('list');
-                      }}
-                      className="w-full min-h-[44px] flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border border-zinc-800 text-xs font-bold rounded-lg transition cursor-pointer"
-                    >
-                      Open Preview List
-                    </button>
-                  </div>
 
-                  {/* Option 3: Log Cleanup */}
-                  <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-xl hover:border-teal-950/60 transition flex flex-col space-y-3">
-                    <div>
-                      <h4 className="font-bold text-teal-400 text-xs">3. Log Cleanup</h4>
-                      <p className="text-zinc-550 text-[11px] mt-1 leading-relaxed font-sans">
-                        Deletes old entries from the logs table to conserve space, keeping only the latest 200 rows.
-                      </p>
+                    {/* Option 3: Log Cleanup */}
+                    <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-xl hover:border-zinc-800 transition flex flex-col justify-between space-y-3">
+                      <div>
+                        <h4 className="font-bold text-teal-400 text-xs">3. Log Cleanup</h4>
+                        <p className="text-zinc-500 text-[11px] mt-1 font-sans leading-relaxed">
+                          Purges old logs history to save database storage, keeping the top 200 logs.
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await fetchTotalLogsCount();
+                          setCleanupOption('logs');
+                        }}
+                        className="w-full min-h-[40px] flex items-center justify-center bg-teal-950/20 hover:bg-teal-905/30 text-teal-400 border border-teal-900/40 text-xs font-bold rounded-lg transition cursor-pointer"
+                      >
+                        Configure Logs
+                      </button>
                     </div>
-                    <button
-                      onClick={async () => {
-                        await fetchTotalLogsCount();
-                        setCleanupOption('logs');
-                      }}
-                      className="w-full min-h-[44px] flex items-center justify-center bg-teal-950/20 hover:bg-teal-900 text-teal-200 border border-teal-900 text-xs font-bold rounded-lg transition cursor-pointer"
-                    >
-                      Configure Log Cleanup
-                    </button>
-                  </div>
 
-                  {/* Option 4: Clear Stale Profiles */}
-                  <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-xl hover:border-amber-955/60 transition flex flex-col space-y-3">
-                    <div>
-                      <h4 className="font-bold text-amber-400 text-xs">4. Clear Stale Profiles</h4>
-                      <p className="text-zinc-550 text-[11px] mt-1 leading-relaxed font-sans">
-                        Deletes evaluated profiles that were skipped and never starred or followed, freeing database rows.
-                      </p>
+                    {/* Option 4: Clear Stale Profiles */}
+                    <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-xl hover:border-zinc-800 transition flex flex-col justify-between space-y-3">
+                      <div>
+                        <h4 className="font-bold text-amber-400 text-xs">4. Clear Stale Profiles</h4>
+                        <p className="text-zinc-500 text-[11px] mt-1 font-sans leading-relaxed">
+                          Deletes discovered profiles that were skipped and never starred or followed.
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await fetchStaleProfilesCount();
+                          setCleanupOption('stale');
+                        }}
+                        className="w-full min-h-[40px] flex items-center justify-center bg-amber-955/20 hover:bg-amber-900/30 text-amber-300 border border-amber-900/40 text-xs font-bold rounded-lg transition cursor-pointer"
+                      >
+                        Clear Stale Data
+                      </button>
                     </div>
-                    <button
-                      onClick={async () => {
-                        await fetchStaleProfilesCount();
-                        setCleanupOption('stale');
-                      }}
-                      className="w-full min-h-[44px] flex items-center justify-center bg-amber-955/20 hover:bg-amber-900 text-amber-200 border border-amber-900 text-xs font-bold rounded-lg transition cursor-pointer"
-                    >
-                      Configure Profile Cleanup
-                    </button>
                   </div>
                 </div>
               ) : cleanupOption === 'list' ? (

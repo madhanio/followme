@@ -313,7 +313,7 @@ app.post('/clearstale', async (req, res) => {
             .delete()
             .eq('followed', false)
             .eq('starred', false)
-            .eq('follow_skipped', true)
+            .eq('unfollowed', false)
             .select('id');
         if (error) {
             console.error('Error clearing stale profiles:', error.message);
@@ -364,6 +364,32 @@ app.post('/star', async (req, res) => {
     }
     catch (err) {
         return res.status(500).json({ success: false, error: err.message || 'Error manual starring' });
+    }
+});
+// POST /deleteprofile
+app.post('/deleteprofile', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    const { username } = req.body;
+    if (!username) {
+        return res.status(400).json({ error: 'Missing username parameter' });
+    }
+    try {
+        const { data, error } = await supabase_1.supabase
+            .from('repos')
+            .delete()
+            .eq('owner', username);
+        if (error) {
+            console.error(`Error deleting profile ${username}:`, error.message);
+            return res.status(500).json({ success: false, error: error.message });
+        }
+        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Manually deleted profile and repositories for ${username}`);
+        return res.json({ success: true, message: `Successfully deleted profile ${username}` });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, error: err.message || 'Error manual deleting profile' });
     }
 });
 // POST /unstar

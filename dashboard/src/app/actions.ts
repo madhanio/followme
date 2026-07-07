@@ -251,3 +251,31 @@ export async function triggerClearStale() {
     return { success: false, error: err.message || 'Failed to connect to worker' };
   }
 }
+
+export async function triggerDeleteProfile(username: string) {
+  const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
+  const secret = process.env.WORKER_SECRET || 'dev_secret';
+
+  try {
+    const res = await fetch(`${workerUrl}/deleteprofile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': secret,
+      },
+      body: JSON.stringify({ username }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `Worker error: ${res.status} - ${text}` };
+    }
+
+    const data = await res.json();
+    revalidatePath('/');
+    return { success: true, message: data.message || `Profile ${username} deleted successfully.` };
+  } catch (err: any) {
+    console.error('Error deleting profile:', err);
+    return { success: false, error: err.message || 'Failed to connect to worker' };
+  }
+}
