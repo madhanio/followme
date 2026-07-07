@@ -327,6 +327,45 @@ app.post('/clearstale', async (req, res) => {
         return res.status(500).json({ success: false, error: err.message || 'Error occurred during stale profiles cleanup' });
     }
 });
+// POST /star
+app.post('/star', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    const { owner, repo } = req.body;
+    if (!owner || !repo) {
+        return res.status(400).json({ error: 'Missing owner or repo parameter' });
+    }
+    try {
+        const success = await (0, github_1.starRepo)(owner, repo);
+        if (success) {
+            const { data: dbRepo } = await supabase_1.supabase
+                .from('repos')
+                .select('id')
+                .eq('owner', owner)
+                .eq('name', repo)
+                .maybeSingle();
+            const repoId = dbRepo ? dbRepo.id : null;
+            const { error } = await supabase_1.supabase
+                .from('repos')
+                .update({ starred: true })
+                .eq('owner', owner)
+                .eq('name', repo);
+            if (error) {
+                console.error(`Error updating DB after star for ${owner}/${repo}:`, error.message);
+            }
+            await (0, supabase_1.logAction)('STAR', repoId, 'SUCCESS', `Manually starred repository ${owner}/${repo}`);
+            return res.json({ success: true, message: `Successfully starred ${owner}/${repo}` });
+        }
+        else {
+            return res.status(500).json({ success: false, error: `Failed to star repository ${owner}/${repo}` });
+        }
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, error: err.message || 'Error manual starring' });
+    }
+});
 // POST /unstar
 app.post('/unstar', async (req, res) => {
     const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
@@ -365,6 +404,44 @@ app.post('/unstar', async (req, res) => {
     }
     catch (err) {
         return res.status(500).json({ success: false, error: err.message || 'Error manual unstarring' });
+    }
+});
+// POST /follow
+app.post('/follow', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    const { username } = req.body;
+    if (!username) {
+        return res.status(400).json({ error: 'Missing username parameter' });
+    }
+    try {
+        const success = await (0, github_1.followUser)(username);
+        if (success) {
+            const { data: dbRepo } = await supabase_1.supabase
+                .from('repos')
+                .select('id')
+                .eq('owner', username)
+                .limit(1)
+                .maybeSingle();
+            const repoId = dbRepo ? dbRepo.id : null;
+            const { error } = await supabase_1.supabase
+                .from('repos')
+                .update({ followed: true, unfollowed: false, followed_at: new Date().toISOString() })
+                .eq('owner', username);
+            if (error) {
+                console.error(`Error updating DB after follow for ${username}:`, error.message);
+            }
+            await (0, supabase_1.logAction)('FOLLOW', repoId, 'SUCCESS', `Manually followed user ${username}`);
+            return res.json({ success: true, message: `Successfully followed ${username}` });
+        }
+        else {
+            return res.status(500).json({ success: false, error: `Failed to follow user ${username}` });
+        }
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, error: err.message || 'Error manual following' });
     }
 });
 // POST /unfollow
