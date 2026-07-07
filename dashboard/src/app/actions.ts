@@ -166,3 +166,31 @@ export async function getWorkerStatus() {
     return { success: false, error: err.message || 'Failed to connect to worker' };
   }
 }
+
+export async function triggerClearStale() {
+  const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
+  const secret = process.env.WORKER_SECRET || 'dev_secret';
+
+  try {
+    const res = await fetch(`${workerUrl}/clearstale`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': secret,
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `Worker error: ${res.status} - ${text}` };
+    }
+
+    const data = await res.json();
+    revalidatePath('/');
+    return { success: true, message: data.message || 'Stale profiles cleanup triggered.' };
+  } catch (err: any) {
+    console.error('Error clearing stale profiles:', err);
+    return { success: false, error: err.message || 'Failed to connect to worker' };
+  }
+}

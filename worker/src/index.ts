@@ -350,6 +350,36 @@ app.post('/cleanlogs', async (req: Request, res: Response) => {
   }
 });
 
+// POST /clearstale
+app.post('/clearstale', async (req: Request, res: Response) => {
+  const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+
+  if (authHeader !== WORKER_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('repos')
+      .delete()
+      .eq('followed', false)
+      .eq('starred', false)
+      .eq('follow_skipped', true)
+      .select('id');
+
+    if (error) {
+      console.error('Error clearing stale profiles:', error.message);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    const count = data ? data.length : 0;
+    await logAction('SYSTEM', null, 'SUCCESS', `Cleared ${count} stale profiles.`);
+    return res.json({ success: true, message: `Successfully cleared ${count} stale profiles.` });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Error occurred during stale profiles cleanup' });
+  }
+});
+
 // POST /unstar
 app.post('/unstar', async (req: Request, res: Response) => {
   const authHeader = req.headers['x-worker-secret'] || req.body?.secret;

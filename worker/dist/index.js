@@ -301,6 +301,32 @@ app.post('/cleanlogs', async (req, res) => {
         return res.status(500).json({ success: false, error: err.message || 'Error occurred during log cleanup' });
     }
 });
+// POST /clearstale
+app.post('/clearstale', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    try {
+        const { data, error } = await supabase_1.supabase
+            .from('repos')
+            .delete()
+            .eq('followed', false)
+            .eq('starred', false)
+            .eq('follow_skipped', true)
+            .select('id');
+        if (error) {
+            console.error('Error clearing stale profiles:', error.message);
+            return res.status(500).json({ success: false, error: error.message });
+        }
+        const count = data ? data.length : 0;
+        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Cleared ${count} stale profiles.`);
+        return res.json({ success: true, message: `Successfully cleared ${count} stale profiles.` });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, error: err.message || 'Error occurred during stale profiles cleanup' });
+    }
+});
 // POST /unstar
 app.post('/unstar', async (req, res) => {
     const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
