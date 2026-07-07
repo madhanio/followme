@@ -21,18 +21,30 @@ const GRADE_THRESHOLD = parseInt(process.env.GRADE_THRESHOLD || '7', 10);
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || '0 */12 * * *'; // Default: every 12 hours
 const TOPICS = ['ai', 'machine-learning', 'llm', 'flutter', 'nodejs', 'python'];
 let isJobRunning = false;
-// Helper to log fatal worker errors to database
-async function logFatalError(errorMessage) {
+let lastRun = null;
+let consecutiveFailures = 0;
+// Helper to determine if an error is recoverable (e.g. rate limit, timeout)
+function isRecoverableError(err) {
+    const msg = (err.message || String(err)).toLowerCase();
+    return (msg.includes('rate limit') ||
+        msg.includes('403') ||
+        msg.includes('429') ||
+        msg.includes('timeout') ||
+        msg.includes('timed out') ||
+        msg.includes('etimedout'));
+}
+// Helper to log fatal worker errors or warnings to database
+async function logFatalErrorOrWarn(errorMessage, status) {
     // First, try inserting into 'worker_logs' as explicitly requested in instructions
     try {
         const { error } = await supabase_1.supabase.from('worker_logs').insert({
             action: 'SYSTEM',
-            status: 'ERROR',
+            status: status,
             message: errorMessage,
             timestamp: new Date().toISOString(),
         });
         if (!error) {
-            console.log('Successfully logged fatal error to worker_logs table.');
+            console.log(`Successfully logged fatal error/warn with status ${status} to worker_logs table.`);
             return;
         }
         console.warn('Failed to log to worker_logs table, trying logs table:', error.message);
@@ -44,7 +56,7 @@ async function logFatalError(errorMessage) {
     try {
         const { error } = await supabase_1.supabase.from('logs').insert({
             action: 'SYSTEM',
-            status: 'ERROR',
+            status: status,
             message: errorMessage,
             timestamp: new Date().toISOString(),
         });
@@ -52,11 +64,11 @@ async function logFatalError(errorMessage) {
             console.error('Error fallback logging to logs table:', error.message);
         }
         else {
-            console.log('Successfully logged fatal error to logs table.');
+            console.log(`Successfully logged fatal error/warn with status ${status} to logs table.`);
         }
     }
     catch (err) {
-        console.error('Failed to log fatal error to logs table:', err.message || err);
+        console.error('Failed to log fatal error/warn to logs table:', err.message || err);
     }
 }
 // Helper to parse and print next scheduled run time
@@ -177,6 +189,7 @@ async function runAutomationJob() {
         }
         console.log('FollowMe job completed successfully.', stats);
         await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Automation job finished. Graded ${stats.graded} new repos. Followed: ${stats.followed}, Starred: ${stats.starred}, Skipped: ${stats.skipped}`);
+        consecutiveFailures = 0; // Reset failure counter on success
         // Call cleanup at the end of every automation run
         try {
             await runCleanupJob();
@@ -187,10 +200,24 @@ async function runAutomationJob() {
     }
     catch (err) {
         stats.failed++;
+        consecutiveFailures++;
         console.error('Fatal error during automated run:', err.message || err);
-        await logFatalError(`Automation job failed: ${err.message || 'Unknown error'}`);
+        const isRecoverable = isRecoverableError(err);
+        if (isRecoverable && consecutiveFailures < 3) {
+            console.warn(`Recoverable error encountered (${consecutiveFailures}/3). Scheduling retry in 30 minutes.`);
+            await logFatalErrorOrWarn(`Automation job warning (retry scheduled): ${err.message || 'Unknown error'}`, 'WARN');
+            setTimeout(() => {
+                console.log('Triggering automated self-healing retry...');
+                runAutomationJob().catch(console.error);
+            }, 30 * 60 * 1000);
+        }
+        else {
+            console.error(`Fatal error or max retries reached (${consecutiveFailures}/3). logging error.`);
+            await logFatalErrorOrWarn(`Automation job failed: ${err.message || 'Unknown error'}`, 'ERROR');
+        }
     }
     finally {
+        lastRun = new Date().toISOString();
         isJobRunning = false;
     }
     return { status: 'completed', stats };
@@ -211,6 +238,32 @@ app.post('/run', async (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', jobRunning: isJobRunning });
+});
+// GET /status
+app.get('/status', (req, res) => {
+    let nextRunStr = null;
+    try {
+        const interval = cron_parser_1.default.parse(CRON_SCHEDULE);
+        nextRunStr = interval.next().toString();
+    }
+    catch (err) {
+        console.error('Error parsing cron schedule for status endpoint:', err);
+    }
+    res.json({
+        nextRun: nextRunStr,
+        lastRun,
+        isJobRunning,
+        consecutiveFailures,
+    });
+});
+// POST /cleanup
+app.post('/cleanup', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    runCleanupJob().catch(console.error);
+    return res.json({ message: 'Cleanup job triggered successfully.' });
 });
 // Set up Cron schedule
 node_cron_1.default.schedule(CRON_SCHEDULE, () => {
@@ -295,7 +348,7 @@ app.listen(PORT, () => {
 process.on('uncaughtException', async (error) => {
     console.error('Uncaught Exception:', error);
     try {
-        await logFatalError(`Uncaught Exception: ${error.message || error}`);
+        await logFatalErrorOrWarn(`Uncaught Exception: ${error.message || error}`, 'ERROR');
     }
     catch (logErr) {
         console.error('Failed to log uncaught exception to database:', logErr);
@@ -305,7 +358,7 @@ process.on('uncaughtException', async (error) => {
 process.on('unhandledRejection', async (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     try {
-        await logFatalError(`Unhandled Rejection: ${reason?.message || reason || 'Unknown reason'}`);
+        await logFatalErrorOrWarn(`Unhandled Rejection: ${reason?.message || reason || 'Unknown reason'}`, 'ERROR');
     }
     catch (logErr) {
         console.error('Failed to log unhandled rejection to database:', logErr);

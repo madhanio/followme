@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Lottie from 'lottie-react';
 import mainCharacter from '../../public/animations/main_character.json';
 import { supabase } from '@/lib/supabase';
-import { triggerWorker } from './actions';
+import { triggerWorker, triggerCleanup, getWorkerStatus } from './actions';
 import { 
   Search, 
   Filter, 
@@ -157,7 +157,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [selectedLanguage, setSelectedLanguage] = useState<string>('All');
   const [followedFilter, setFollowedFilter] = useState<'All' | 'Yes' | 'No' | 'Unfollowed' | 'Skipped'>('All');
   const [starredFilter, setStarredFilter] = useState<'All' | 'Yes' | 'No'>('All');
-  const [activeTab, setActiveTab] = useState<'repos' | 'logs'>('repos');
+  const [activeTab, setActiveTab] = useState<'repos' | 'logs' | 'controls'>('repos');
   const [sortBy, setSortBy] = useState<'date' | 'grade' | 'stars'>('date');
 
   // Animation States
@@ -170,8 +170,37 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [isTriggering, setIsTriggering] = useState(false);
   const [triggerStatus, setTriggerStatus] = useState<{ success?: boolean; message?: string } | null>(null);
 
+  // Cleanup Trigger State
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [cleanupStatus, setCleanupStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+
+  // Worker status states
+  const [workerStatus, setWorkerStatus] = useState<{
+    nextRun: string | null;
+    lastRun: string | null;
+    isJobRunning: boolean;
+    consecutiveFailures: number;
+  } | null>(null);
+  const [isStatusLoading, setIsStatusLoading] = useState(false);
+
+  const fetchStatus = async () => {
+    setIsStatusLoading(true);
+    const res = await getWorkerStatus();
+    if (res.success && res.data) {
+      setWorkerStatus(res.data);
+    }
+    setIsStatusLoading(false);
+  };
+
   // Selected Repo Modal
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
+
+  useEffect(() => {
+    fetchStatus();
+    // Refresh status every 30 seconds
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     // End first mount phase after all startup animations complete (1.2 seconds)
@@ -362,6 +391,37 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       } finally {
         setIsRefreshing(false);
       }
+      fetchStatus();
+    }
+  };
+
+  // Handle cleanup standalone run
+  const handleCleanup = async () => {
+    if (isCleaning) return;
+    setIsCleaning(true);
+    setCleanupStatus(null);
+
+    const result = await triggerCleanup();
+
+    setIsCleaning(false);
+    setCleanupStatus({ success: result.success, message: result.success ? result.message : result.error });
+
+    if (result.success) {
+      setIsRefreshing(true);
+      try {
+        const [reposRes, logsRes] = await Promise.all([
+          supabase.from('repos').select('*'),
+          supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50)
+        ]);
+        if (reposRes.data) setRepos(reposRes.data);
+        if (logsRes.data) setLogs(logsRes.data);
+        router.refresh();
+      } catch (err) {
+        console.error("Post-cleanup refresh failed:", err);
+      } finally {
+        setIsRefreshing(false);
+      }
+      fetchStatus();
     }
   };
 
@@ -638,9 +698,20 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             <Terminal className="h-3.5 w-3.5" />
             <span>Worker Logs ({initialLogs.length})</span>
           </button>
+          <button
+            onClick={() => setActiveTab('controls')}
+            className={`px-5 py-3 font-mono text-xs uppercase tracking-wider transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
+              activeTab === 'controls' 
+                ? 'border-teal-500 text-white font-bold' 
+                : 'border-transparent text-zinc-500 hover:text-zinc-200'
+            }`}
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+            <span>Controls</span>
+          </button>
         </div>
 
-        {activeTab === 'repos' ? (
+        {activeTab === 'repos' && (
           <div className="space-y-6">
             
             {/* Horizontal Filter Bar */}
@@ -1034,7 +1105,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               </div>
             )}
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'logs' && (
           /* Mono activity logs */
           <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-zinc-900 bg-[#0c0c0e] flex items-center justify-between">
@@ -1112,6 +1185,182 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'controls' && (
+          <div className="space-y-6">
+            {/* Main grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* Status Indicator Card */}
+              <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl p-5 flex flex-col space-y-4 col-span-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+                    Worker Status
+                  </h3>
+                  {/* Status Indicator */}
+                  {(() => {
+                    const getLiveIndicator = () => {
+                      if (!workerStatus) return { label: 'Unknown', color: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20' };
+                      if (workerStatus.isJobRunning) return { label: 'Running', color: 'text-amber-400 bg-amber-400/10 border-amber-400/25 animate-pulse' };
+                      if (workerStatus.consecutiveFailures > 0) return { label: 'Last run failed', color: 'text-rose-500 bg-rose-500/10 border-rose-500/25' };
+                      return { label: 'Idle', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/25' };
+                    };
+                    const ind = getLiveIndicator();
+                    return (
+                      <span className={`px-2.5 py-1 text-[10px] font-bold font-mono rounded-full border ${ind.color}`}>
+                        {ind.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-zinc-900/60 pt-4">
+                  <div>
+                    <span className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider block">
+                      Last Successful Run
+                    </span>
+                    <span className="text-xs font-mono text-zinc-300 mt-1 block">
+                      {(() => {
+                        const lastSuccessLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message?.includes('finished'));
+                        return lastSuccessLog ? new Date(lastSuccessLog.timestamp).toLocaleString() : 'Never';
+                      })()}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider block">
+                      Next Scheduled Run
+                    </span>
+                    <span className="text-xs font-mono text-zinc-300 mt-1 block">
+                      {workerStatus?.nextRun ? new Date(workerStatus.nextRun).toLocaleString() : 'Not configured'}
+                    </span>
+                  </div>
+                </div>
+
+                {workerStatus && workerStatus.consecutiveFailures > 0 && (
+                  <div className="border-t border-zinc-900/60 pt-4">
+                    <span className="text-[10px] text-rose-400 font-mono uppercase tracking-wider block">
+                      Consecutive Failures
+                    </span>
+                    <span className="text-xs font-mono text-rose-500 font-bold mt-1 block">
+                      {workerStatus.consecutiveFailures} / 3
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Panel Card */}
+              <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl p-5 flex flex-col space-y-3">
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400 pb-2 border-b border-zinc-900">
+                  Automation Controls
+                </h3>
+                
+                <button
+                  onClick={handleTrigger}
+                  disabled={isTriggering || (workerStatus?.isJobRunning)}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-850 disabled:bg-zinc-950 disabled:text-zinc-600 border border-zinc-800 disabled:border-zinc-950 text-xs font-mono font-semibold rounded-lg transition cursor-pointer text-zinc-200"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  <span>{isTriggering ? 'Triggering...' : 'Run Automation'}</span>
+                </button>
+
+                <button
+                  onClick={handleCleanup}
+                  disabled={isCleaning || (workerStatus?.isJobRunning)}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-850 disabled:bg-zinc-950 disabled:text-zinc-600 border border-zinc-800 disabled:border-zinc-950 text-xs font-mono font-semibold rounded-lg transition cursor-pointer text-zinc-200"
+                >
+                  <Terminal className="h-3.5 w-3.5" />
+                  <span>{isCleaning ? 'Cleaning...' : 'Run Cleanup'}</span>
+                </button>
+
+                <button
+                  onClick={async () => {
+                    await handleRefresh();
+                    await fetchStatus();
+                  }}
+                  disabled={isRefreshing || isStatusLoading}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-zinc-950 hover:bg-zinc-900 text-zinc-400 border border-zinc-900 text-xs font-mono font-semibold rounded-lg transition cursor-pointer"
+                >
+                  <RotateCw className={`h-3.5 w-3.5 ${(isRefreshing || isStatusLoading) ? 'animate-spin' : ''}`} />
+                  <span>{(isRefreshing || isStatusLoading) ? 'Refreshing...' : 'Refresh Status'}</span>
+                </button>
+              </div>
+
+            </div>
+
+            {/* Error alerts / notification status banners */}
+            {(triggerStatus || cleanupStatus) && (
+              <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl p-4 flex flex-col space-y-2">
+                {triggerStatus && (
+                  <div className={`text-xs font-mono p-3 rounded-lg border ${
+                    triggerStatus.success ? 'bg-emerald-950/20 border-emerald-900/35 text-emerald-400' : 'bg-rose-950/20 border-rose-900/35 text-rose-450'
+                  }`}>
+                    <strong>Automation Run:</strong> {triggerStatus.message}
+                  </div>
+                )}
+                {cleanupStatus && (
+                  <div className={`text-xs font-mono p-3 rounded-lg border ${
+                    cleanupStatus.success ? 'bg-emerald-950/20 border-emerald-900/35 text-emerald-400' : 'bg-rose-950/20 border-rose-900/35 text-rose-450'
+                  }`}>
+                    <strong>Cleanup Standalone:</strong> {cleanupStatus.message}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error Panel (If latest SYSTEM log has status = ERROR) */}
+            {(() => {
+              const latestSystemLog = logs.find(l => l.action === 'SYSTEM');
+              const isError = latestSystemLog && latestSystemLog.status === 'ERROR';
+              if (!isError) return null;
+
+              const getErrorExplanation = (message: string) => {
+                const msg = message.toLowerCase();
+                if (msg.includes('rate limit') || msg.includes('403') || msg.includes('429')) {
+                  return 'GitHub API rate limit hit, wait 1 hour';
+                }
+                if (msg.includes('timeout') || msg.includes('nim') || msg.includes('llama') || msg.includes('openai') || msg.includes('timed out')) {
+                  return 'NVIDIA NIM API timed out, will retry next run';
+                }
+                if (msg.includes('supabase') || msg.includes('database') || msg.includes('postgres') || msg.includes('connection')) {
+                  return 'Database connection failed, check Supabase status';
+                }
+                return 'An unexpected error occurred during execution';
+              };
+
+              const explanation = getErrorExplanation(latestSystemLog.message || '');
+
+              return (
+                <div className="bg-rose-950/20 border border-rose-900/35 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2 text-rose-450">
+                      <ShieldAlert className="h-4 w-4" />
+                      <h4 className="text-xs font-mono font-bold uppercase tracking-wider">
+                        System Failure Alert
+                      </h4>
+                    </div>
+                    <p className="text-xs text-zinc-300 font-mono mt-2">
+                      <strong>Raw Message:</strong> {latestSystemLog.message}
+                    </p>
+                    <p className="text-xs text-rose-350 font-mono mt-1 font-bold">
+                      <strong>Explanation:</strong> {explanation}
+                    </p>
+                  </div>
+                  <div>
+                    <button
+                      onClick={handleTrigger}
+                      disabled={isTriggering || (workerStatus?.isJobRunning)}
+                      className="px-4 py-2 bg-rose-950 hover:bg-rose-900 text-rose-200 border border-rose-800 text-xs font-mono font-semibold rounded transition cursor-pointer whitespace-nowrap"
+                    >
+                      Retry Now
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
           </div>
         )}
       </main>
