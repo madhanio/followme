@@ -59,6 +59,90 @@ export async function triggerCleanup() {
   }
 }
 
+export async function triggerLogCleanup() {
+  const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
+  const secret = process.env.WORKER_SECRET || 'dev_secret';
+
+  try {
+    const res = await fetch(`${workerUrl}/cleanlogs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': secret,
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `Worker error: ${res.status} - ${text}` };
+    }
+
+    const data = await res.json();
+    revalidatePath('/');
+    return { success: true, message: data.message || 'Log cleanup completed.' };
+  } catch (err: any) {
+    console.error('Error triggering log cleanup:', err);
+    return { success: false, error: err.message || 'Failed to connect to worker' };
+  }
+}
+
+export async function triggerUnstar(owner: string, repo: string) {
+  const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
+  const secret = process.env.WORKER_SECRET || 'dev_secret';
+
+  try {
+    const res = await fetch(`${workerUrl}/unstar`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': secret,
+      },
+      body: JSON.stringify({ owner, repo }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `Worker error: ${res.status} - ${text}` };
+    }
+
+    const data = await res.json();
+    revalidatePath('/');
+    return { success: true, message: data.message || 'Unstar triggered successfully.' };
+  } catch (err: any) {
+    console.error('Error triggering unstar:', err);
+    return { success: false, error: err.message || 'Failed to connect to worker' };
+  }
+}
+
+export async function triggerUnfollow(username: string) {
+  const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
+  const secret = process.env.WORKER_SECRET || 'dev_secret';
+
+  try {
+    const res = await fetch(`${workerUrl}/unfollow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': secret,
+      },
+      body: JSON.stringify({ username }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `Worker error: ${res.status} - ${text}` };
+    }
+
+    const data = await res.json();
+    revalidatePath('/');
+    return { success: true, message: data.message || 'Unfollow triggered successfully.' };
+  } catch (err: any) {
+    console.error('Error triggering unfollow:', err);
+    return { success: false, error: err.message || 'Failed to connect to worker' };
+  }
+}
+
 export async function getWorkerStatus() {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
 

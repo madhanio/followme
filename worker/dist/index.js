@@ -265,6 +265,121 @@ app.post('/cleanup', async (req, res) => {
     runCleanupJob().catch(console.error);
     return res.json({ message: 'Cleanup job triggered successfully.' });
 });
+// POST /cleanlogs
+app.post('/cleanlogs', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    try {
+        const { data: allLogs, error: fetchErr } = await supabase_1.supabase
+            .from('logs')
+            .select('id')
+            .order('timestamp', { ascending: false });
+        if (fetchErr) {
+            console.error('Error fetching logs for cleanup:', fetchErr.message);
+            return res.status(500).json({ success: false, error: fetchErr.message });
+        }
+        if (allLogs && allLogs.length > 200) {
+            const idsToDelete = allLogs.slice(200).map(row => row.id);
+            const { error: delErr } = await supabase_1.supabase
+                .from('logs')
+                .delete()
+                .in('id', idsToDelete);
+            if (delErr) {
+                console.error('Error deleting old logs:', delErr.message);
+                return res.status(500).json({ success: false, error: delErr.message });
+            }
+            await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Cleaned up logs. Deleted ${idsToDelete.length} old log entries.`);
+            return res.json({ success: true, message: `Successfully deleted ${idsToDelete.length} old log entries, keeping the latest 200.` });
+        }
+        else {
+            return res.json({ success: true, message: 'Logs table has 200 or fewer entries. No deletion required.' });
+        }
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, error: err.message || 'Error occurred during log cleanup' });
+    }
+});
+// POST /unstar
+app.post('/unstar', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    const { owner, repo } = req.body;
+    if (!owner || !repo) {
+        return res.status(400).json({ error: 'Missing owner or repo parameter' });
+    }
+    try {
+        const success = await (0, github_1.unstarRepo)(owner, repo);
+        if (success) {
+            // Find repo ID from owner/name
+            const { data: dbRepo } = await supabase_1.supabase
+                .from('repos')
+                .select('id')
+                .eq('owner', owner)
+                .eq('name', repo)
+                .maybeSingle();
+            const repoId = dbRepo ? dbRepo.id : null;
+            const { error } = await supabase_1.supabase
+                .from('repos')
+                .update({ starred: false })
+                .eq('owner', owner)
+                .eq('name', repo);
+            if (error) {
+                console.error(`Error updating DB after unstar for ${owner}/${repo}:`, error.message);
+            }
+            await (0, supabase_1.logAction)('UNSTAR', repoId, 'SUCCESS', `Manually unstarred repository ${owner}/${repo}`);
+            return res.json({ success: true, message: `Successfully unstarred ${owner}/${repo}` });
+        }
+        else {
+            return res.status(500).json({ success: false, error: `Failed to unstar repository ${owner}/${repo}` });
+        }
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, error: err.message || 'Error manual unstarring' });
+    }
+});
+// POST /unfollow
+app.post('/unfollow', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    const { username } = req.body;
+    if (!username) {
+        return res.status(400).json({ error: 'Missing username parameter' });
+    }
+    try {
+        const success = await (0, github_1.unfollowUser)(username);
+        if (success) {
+            // Find repo ID where owner = username
+            const { data: dbRepo } = await supabase_1.supabase
+                .from('repos')
+                .select('id')
+                .eq('owner', username)
+                .limit(1)
+                .maybeSingle();
+            const repoId = dbRepo ? dbRepo.id : null;
+            const { error } = await supabase_1.supabase
+                .from('repos')
+                .update({ followed: false, unfollowed: true })
+                .eq('owner', username);
+            if (error) {
+                console.error(`Error updating DB after unfollow for ${username}:`, error.message);
+            }
+            await (0, supabase_1.logAction)('UNFOLLOW', repoId, 'SUCCESS', `Manually unfollowed user ${username}`);
+            return res.json({ success: true, message: `Successfully unfollowed ${username}` });
+        }
+        else {
+            return res.status(500).json({ success: false, error: `Failed to unfollow user ${username}` });
+        }
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, error: err.message || 'Error manual unfollowing' });
+    }
+});
 // Set up Cron schedule
 node_cron_1.default.schedule(CRON_SCHEDULE, () => {
     console.log('Triggering automated cron job...');

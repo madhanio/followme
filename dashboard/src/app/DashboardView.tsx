@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Lottie from 'lottie-react';
 import mainCharacter from '../../public/animations/main_character.json';
 import { supabase } from '@/lib/supabase';
-import { triggerWorker, triggerCleanup, getWorkerStatus } from './actions';
+import { triggerWorker, triggerCleanup, getWorkerStatus, triggerUnstar, triggerUnfollow, triggerLogCleanup } from './actions';
 import { 
   Search, 
   Filter, 
@@ -157,8 +157,21 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [selectedLanguage, setSelectedLanguage] = useState<string>('All');
   const [followedFilter, setFollowedFilter] = useState<'All' | 'Yes' | 'No' | 'Unfollowed' | 'Skipped'>('All');
   const [starredFilter, setStarredFilter] = useState<'All' | 'Yes' | 'No'>('All');
-  const [activeTab, setActiveTab] = useState<'repos' | 'logs' | 'controls'>('repos');
+  const [activeTab, setActiveTab] = useState<'repos' | 'logs'>('repos');
   const [sortBy, setSortBy] = useState<'date' | 'grade' | 'stars'>('date');
+
+  // Log action filter
+  const [logActionFilter, setLogActionFilter] = useState<string>('All');
+
+  // Drilldown modal states
+  const [activeStatModal, setActiveStatModal] = useState<'graded' | 'starred' | 'followed' | 'mutuals' | 'unfollowed' | 'skipped' | null>(null);
+
+  // Cleanup Assistant states
+  const [isCleanupOpen, setIsCleanupOpen] = useState(false);
+  const [cleanupOption, setCleanupOption] = useState<'list' | 'logs' | null>(null);
+  const [totalLogsCount, setTotalLogsCount] = useState<number>(0);
+  const [unfollowList, setUnfollowList] = useState<{ id: number; owner: string; name: string; followed_at: string }[]>([]);
+  const [isFetchingUnfollowList, setIsFetchingUnfollowList] = useState(false);
 
   // Animation States
   const [isFirstMount, setIsFirstMount] = useState(true);
@@ -190,6 +203,34 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       setWorkerStatus(res.data);
     }
     setIsStatusLoading(false);
+  };
+
+  const fetchUnfollowList = async () => {
+    setIsFetchingUnfollowList(true);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('repos')
+      .select('id, owner, name, followed_at')
+      .eq('followed', true)
+      .eq('unfollowed', false)
+      .eq('follow_back', false)
+      .lte('followed_at', sevenDaysAgo);
+    
+    if (!error && data) {
+      setUnfollowList(data);
+    } else {
+      console.error('Error fetching unfollow list:', error);
+    }
+    setIsFetchingUnfollowList(false);
+  };
+
+  const fetchTotalLogsCount = async () => {
+    const { count, error } = await supabase
+      .from('logs')
+      .select('*', { count: 'exact', head: true });
+    if (!error && count !== null) {
+      setTotalLogsCount(count);
+    }
   };
 
   // Selected Repo Modal
@@ -344,6 +385,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     return Array.from(profilesMap.values());
   }, [filteredRepos, followedFilter, ownerFollowStatus]);
 
+  // Log Filtering useMemo
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => logActionFilter === 'All' || log.action === logActionFilter);
+  }, [logs, logActionFilter]);
+
   // Handle reload action with direct async fetches
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -396,7 +442,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   };
 
   // Handle cleanup standalone run
-  const handleCleanup = async () => {
+  const handleCleanupRun = async () => {
     if (isCleaning) return;
     setIsCleaning(true);
     setCleanupStatus(null);
@@ -422,6 +468,64 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         setIsRefreshing(false);
       }
       fetchStatus();
+    }
+  };
+
+  // Handle logs cleanup run
+  const handleLogCleanupRun = async () => {
+    if (isCleaning) return;
+    setIsCleaning(true);
+    setCleanupStatus(null);
+
+    const result = await triggerLogCleanup();
+
+    setIsCleaning(false);
+    setCleanupStatus({ success: result.success, message: result.success ? result.message : result.error });
+
+    if (result.success) {
+      setIsRefreshing(true);
+      try {
+        const [reposRes, logsRes] = await Promise.all([
+          supabase.from('repos').select('*'),
+          supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50)
+        ]);
+        if (reposRes.data) setRepos(reposRes.data);
+        if (logsRes.data) setLogs(logsRes.data);
+        router.refresh();
+      } catch (err) {
+        console.error("Post-log cleanup refresh failed:", err);
+      } finally {
+        setIsRefreshing(false);
+      }
+      fetchStatus();
+    }
+  };
+
+  // Handle manual unstar
+  const handleUnstar = async (owner: string, name: string) => {
+    const res = await triggerUnstar(owner, name);
+    if (res.success) {
+      // Optimistically update local state to hide starred status
+      setRepos(prev => prev.map(r => r.owner === owner && r.name === name ? { ...r, starred: false } : r));
+      // Refresh backend logs
+      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
+      if (logsRes.data) setLogs(logsRes.data);
+    } else {
+      alert(`Failed to unstar: ${res.error}`);
+    }
+  };
+
+  // Handle manual unfollow
+  const handleUnfollowUser = async (username: string) => {
+    const res = await triggerUnfollow(username);
+    if (res.success) {
+      // Optimistically update local state
+      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false, unfollowed: true } : r));
+      // Refresh backend logs
+      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
+      if (logsRes.data) setLogs(logsRes.data);
+    } else {
+      alert(`Failed to unfollow: ${res.error}`);
     }
   };
 
@@ -541,17 +645,17 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         </div>
       )}
 
-      {/* Stats Row Strip */}
       <section className="bg-[#0b0b0d] border-b border-zinc-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5">
             
             {/* Stat Card 1 */}
             <div 
-              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              onClick={() => setActiveStatModal('graded')}
+              className={`border-l border-zinc-800 pl-4 py-1 cursor-pointer hover:bg-zinc-900/40 select-none transition ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '150ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Total Graded</span>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Total Graded</span>
               <span className="text-2xl font-extrabold text-white tracking-tight">
                 {isRefreshing ? (
                   <span className="h-5 w-10 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
@@ -563,17 +667,17 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 2 */}
             <div 
-              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              className={`border-l border-zinc-800 pl-4 py-1 select-none ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '210ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Avg Quality</span>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Avg Quality</span>
               <span className="text-xl font-bold text-white tracking-tight flex items-baseline">
                 {isRefreshing ? (
                   <span className="h-5 w-12 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
                 ) : (
                   <>
                     <AnimatedDecimalCounter value={stats.avgGrade} active={isFirstMount} />
-                    <span className="text-xs text-zinc-600 ml-1">/10</span>
+                    <span className="text-xs text-zinc-650 ml-1">/10</span>
                   </>
                 )}
               </span>
@@ -581,10 +685,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 3 */}
             <div 
-              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              onClick={() => setActiveStatModal('starred')}
+              className={`border-l border-zinc-800 pl-4 py-1 cursor-pointer hover:bg-zinc-900/40 select-none transition ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '270ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Starred</span>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Starred</span>
               <span className="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
                 {isRefreshing ? (
                   <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
@@ -599,10 +704,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 4 */}
             <div 
-              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              onClick={() => setActiveStatModal('followed')}
+              className={`border-l border-zinc-800 pl-4 py-1 cursor-pointer hover:bg-zinc-900/40 select-none transition ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '330ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Followed</span>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Followed</span>
               <span className="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
                 {isRefreshing ? (
                   <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
@@ -617,10 +723,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 5 */}
             <div 
-              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              onClick={() => setActiveStatModal('mutuals')}
+              className={`border-l border-zinc-800 pl-4 py-1 cursor-pointer hover:bg-zinc-900/40 select-none transition ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '390ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Mutuals</span>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Mutuals</span>
               <span className="text-xl font-bold text-zinc-400 flex items-center gap-1.5">
                 {isRefreshing ? (
                   <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
@@ -635,10 +742,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 6 */}
             <div 
-              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              onClick={() => setActiveStatModal('unfollowed')}
+              className={`border-l border-zinc-800 pl-4 py-1 cursor-pointer hover:bg-zinc-900/40 select-none transition ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '450ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Unfollowed</span>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Unfollowed</span>
               <span className="text-xl font-bold text-zinc-500 flex items-center gap-1.5">
                 {isRefreshing ? (
                   <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
@@ -653,10 +761,11 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
             {/* Stat Card 7 */}
             <div 
-              className={`border-l border-zinc-800 pl-4 py-1 ${isFirstMount ? 'animate-startup-stat' : ''}`}
+              onClick={() => setActiveStatModal('skipped')}
+              className={`border-l border-zinc-800 pl-4 py-1 cursor-pointer hover:bg-zinc-900/40 select-none transition ${isFirstMount ? 'animate-startup-stat' : ''}`}
               style={isFirstMount ? { animationDelay: '510ms' } : {}}
             >
-              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 block">Skipped</span>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-550 block">Skipped</span>
               <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5">
                 {isRefreshing ? (
                   <span className="h-5 w-8 bg-zinc-850 rounded animate-pulse inline-block mt-1"></span>
@@ -669,6 +778,79 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               </span>
             </div>
 
+          </div>
+        </div>
+      </section>
+
+      {/* Worker Status Slim Bar */}
+      <section className="bg-[#080809] border-b border-zinc-900/60 py-2.5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-[11px] text-zinc-400">
+          <div className="flex items-center space-x-3">
+            {/* Status indicator */}
+            {(() => {
+              const getLiveIndicator = () => {
+                if (!workerStatus) return { label: 'Unknown', color: 'bg-zinc-500 text-zinc-400' };
+                if (workerStatus.isJobRunning) return { label: 'Running', color: 'bg-amber-500 text-amber-400 animate-pulse' };
+                if (workerStatus.consecutiveFailures > 0) return { label: 'Failed', color: 'bg-rose-500 text-rose-450' };
+                return { label: 'Idle', color: 'bg-emerald-500 text-emerald-400' };
+              };
+              const ind = getLiveIndicator();
+              return (
+                <span className="flex items-center space-x-1.5">
+                  <span className={`h-1.5 w-1.5 rounded-full ${ind.color.split(' ')[0]}`} />
+                  <span className={`font-bold ${ind.color.split(' ')[1]}`}>{ind.label}</span>
+                </span>
+              );
+            })()}
+            
+            <span className="text-zinc-800">|</span>
+            <span>
+              Last run: {(() => {
+                const lastSuccessLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message?.includes('finished'));
+                if (!lastSuccessLog) return 'Never';
+                
+                const ms = Date.now() - new Date(lastSuccessLog.timestamp).getTime();
+                const minutes = Math.floor(ms / (1000 * 60));
+                const hours = Math.floor(minutes / 60);
+                const days = Math.floor(hours / 24);
+                
+                if (days > 0) return `${days}d ago`;
+                if (hours > 0) return `${hours}h ago`;
+                if (minutes > 0) return `${minutes}m ago`;
+                return 'Just now';
+              })()}
+            </span>
+
+            <span className="text-zinc-800">|</span>
+            <span>
+              Next run: {(() => {
+                if (!workerStatus?.nextRun) return 'Not configured';
+                const date = new Date(workerStatus.nextRun);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              })()}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => {
+                setIsCleanupOpen(true);
+              }}
+              disabled={workerStatus?.isJobRunning}
+              className="text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-300 font-bold disabled:text-zinc-700 disabled:cursor-not-allowed transition cursor-pointer"
+            >
+              🧹 Run Cleanup
+            </button>
+            <button
+              onClick={async () => {
+                await handleRefresh();
+                await fetchStatus();
+              }}
+              disabled={isRefreshing || isStatusLoading}
+              className="text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-300 font-bold disabled:text-zinc-700 disabled:cursor-not-allowed transition cursor-pointer"
+            >
+              ⟳ Refresh Status
+            </button>
           </div>
         </div>
       </section>
@@ -697,17 +879,6 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
           >
             <Terminal className="h-3.5 w-3.5" />
             <span>Worker Logs ({initialLogs.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('controls')}
-            className={`px-5 py-3 font-mono text-xs uppercase tracking-wider transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
-              activeTab === 'controls' 
-                ? 'border-teal-500 text-white font-bold' 
-                : 'border-transparent text-zinc-500 hover:text-zinc-200'
-            }`}
-          >
-            <RotateCw className="h-3.5 w-3.5" />
-            <span>Controls</span>
           </button>
         </div>
 
@@ -1106,13 +1277,32 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             )}
           </div>
         )}
-
-        {activeTab === 'logs' && (
+               {activeTab === 'logs' && (
           /* Mono activity logs */
-          <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-zinc-900 bg-[#0c0c0e] flex items-center justify-between">
-              <h3 className="font-mono text-xs font-semibold text-zinc-300 uppercase tracking-wider">Historical Logs</h3>
-              <span className="text-[10px] font-mono text-zinc-550">Last 50 entries</span>
+          <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl overflow-hidden animate-fade-in-up">
+            <div className="px-5 py-4 border-b border-zinc-900 bg-[#0c0c0e] flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-mono text-xs font-semibold text-zinc-300 uppercase tracking-wider">Historical Logs</h3>
+                <span className="text-[10px] font-mono text-zinc-550">Last 50 entries</span>
+              </div>
+              
+              {/* Log filter bar */}
+              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
+                <span className="text-zinc-500 mr-1 uppercase tracking-wider">Filter:</span>
+                {['All', 'SYSTEM', 'GRADE', 'STAR', 'FOLLOW', 'SKIP_FOLLOW', 'CLEANUP', 'UNSTAR'].map((action) => (
+                  <button
+                    key={action}
+                    onClick={() => setLogActionFilter(action)}
+                    className={`px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                      logActionFilter === action
+                        ? 'border-teal-500 bg-teal-950/20 text-white font-bold'
+                        : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/40 text-zinc-400'
+                    }`}
+                  >
+                    {action}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="overflow-x-auto min-h-[500px]">
@@ -1121,7 +1311,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   <tr className="border-b border-zinc-900 text-zinc-550 bg-zinc-950/20 text-[10px] uppercase tracking-wider">
                     <th className="px-5 py-3 w-[220px]">Timestamp</th>
                     <th className="px-5 py-3 w-[140px]">Action</th>
-                    <th className="px-5 py-3 w-[120px]">Status</th>
+                    <th className="px-5 py-3 w-[250px]">Status</th>
                     <th className="px-5 py-3">Context & Message</th>
                   </tr>
                 </thead>
@@ -1143,244 +1333,485 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                         </td>
                       </tr>
                     ))
-                  ) : logs.length === 0 ? (
+                  ) : filteredLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-5 py-10 text-center text-zinc-600">
-                        No operations logged.
+                      <td colSpan={4} className="px-5 py-10 text-center text-zinc-650">
+                        No operations logged for action: {logActionFilter}.
                       </td>
                     </tr>
                   ) : (
-                    [...logs]
+                    [...filteredLogs]
                       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                      .map((log) => (
-                        <tr key={log.id} className="hover:bg-zinc-900/10 transition text-zinc-350">
-                          <td className="px-5 py-3 text-zinc-550 whitespace-nowrap">
-                            {new Date(log.timestamp).toLocaleString()}
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] border ${
-                              log.action === 'SYSTEM' ? 'bg-zinc-900 border-zinc-800 text-zinc-400' :
-                              log.action === 'GRADE' ? 'bg-indigo-950/40 border-indigo-900/30 text-indigo-400' :
-                              log.action === 'STAR' ? 'bg-amber-950/40 border-amber-900/30 text-amber-400' :
-                              log.action === 'FOLLOW' ? 'bg-teal-950/40 border-teal-900/30 text-teal-400' :
-                              log.action === 'SKIP_FOLLOW' ? 'bg-amber-950/20 border-amber-900/30 text-amber-500/90' :
-                              'bg-zinc-900/40 border-zinc-850 text-zinc-450'
-                            }`}>
-                              {log.action}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3">
-                            {log.status === 'SUCCESS' ? (
-                              <span className="text-emerald-500 font-bold">SUCCESS</span>
-                            ) : (
-                              <span className="text-rose-500 font-bold">FAILED</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3 text-zinc-300 max-w-md truncate" title={log.message}>
-                            {log.message}
-                          </td>
-                        </tr>
-                      ))
+                      .map((log) => {
+                        const getLogContextualLabel = () => {
+                          if (log.action === 'SYSTEM') {
+                            if (log.status === 'ERROR') {
+                              const getExplanation = (message: string) => {
+                                const msg = message.toLowerCase();
+                                if (msg.includes('rate limit') || msg.includes('403') || msg.includes('429')) return 'GitHub API rate limit hit';
+                                if (msg.includes('timeout') || msg.includes('nim') || msg.includes('openai') || msg.includes('timed out')) return 'NVIDIA NIM API timed out';
+                                if (msg.includes('supabase') || msg.includes('database') || msg.includes('connection')) return 'Database connection failed';
+                                return 'Unexpected failure';
+                              };
+                              return <span className="text-rose-500 font-bold">✗ Failed: {getExplanation(log.message || '')}</span>;
+                            }
+                            if (log.status === 'WARN') {
+                              return <span className="text-amber-500 font-bold">⚠ Retrying: Recoverable error</span>;
+                            }
+                            
+                            const msg = log.message || '';
+                            const containsRun = msg.includes('Automation job') || msg.includes('finished') || msg.includes('Graded');
+                            const containsCleanup = msg.includes('Cleanup');
+                            
+                            if (containsRun && containsCleanup) {
+                              return <span className="text-emerald-500 font-bold">✓ Run + Cleanup Success</span>;
+                            }
+                            if (containsRun) {
+                              return <span className="text-emerald-500 font-bold">✓ Run Success</span>;
+                            }
+                            if (containsCleanup) {
+                              return <span className="text-emerald-500 font-bold">✓ Cleanup Success</span>;
+                            }
+                          }
+                          
+                          if (log.status === 'SUCCESS') {
+                            return <span className="text-emerald-500 font-bold">✓ SUCCESS</span>;
+                          }
+                          return <span className="text-rose-500 font-bold">✗ FAILED</span>;
+                        };
+
+                        return (
+                          <tr key={log.id} className="hover:bg-zinc-900/10 transition text-zinc-350">
+                            <td className="px-5 py-3 text-zinc-550 whitespace-nowrap">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </td>
+                            <td className="px-5 py-3">
+                              <span className={`px-2 py-0.5 rounded text-[10px] border ${
+                                log.action === 'SYSTEM' ? 'bg-zinc-900 border-zinc-800 text-zinc-400' :
+                                log.action === 'GRADE' ? 'bg-indigo-950/40 border-indigo-900/30 text-indigo-400' :
+                                log.action === 'STAR' ? 'bg-amber-950/40 border-amber-900/30 text-amber-400' :
+                                log.action === 'FOLLOW' ? 'bg-teal-950/40 border-teal-900/30 text-teal-400' :
+                                log.action === 'SKIP_FOLLOW' ? 'bg-amber-950/20 border-amber-900/30 text-amber-550' :
+                                log.action === 'UNSTAR' ? 'bg-rose-950/20 border-rose-900/30 text-rose-450' :
+                                log.action === 'UNFOLLOW' ? 'bg-rose-950/20 border-rose-900/30 text-rose-450' :
+                                'bg-zinc-900/40 border-zinc-850 text-zinc-450'
+                              }`}>
+                                {log.action}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3">
+                              {getLogContextualLabel()}
+                            </td>
+                            <td className="px-5 py-3 text-zinc-300 max-w-md truncate" title={log.message}>
+                              {log.message}
+                            </td>
+                          </tr>
+                        );
+                      })
                   )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
+      </main>
 
-        {activeTab === 'controls' && (
-          <div className="space-y-6">
-            {/* Main grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* Status Indicator Card */}
-              <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl p-5 flex flex-col space-y-4 col-span-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
-                    Worker Status
-                  </h3>
-                  {/* Status Indicator */}
-                  {(() => {
-                    const getLiveIndicator = () => {
-                      if (!workerStatus) return { label: 'Unknown', color: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20' };
-                      if (workerStatus.isJobRunning) return { label: 'Running', color: 'text-amber-400 bg-amber-400/10 border-amber-400/25 animate-pulse' };
-                      if (workerStatus.consecutiveFailures > 0) return { label: 'Last run failed', color: 'text-rose-500 bg-rose-500/10 border-rose-500/25' };
-                      return { label: 'Idle', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/25' };
-                    };
-                    const ind = getLiveIndicator();
-                    return (
-                      <span className={`px-2.5 py-1 text-[10px] font-bold font-mono rounded-full border ${ind.color}`}>
-                        {ind.label}
-                      </span>
-                    );
-                  })()}
+      {/* Global Error Banner Panel (If latest SYSTEM log has status = ERROR) */}
+      {(() => {
+        const latestSystemLog = logs.find(l => l.action === 'SYSTEM');
+        const isError = latestSystemLog && latestSystemLog.status === 'ERROR';
+        if (!isError) return null;
+
+        const getErrorExplanation = (message: string) => {
+          const msg = message.toLowerCase();
+          if (msg.includes('rate limit') || msg.includes('403') || msg.includes('429')) {
+            return 'GitHub API rate limit hit, wait 1 hour';
+          }
+          if (msg.includes('timeout') || msg.includes('nim') || msg.includes('llama') || msg.includes('openai') || msg.includes('timed out')) {
+            return 'NVIDIA NIM API timed out, will retry next run';
+          }
+          if (msg.includes('supabase') || msg.includes('database') || msg.includes('postgres') || msg.includes('connection')) {
+            return 'Database connection failed, check Supabase status';
+          }
+          return 'An unexpected error occurred during execution';
+        };
+
+        const explanation = getErrorExplanation(latestSystemLog.message || '');
+
+        return (
+          <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 mb-6 animate-fade-in-up">
+            <div className="bg-rose-955/15 border border-rose-900/35 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1 font-mono">
+                <div className="flex items-center space-x-2 text-rose-455">
+                  <ShieldAlert className="h-4 w-4" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider">
+                    System Failure Alert
+                  </h4>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-zinc-900/60 pt-4">
-                  <div>
-                    <span className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider block">
-                      Last Successful Run
-                    </span>
-                    <span className="text-xs font-mono text-zinc-300 mt-1 block">
-                      {(() => {
-                        const lastSuccessLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message?.includes('finished'));
-                        return lastSuccessLog ? new Date(lastSuccessLog.timestamp).toLocaleString() : 'Never';
-                      })()}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider block">
-                      Next Scheduled Run
-                    </span>
-                    <span className="text-xs font-mono text-zinc-300 mt-1 block">
-                      {workerStatus?.nextRun ? new Date(workerStatus.nextRun).toLocaleString() : 'Not configured'}
-                    </span>
-                  </div>
-                </div>
-
-                {workerStatus && workerStatus.consecutiveFailures > 0 && (
-                  <div className="border-t border-zinc-900/60 pt-4">
-                    <span className="text-[10px] text-rose-400 font-mono uppercase tracking-wider block">
-                      Consecutive Failures
-                    </span>
-                    <span className="text-xs font-mono text-rose-500 font-bold mt-1 block">
-                      {workerStatus.consecutiveFailures} / 3
-                    </span>
-                  </div>
-                )}
+                <p className="text-[11px] text-zinc-400 mt-2">
+                  <strong>Raw Log:</strong> {latestSystemLog.message}
+                </p>
+                <p className="text-[11px] text-rose-400 mt-1 font-bold">
+                  <strong>Root Cause:</strong> {explanation}
+                </p>
               </div>
-
-              {/* Action Panel Card */}
-              <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl p-5 flex flex-col space-y-3">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400 pb-2 border-b border-zinc-900">
-                  Automation Controls
-                </h3>
-                
+              <div>
                 <button
                   onClick={handleTrigger}
                   disabled={isTriggering || (workerStatus?.isJobRunning)}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-850 disabled:bg-zinc-950 disabled:text-zinc-600 border border-zinc-800 disabled:border-zinc-950 text-xs font-mono font-semibold rounded-lg transition cursor-pointer text-zinc-200"
+                  className="px-4 py-2 bg-rose-950 hover:bg-rose-900 text-rose-200 border border-rose-800 disabled:opacity-50 text-xs font-mono font-semibold rounded transition cursor-pointer whitespace-nowrap"
                 >
-                  <Play className="h-3.5 w-3.5" />
-                  <span>{isTriggering ? 'Triggering...' : 'Run Automation'}</span>
-                </button>
-
-                <button
-                  onClick={handleCleanup}
-                  disabled={isCleaning || (workerStatus?.isJobRunning)}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-850 disabled:bg-zinc-950 disabled:text-zinc-600 border border-zinc-800 disabled:border-zinc-950 text-xs font-mono font-semibold rounded-lg transition cursor-pointer text-zinc-200"
-                >
-                  <Terminal className="h-3.5 w-3.5" />
-                  <span>{isCleaning ? 'Cleaning...' : 'Run Cleanup'}</span>
-                </button>
-
-                <button
-                  onClick={async () => {
-                    await handleRefresh();
-                    await fetchStatus();
-                  }}
-                  disabled={isRefreshing || isStatusLoading}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-zinc-950 hover:bg-zinc-900 text-zinc-400 border border-zinc-900 text-xs font-mono font-semibold rounded-lg transition cursor-pointer"
-                >
-                  <RotateCw className={`h-3.5 w-3.5 ${(isRefreshing || isStatusLoading) ? 'animate-spin' : ''}`} />
-                  <span>{(isRefreshing || isStatusLoading) ? 'Refreshing...' : 'Refresh Status'}</span>
+                  Retry Now
                 </button>
               </div>
-
             </div>
-
-            {/* Error alerts / notification status banners */}
-            {(triggerStatus || cleanupStatus) && (
-              <div className="bg-[#0b0b0d] border border-zinc-900 rounded-xl p-4 flex flex-col space-y-2">
-                {triggerStatus && (
-                  <div className={`text-xs font-mono p-3 rounded-lg border ${
-                    triggerStatus.success ? 'bg-emerald-950/20 border-emerald-900/35 text-emerald-400' : 'bg-rose-950/20 border-rose-900/35 text-rose-450'
-                  }`}>
-                    <strong>Automation Run:</strong> {triggerStatus.message}
-                  </div>
-                )}
-                {cleanupStatus && (
-                  <div className={`text-xs font-mono p-3 rounded-lg border ${
-                    cleanupStatus.success ? 'bg-emerald-950/20 border-emerald-900/35 text-emerald-400' : 'bg-rose-950/20 border-rose-900/35 text-rose-450'
-                  }`}>
-                    <strong>Cleanup Standalone:</strong> {cleanupStatus.message}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Error Panel (If latest SYSTEM log has status = ERROR) */}
-            {(() => {
-              const latestSystemLog = logs.find(l => l.action === 'SYSTEM');
-              const isError = latestSystemLog && latestSystemLog.status === 'ERROR';
-              if (!isError) return null;
-
-              const getErrorExplanation = (message: string) => {
-                const msg = message.toLowerCase();
-                if (msg.includes('rate limit') || msg.includes('403') || msg.includes('429')) {
-                  return 'GitHub API rate limit hit, wait 1 hour';
-                }
-                if (msg.includes('timeout') || msg.includes('nim') || msg.includes('llama') || msg.includes('openai') || msg.includes('timed out')) {
-                  return 'NVIDIA NIM API timed out, will retry next run';
-                }
-                if (msg.includes('supabase') || msg.includes('database') || msg.includes('postgres') || msg.includes('connection')) {
-                  return 'Database connection failed, check Supabase status';
-                }
-                return 'An unexpected error occurred during execution';
-              };
-
-              const explanation = getErrorExplanation(latestSystemLog.message || '');
-
-              return (
-                <div className="bg-rose-950/20 border border-rose-900/35 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2 text-rose-450">
-                      <ShieldAlert className="h-4 w-4" />
-                      <h4 className="text-xs font-mono font-bold uppercase tracking-wider">
-                        System Failure Alert
-                      </h4>
-                    </div>
-                    <p className="text-xs text-zinc-300 font-mono mt-2">
-                      <strong>Raw Message:</strong> {latestSystemLog.message}
-                    </p>
-                    <p className="text-xs text-rose-350 font-mono mt-1 font-bold">
-                      <strong>Explanation:</strong> {explanation}
-                    </p>
-                  </div>
-                  <div>
-                    <button
-                      onClick={handleTrigger}
-                      disabled={isTriggering || (workerStatus?.isJobRunning)}
-                      className="px-4 py-2 bg-rose-950 hover:bg-rose-900 text-rose-200 border border-rose-800 text-xs font-mono font-semibold rounded transition cursor-pointer whitespace-nowrap"
-                    >
-                      Retry Now
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-
           </div>
-        )}
-      </main>
+        );
+      })()}
 
       {/* Simple Footer */}
       <footer className="mt-auto border-t border-zinc-950 bg-[#060607] py-6 text-center text-[10px] font-mono text-zinc-650">
         <p>FollowMe Dashboard — Verified evaluation runs logged in real time</p>
       </footer>
 
+      {/* Stats Drilldown Modal */}
+      {activeStatModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0b0b0d] border border-zinc-800 w-full max-w-4xl max-h-[85vh] rounded-xl flex flex-col shadow-2xl animate-startup-logo">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-zinc-900 bg-[#0c0c0e] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider">Metrics Drilldown</span>
+                <h3 className="font-mono text-xs font-bold text-zinc-100 uppercase tracking-widest mt-0.5">
+                  {activeStatModal} list ({(() => {
+                    if (activeStatModal === 'graded') return repos.length;
+                    if (activeStatModal === 'starred') return repos.filter(r => r.starred).length;
+                    if (activeStatModal === 'followed') return repos.filter(r => r.followed && !r.unfollowed).length;
+                    if (activeStatModal === 'mutuals') return repos.filter(r => r.follow_back).length;
+                    if (activeStatModal === 'unfollowed') return repos.filter(r => r.unfollowed).length;
+                    if (activeStatModal === 'skipped') return repos.filter(r => r.follow_skipped).length;
+                    return 0;
+                  })()})
+                </h3>
+              </div>
+              <button
+                onClick={() => setActiveStatModal(null)}
+                className="text-zinc-550 hover:text-white font-mono text-xs px-2.5 py-1 hover:bg-zinc-900 rounded border border-zinc-850 cursor-pointer transition"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* List Body */}
+            <div className="flex-1 overflow-y-auto p-5 font-mono text-xs text-zinc-300 bg-[#070708]/80">
+              <div className="border border-zinc-900 rounded-lg overflow-hidden bg-[#0b0b0d]">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-zinc-900 bg-zinc-950/20 text-zinc-550 text-[10px] uppercase tracking-wider">
+                      <th className="px-4 py-2.5">User / Repository</th>
+                      {activeStatModal === 'graded' && <th className="px-4 py-2.5">Grade</th>}
+                      {activeStatModal === 'skipped' && <th className="px-4 py-2.5">Skip Reason</th>}
+                      <th className="px-4 py-2.5">Timestamp</th>
+                      <th className="px-4 py-2.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const list = repos.filter(repo => {
+                        if (activeStatModal === 'graded') return true;
+                        if (activeStatModal === 'starred') return repo.starred;
+                        if (activeStatModal === 'followed') return repo.followed && !repo.unfollowed;
+                        if (activeStatModal === 'mutuals') return repo.follow_back;
+                        if (activeStatModal === 'unfollowed') return repo.unfollowed;
+                        if (activeStatModal === 'skipped') return repo.follow_skipped;
+                        return false;
+                      });
+
+                      if (list.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-zinc-655 font-semibold">
+                              No entries found in this category.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return list.map(repo => {
+                        const timestamp = repo.graded_at || repo.followed_at;
+                        return (
+                          <tr key={repo.id} className="border-b border-zinc-900/40 hover:bg-zinc-900/10 text-zinc-350">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-zinc-200">{repo.owner}</div>
+                              <div className="text-[10px] text-zinc-550">{repo.name}</div>
+                            </td>
+                            {activeStatModal === 'graded' && (
+                              <td className="px-4 py-3">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                                  repo.grade >= 8 ? 'text-emerald-450 bg-emerald-500/10 border border-emerald-500/20' :
+                                  repo.grade >= 6 ? 'text-sky-400 bg-sky-500/10 border border-sky-500/20' :
+                                  'text-rose-450 bg-rose-500/10 border border-rose-500/20'
+                                }`}>
+                                  {repo.grade || 'N/A'}/10
+                                </span>
+                              </td>
+                            )}
+                            {activeStatModal === 'skipped' && (
+                              <td className="px-4 py-3 text-amber-500/90 max-w-[200px] truncate" title={repo.follow_skip_reason || ''}>
+                                {repo.follow_skip_reason || 'N/A'}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 text-zinc-550 text-[10px]">
+                              {timestamp ? new Date(timestamp).toLocaleString() : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 text-right space-x-2">
+                              {activeStatModal === 'starred' && repo.starred && (
+                                <button
+                                  onClick={() => handleUnstar(repo.owner, repo.name)}
+                                  className="px-2 py-1 bg-rose-955/20 hover:bg-rose-900 text-rose-300 border border-rose-900 text-[10px] rounded cursor-pointer transition"
+                                >
+                                  Unstar
+                                </button>
+                              )}
+                              {(activeStatModal === 'followed' || activeStatModal === 'mutuals') && repo.followed && (
+                                <button
+                                  onClick={() => handleUnfollowUser(repo.owner)}
+                                  className="px-2 py-1 bg-rose-955/20 hover:bg-rose-900 text-rose-300 border border-rose-900 text-[10px] rounded cursor-pointer transition"
+                                >
+                                  Unfollow
+                                </button>
+                              )}
+                              <a
+                                href={repo.github_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 text-[10px] rounded cursor-pointer transition"
+                              >
+                                GitHub
+                              </a>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cleanup assistant modal */}
+      {isCleanupOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0b0b0d] border border-zinc-800 w-full max-w-2xl max-h-[85vh] rounded-xl flex flex-col shadow-2xl animate-startup-logo">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-zinc-900 bg-[#0c0c0e] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider">Maintenance</span>
+                <h3 className="font-mono text-xs font-bold text-zinc-100 uppercase tracking-widest mt-0.5">
+                  Cleanup Assistant
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsCleanupOpen(false);
+                  setCleanupOption(null);
+                }}
+                className="text-zinc-550 hover:text-white font-mono text-xs px-2.5 py-1 hover:bg-zinc-900 rounded border border-zinc-850 cursor-pointer transition"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 font-mono text-xs text-zinc-300 bg-[#070708]/80">
+              {cleanupOption === null ? (
+                <div className="space-y-4">
+                  <p className="text-zinc-400">Select one of the following cleanup tasks to execute:</p>
+                  
+                  {/* Option 1: Regular */}
+                  <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-lg hover:border-zinc-800 transition">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-zinc-200">1. Regular Cleanup</h4>
+                      <button
+                        onClick={() => {
+                           handleCleanupRun();
+                           setIsCleanupOpen(false);
+                        }}
+                        disabled={isCleaning}
+                        className="px-3 py-1 bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border border-zinc-800 text-[10px] rounded transition cursor-pointer disabled:opacity-50"
+                      >
+                        Execute
+                      </button>
+                    </div>
+                    <p className="text-zinc-500 text-[11px] mt-1.5 leading-relaxed font-sans">
+                      Checks all followed users who have not followed back. Unfollows anyone followed more than 7 days ago.
+                    </p>
+                  </div>
+
+                  {/* Option 2: List */}
+                  <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-lg hover:border-zinc-800 transition">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-zinc-200">2. Preview & Unfollow List</h4>
+                      <button
+                        onClick={() => {
+                          fetchUnfollowList();
+                          setCleanupOption('list');
+                        }}
+                        className="px-3 py-1 bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border border-zinc-800 text-[10px] rounded transition cursor-pointer"
+                      >
+                        Open Preview
+                      </button>
+                    </div>
+                    <p className="text-zinc-500 text-[11px] mt-1.5 leading-relaxed font-sans">
+                      Preview all developers who will be unfollowed under the 7-day policy. Unfollow users selectively or run bulk unfollow.
+                    </p>
+                  </div>
+
+                  {/* Option 3: Log Cleanup */}
+                  <div className="p-4 bg-[#0c0c0e] border border-zinc-900 rounded-lg hover:border-teal-950/60 transition">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-teal-400">3. Log Cleanup</h4>
+                      <button
+                        onClick={async () => {
+                          await fetchTotalLogsCount();
+                          setCleanupOption('logs');
+                        }}
+                        className="px-3 py-1 bg-teal-955/20 hover:bg-teal-900 text-teal-200 border border-teal-900 text-[10px] rounded transition cursor-pointer"
+                      >
+                        Configure
+                      </button>
+                    </div>
+                    <p className="text-zinc-500 text-[11px] mt-1.5 leading-relaxed font-sans">
+                      Deletes old entries from the logs table to conserve space, keeping only the latest 200 rows. Repos and users data remains untouched.
+                    </p>
+                  </div>
+                </div>
+              ) : cleanupOption === 'list' ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-zinc-200 uppercase tracking-widest text-[10px]">
+                      Users eligible for cleanup
+                    </h4>
+                    <button
+                      onClick={() => setCleanupOption(null)}
+                      className="text-zinc-550 hover:text-zinc-300 text-[10px]"
+                    >
+                      &larr; Back
+                    </button>
+                  </div>
+
+                  {isFetchingUnfollowList ? (
+                    <div className="py-8 text-center text-zinc-550">Fetching candidates list...</div>
+                  ) : unfollowList.length === 0 ? (
+                    <div className="py-8 text-center text-zinc-650 font-semibold">No users match the cleanup criteria right now.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="border border-zinc-900 rounded-lg max-h-[300px] overflow-y-auto bg-[#0c0c0e]">
+                        <table className="w-full text-left border-collapse">
+                          <tbody>
+                            {unfollowList.map(user => (
+                              <tr key={user.id} className="border-b border-zinc-900/60 text-zinc-300">
+                                <td className="px-4 py-2.5">
+                                  <span className="font-semibold text-zinc-200 block text-xs">{user.owner}</span>
+                                  <span className="text-[9px] text-zinc-650 block mt-0.5">Followed: {new Date(user.followed_at).toLocaleDateString()}</span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right space-x-2">
+                                  <button
+                                    onClick={async () => {
+                                      await handleUnfollowUser(user.owner);
+                                      setUnfollowList(prev => prev.filter(u => u.owner !== user.owner));
+                                    }}
+                                    className="px-2 py-0.5 border border-rose-900 bg-rose-955/15 hover:bg-rose-900/30 text-rose-455 rounded text-[10px] cursor-pointer font-bold"
+                                  >
+                                    Unfollow
+                                  </button>
+                                  <a
+                                    href={`https://github.com/${user.owner}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2 py-0.5 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white rounded text-[10px]"
+                                  >
+                                    Profile
+                                  </a>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex justify-end space-x-2 pt-2">
+                        <button
+                          onClick={() => {
+                            handleCleanupRun();
+                            setIsCleanupOpen(false);
+                          }}
+                          disabled={isCleaning}
+                          className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 text-zinc-250 hover:bg-zinc-850 hover:text-white text-[10px] font-bold rounded cursor-pointer disabled:opacity-50"
+                        >
+                          Unfollow All ({unfollowList.length})
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4 font-mono">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-teal-400 uppercase tracking-widest text-[10px]">
+                      Logs Cleanup Confirmation
+                    </h4>
+                    <button
+                      onClick={() => setCleanupOption(null)}
+                      className="text-zinc-550 hover:text-zinc-300 text-[10px]"
+                    >
+                      &larr; Back
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-teal-950/10 border border-teal-900/40 rounded-lg text-teal-300">
+                    <p className="font-bold text-xs">ℹ️ LOGS TABLE CLEANUP</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-zinc-400 font-sans">
+                      This action will delete all old worker logs except for the latest 200 entries. It will not alter repository evaluation scores or follower details.
+                    </p>
+                    <p className="mt-3 text-xs font-semibold text-teal-400 font-mono">
+                      Target deletion count: {Math.max(0, totalLogsCount - 200)} log entries (Total logs in DB: {totalLogsCount}).
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      onClick={async () => {
+                        await handleLogCleanupRun();
+                        setIsCleanupOpen(false);
+                        setCleanupOption(null);
+                      }}
+                      disabled={isCleaning}
+                      className="px-4 py-2 bg-teal-950 disabled:bg-zinc-955 disabled:text-zinc-700 hover:bg-teal-900 text-teal-200 border border-teal-900 disabled:border-zinc-955 text-xs font-bold rounded transition cursor-pointer"
+                    >
+                      Confirm and Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Snippet Overlay Modal */}
       {selectedRepo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0b0b0d] border border-zinc-800 w-full max-w-3xl max-h-[80vh] rounded-xl flex flex-col shadow-2xl animate-scale-in">
+          <div className="bg-[#0b0b0d] border border-zinc-800 w-full max-w-3xl max-h-[80vh] rounded-xl flex flex-col shadow-2xl animate-startup-logo">
             {/* Modal Header */}
             <div className="px-5 py-3.5 border-b border-zinc-900 bg-[#0c0c0e] flex items-center justify-between">
               <div>
                 <span className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider">Readme snippet evaluation</span>
-                <h3 className="font-mono text-sm font-semibold text-zinc-100 flex items-center space-x-2">
+                <h3 className="font-mono text-xs font-bold text-zinc-100 flex items-center space-x-2 mt-0.5">
                   <span>{selectedRepo.owner}/{selectedRepo.name}</span>
-                  <span className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-400 rounded">
+                  <span className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-850 text-[9px] text-zinc-400 rounded">
                     Score: {selectedRepo.grade}/10
                   </span>
                 </h3>

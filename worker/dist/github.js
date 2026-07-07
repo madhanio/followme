@@ -10,6 +10,7 @@ exports.starRepo = starRepo;
 exports.followUser = followUser;
 exports.unfollowUser = unfollowUser;
 exports.checkIfFollowsBack = checkIfFollowsBack;
+exports.unstarRepo = unstarRepo;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -260,6 +261,35 @@ async function checkIfFollowsBack(username) {
     }
     catch (err) {
         console.error(`Error checking follow back status for ${username}:`, err.message || err);
+        return false;
+    }
+}
+/**
+ * Unstars a repository for the authenticated user.
+ */
+async function unstarRepo(owner, name) {
+    if (!GITHUB_TOKEN) {
+        console.warn('Cannot unstar repository: GITHUB_TOKEN is missing');
+        return false;
+    }
+    try {
+        const url = `https://api.github.com/user/starred/${owner}/${name}`;
+        const res = await fetch(url, {
+            method: 'DELETE',
+            headers: HEADERS,
+        });
+        if (res.status === 204) {
+            console.log(`Successfully unstarred ${owner}/${name}`);
+            return true;
+        }
+        else {
+            const text = await res.text();
+            console.error(`Failed to unstar ${owner}/${name}: ${res.status} - ${text}`);
+            return false;
+        }
+    }
+    catch (err) {
+        console.error(`Error unstarring ${owner}/${name}:`, err.message || err);
         return false;
     }
 }

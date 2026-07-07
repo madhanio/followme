@@ -281,3 +281,32 @@ export async function checkIfFollowsBack(username: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Unstars a repository for the authenticated user.
+ */
+export async function unstarRepo(owner: string, name: string): Promise<boolean> {
+  if (!GITHUB_TOKEN) {
+    console.warn('Cannot unstar repository: GITHUB_TOKEN is missing');
+    return false;
+  }
+  try {
+    const url = `https://api.github.com/user/starred/${owner}/${name}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: HEADERS,
+    });
+
+    if (res.status === 204) {
+      console.log(`Successfully unstarred ${owner}/${name}`);
+      return true;
+    } else {
+      const text = await res.text();
+      console.error(`Failed to unstar ${owner}/${name}: ${res.status} - ${text}`);
+      return false;
+    }
+  } catch (err: any) {
+    console.error(`Error unstarring ${owner}/${name}:`, err.message || err);
+    return false;
+  }
+}
