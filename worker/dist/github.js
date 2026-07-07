@@ -58,8 +58,8 @@ async function checkOwnerProfile(username) {
         }
         // Layer 2: Peer targeting — active, similar-sized, reciprocal-leaning accounts
         const ratio = following > 0 ? followers / following : 999;
-        if (followers < 20) {
-            return { shouldFollow: false, skipReason: 'too-new (< 20 followers)' };
+        if (followers < 3) {
+            return { shouldFollow: false, skipReason: 'too-new (< 3 followers)' };
         }
         if (followers > MAX_OWNER_FOLLOWERS) {
             return { shouldFollow: false, skipReason: 'too-popular (> ' + MAX_OWNER_FOLLOWERS + ' followers)' };
