@@ -69,10 +69,10 @@ export async function checkOwnerProfile(username: string): Promise<OwnerProfileR
     if (followers > MAX_OWNER_FOLLOWERS) {
       return { shouldFollow: false, skipReason: 'too-popular (> ' + MAX_OWNER_FOLLOWERS + ' followers)' };
     }
-    if (following < 20) {
-      return { shouldFollow: false, skipReason: 'low-following (< 20 following)' };
+    if (following < MIN_OWNER_FOLLOWING) {
+      return { shouldFollow: false, skipReason: 'low-following (< ' + MIN_OWNER_FOLLOWING + ' following)' };
     }
-    if (ratio < 0.5 || ratio > 2.0) {
+    if (ratio < 0.1 || ratio > 5.0) {
       return { shouldFollow: false, skipReason: `ratio-mismatch (ratio: ${ratio.toFixed(2)})` };
     }
     if (accountAgeDays < 180) {
