@@ -1,8 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import cron from 'node-cron';
 import dotenv from 'dotenv';
-import cronParser from 'cron-parser';
 import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo } from './github';
 import { gradeRepository } from './nvidia';
 import { supabase, isRepoGraded, saveRepo, logAction } from './supabase';
@@ -16,7 +14,6 @@ app.use(express.json());
 const PORT = process.env.PORT || 8000;
 const WORKER_SECRET = process.env.WORKER_SECRET || 'dev_secret';
 const GRADE_THRESHOLD = parseInt(process.env.GRADE_THRESHOLD || '7', 10);
-const CRON_SCHEDULE = process.env.CRON_SCHEDULE || '0 */12 * * *'; // Default: every 12 hours
 
 const TOPICS = ['ai', 'machine-learning', 'llm', 'flutter', 'nodejs', 'python'];
 
@@ -74,15 +71,7 @@ async function logFatalErrorOrWarn(errorMessage: string, status: 'ERROR' | 'WARN
   }
 }
 
-// Helper to parse and print next scheduled run time
-function printNextScheduledTime() {
-  try {
-    const interval = cronParser.parse(CRON_SCHEDULE);
-    console.log(`Next scheduled run time: ${interval.next().toString()}`);
-  } catch (err: any) {
-    console.error('Error parsing cron schedule:', err.message || err);
-  }
-}
+
 
 async function runAutomationJob() {
   if (isJobRunning) {
@@ -281,15 +270,8 @@ app.get('/health', (req: Request, res: Response) => {
 
 // GET /status
 app.get('/status', (req: Request, res: Response) => {
-  let nextRunStr: string | null = null;
-  try {
-    const interval = cronParser.parse(CRON_SCHEDULE);
-    nextRunStr = interval.next().toString();
-  } catch (err) {
-    console.error('Error parsing cron schedule for status endpoint:', err);
-  }
   res.json({
-    nextRun: nextRunStr,
+    nextRun: null,
     lastRun,
     isJobRunning,
     consecutiveFailures,
@@ -591,11 +573,7 @@ app.post('/unfollow', async (req: Request, res: Response) => {
   }
 });
 
-// Set up Cron schedule
-cron.schedule(CRON_SCHEDULE, () => {
-  console.log('Triggering automated cron job...');
-  runAutomationJob().catch(console.error);
-});
+
 
 
 
@@ -676,8 +654,6 @@ async function runCleanupJob() {
 // Start Server
 app.listen(PORT, () => {
   console.log(`Worker service is running on port ${PORT}`);
-  console.log(`Cron schedule active: ${CRON_SCHEDULE}`);
-  printNextScheduledTime();
   console.log(`Grade threshold set to: ${GRADE_THRESHOLD}`);
 });
 
