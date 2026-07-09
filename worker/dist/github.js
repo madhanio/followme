@@ -11,6 +11,9 @@ exports.followUser = followUser;
 exports.unfollowUser = unfollowUser;
 exports.checkIfFollowsBack = checkIfFollowsBack;
 exports.unstarRepo = unstarRepo;
+exports.getGitHubFollowing = getGitHubFollowing;
+exports.getGitHubFollowers = getGitHubFollowers;
+exports.getAuthenticatedUserStats = getAuthenticatedUserStats;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -65,10 +68,10 @@ async function checkOwnerProfile(username) {
         if (followers > MAX_OWNER_FOLLOWERS) {
             return { shouldFollow: false, skipReason: 'too-popular (> ' + MAX_OWNER_FOLLOWERS + ' followers)' };
         }
-        if (following < 20) {
-            return { shouldFollow: false, skipReason: 'low-following (< 20 following)' };
+        if (following < MIN_OWNER_FOLLOWING) {
+            return { shouldFollow: false, skipReason: 'low-following (< ' + MIN_OWNER_FOLLOWING + ' following)' };
         }
-        if (ratio < 0.5 || ratio > 2.0) {
+        if (ratio < 0.1 || ratio > 5.0) {
             return { shouldFollow: false, skipReason: `ratio-mismatch (ratio: ${ratio.toFixed(2)})` };
         }
         if (accountAgeDays < 180) {
@@ -291,5 +294,100 @@ async function unstarRepo(owner, name) {
     catch (err) {
         console.error(`Error unstarring ${owner}/${name}:`, err.message || err);
         return false;
+    }
+}
+/**
+ * Fetches the entire list of users the authenticated user is following (paginated).
+ */
+async function getGitHubFollowing() {
+    if (!GITHUB_TOKEN) {
+        console.warn('Cannot fetch following: GITHUB_TOKEN is missing');
+        return [];
+    }
+    const following = [];
+    let page = 1;
+    while (true) {
+        try {
+            const url = `https://api.github.com/user/following?per_page=100&page=${page}`;
+            const res = await fetch(url, { headers: HEADERS });
+            if (!res.ok) {
+                console.error(`Failed to fetch following page ${page}: ${res.status}`);
+                break;
+            }
+            const data = (await res.json());
+            if (!data || data.length === 0) {
+                break;
+            }
+            following.push(...data.map(user => user.login));
+            if (data.length < 100) {
+                break;
+            }
+            page++;
+        }
+        catch (err) {
+            console.error(`Error fetching following page ${page}:`, err.message || err);
+            break;
+        }
+    }
+    return following;
+}
+/**
+ * Fetches the entire list of followers for the authenticated user (paginated).
+ */
+async function getGitHubFollowers() {
+    if (!GITHUB_TOKEN) {
+        console.warn('Cannot fetch followers: GITHUB_TOKEN is missing');
+        return [];
+    }
+    const followers = [];
+    let page = 1;
+    while (true) {
+        try {
+            const url = `https://api.github.com/user/followers?per_page=100&page=${page}`;
+            const res = await fetch(url, { headers: HEADERS });
+            if (!res.ok) {
+                console.error(`Failed to fetch followers page ${page}: ${res.status}`);
+                break;
+            }
+            const data = (await res.json());
+            if (!data || data.length === 0) {
+                break;
+            }
+            followers.push(...data.map(user => user.login));
+            if (data.length < 100) {
+                break;
+            }
+            page++;
+        }
+        catch (err) {
+            console.error(`Error fetching followers page ${page}:`, err.message || err);
+            break;
+        }
+    }
+    return followers;
+}
+/**
+ * Fetches live followers and following counts for the authenticated user.
+ */
+async function getAuthenticatedUserStats() {
+    if (!GITHUB_TOKEN) {
+        return null;
+    }
+    try {
+        const url = 'https://api.github.com/user';
+        const res = await fetch(url, { headers: HEADERS });
+        if (!res.ok) {
+            console.error(`Failed to fetch authenticated user profile: ${res.status}`);
+            return null;
+        }
+        const profile = (await res.json());
+        const followers = profile.followers || 0;
+        const following = profile.following || 0;
+        const ratio = followers > 0 ? following / followers : following;
+        return { followers, following, ratio };
+    }
+    catch (err) {
+        console.error('Error fetching authenticated user stats:', err.message || err);
+        return null;
     }
 }

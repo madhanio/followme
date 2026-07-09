@@ -310,3 +310,99 @@ export async function unstarRepo(owner: string, name: string): Promise<boolean> 
     return false;
   }
 }
+
+/**
+ * Fetches the entire list of users the authenticated user is following (paginated).
+ */
+export async function getGitHubFollowing(): Promise<string[]> {
+  if (!GITHUB_TOKEN) {
+    console.warn('Cannot fetch following: GITHUB_TOKEN is missing');
+    return [];
+  }
+  const following: string[] = [];
+  let page = 1;
+  while (true) {
+    try {
+      const url = `https://api.github.com/user/following?per_page=100&page=${page}`;
+      const res = await fetch(url, { headers: HEADERS });
+      if (!res.ok) {
+        console.error(`Failed to fetch following page ${page}: ${res.status}`);
+        break;
+      }
+      const data = (await res.json()) as any[];
+      if (!data || data.length === 0) {
+        break;
+      }
+      following.push(...data.map(user => user.login));
+      if (data.length < 100) {
+        break;
+      }
+      page++;
+    } catch (err: any) {
+      console.error(`Error fetching following page ${page}:`, err.message || err);
+      break;
+    }
+  }
+  return following;
+}
+
+/**
+ * Fetches the entire list of followers for the authenticated user (paginated).
+ */
+export async function getGitHubFollowers(): Promise<string[]> {
+  if (!GITHUB_TOKEN) {
+    console.warn('Cannot fetch followers: GITHUB_TOKEN is missing');
+    return [];
+  }
+  const followers: string[] = [];
+  let page = 1;
+  while (true) {
+    try {
+      const url = `https://api.github.com/user/followers?per_page=100&page=${page}`;
+      const res = await fetch(url, { headers: HEADERS });
+      if (!res.ok) {
+        console.error(`Failed to fetch followers page ${page}: ${res.status}`);
+        break;
+      }
+      const data = (await res.json()) as any[];
+      if (!data || data.length === 0) {
+        break;
+      }
+      followers.push(...data.map(user => user.login));
+      if (data.length < 100) {
+        break;
+      }
+      page++;
+    } catch (err: any) {
+      console.error(`Error fetching followers page ${page}:`, err.message || err);
+      break;
+    }
+  }
+  return followers;
+}
+
+/**
+ * Fetches live followers and following counts for the authenticated user.
+ */
+export async function getAuthenticatedUserStats(): Promise<{ followers: number; following: number; ratio: number } | null> {
+  if (!GITHUB_TOKEN) {
+    return null;
+  }
+  try {
+    const url = 'https://api.github.com/user';
+    const res = await fetch(url, { headers: HEADERS });
+    if (!res.ok) {
+      console.error(`Failed to fetch authenticated user profile: ${res.status}`);
+      return null;
+    }
+    const profile = (await res.json()) as any;
+    const followers = profile.followers || 0;
+    const following = profile.following || 0;
+    const ratio = followers > 0 ? following / followers : following;
+    return { followers, following, ratio };
+  } catch (err: any) {
+    console.error('Error fetching authenticated user stats:', err.message || err);
+    return null;
+  }
+}
+

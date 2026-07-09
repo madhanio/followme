@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo } from './github';
+import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo, getGitHubFollowing, getGitHubFollowers, getAuthenticatedUserStats } from './github';
 import { gradeRepository } from './nvidia';
 import { supabase, isRepoGraded, saveRepo, logAction } from './supabase';
 
@@ -220,6 +220,12 @@ async function runAutomationJob() {
     } catch (cleanupErr: any) {
       console.error('Error running cleanup job as part of automation:', cleanupErr.message || cleanupErr);
     }
+
+    try {
+      await cleanupNonFollowbacks();
+    } catch (ratioErr: any) {
+      console.error('Error running auto-unfollow ratio cleanup:', ratioErr.message || ratioErr);
+    }
   } catch (err: any) {
     stats.failed++;
     consecutiveFailures++;
@@ -269,12 +275,16 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // GET /status
-app.get('/status', (req: Request, res: Response) => {
+app.get('/status', async (req: Request, res: Response) => {
+  const stats = await getAuthenticatedUserStats();
   res.json({
     nextRun: null,
     lastRun,
     isJobRunning,
     consecutiveFailures,
+    following: stats ? stats.following : null,
+    followers: stats ? stats.followers : null,
+    ratio: stats ? stats.ratio : null,
   });
 });
 
@@ -576,6 +586,137 @@ app.post('/unfollow', async (req: Request, res: Response) => {
 
 
 
+
+async function cleanupNonFollowbacks() {
+  console.log('Starting FollowMe auto-unfollow ratio cleanup (cleanupNonFollowbacks)...');
+  try {
+    const following = await getGitHubFollowing();
+    const followers = await getGitHubFollowers();
+
+    const followingCount = following.length;
+    const followersCount = followers.length;
+
+    console.log(`Live counts — Following: ${followingCount}, Followers: ${followersCount}`);
+
+    if (followingCount <= followersCount * 2) {
+      console.log(`Ratio is healthy (${followingCount} following <= ${followersCount} followers * 2). No cleanup needed.`);
+      return;
+    }
+
+    console.log(`Ratio unhealthy! following (${followingCount}) > followers (${followersCount}) * 2. Starting unfollow queue...`);
+
+    // Find users I follow who do not follow me back
+    const followerSet = new Set(followers);
+    const nonFollowbacks = following.filter(user => !followerSet.has(user));
+
+    if (nonFollowbacks.length === 0) {
+      console.log('No non-followback users found to unfollow.');
+      return;
+    }
+
+    // Fetch followed_at timestamp from Supabase
+    const { data: dbRepos, error } = await supabase
+      .from('repos')
+      .select('owner, followed_at')
+      .in('owner', nonFollowbacks);
+
+    if (error) {
+      console.warn('Error fetching followed_at from Supabase, processing in API order:', error.message);
+    }
+
+    const followedAtMap = new Map<string, number>();
+    if (dbRepos) {
+      for (const r of dbRepos) {
+        if (r.followed_at) {
+          followedAtMap.set(r.owner, new Date(r.followed_at).getTime());
+        }
+      }
+    }
+
+    // 7-day grace period cutoff
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    // Filter out users followed less than 7 days ago
+    const eligibleUnfollows = nonFollowbacks.filter(user => {
+      const followedAt = followedAtMap.get(user);
+      if (followedAt !== undefined && followedAt > sevenDaysAgo) {
+        // Less than 7 days ago
+        return false;
+      }
+      return true;
+    });
+
+    if (eligibleUnfollows.length === 0) {
+      console.log('All non-followback users are within the 7-day grace period. Skipping unfollow cleanup.');
+      return;
+    }
+
+    // Sort: oldest first (use followed_at if available, otherwise preserve API order)
+    const apiIndexMap = new Map<string, number>();
+    following.forEach((user, idx) => {
+      apiIndexMap.set(user, idx);
+    });
+
+    eligibleUnfollows.sort((a, b) => {
+      const timeA = followedAtMap.get(a);
+      const timeB = followedAtMap.get(b);
+
+      if (timeA !== undefined && timeB !== undefined) {
+        return timeA - timeB;
+      }
+      if (timeA !== undefined) {
+        return -1;
+      }
+      if (timeB !== undefined) {
+        return 1;
+      }
+      return (apiIndexMap.get(a) || 0) - (apiIndexMap.get(b) || 0);
+    });
+
+    console.log(`Sorted ${eligibleUnfollows.length} non-followers eligible for unfollow.`);
+
+    let currentFollowingCount = followingCount;
+    const targetCount = Math.floor(followersCount * 1.3);
+
+    for (const username of eligibleUnfollows) {
+      if (currentFollowingCount <= targetCount) {
+        console.log(`Reached target following count (${currentFollowingCount} <= ${targetCount}). Stopping ratio cleanup.`);
+        break;
+      }
+
+      console.log(`Unfollowing ${username} to recover ratio...`);
+      const success = await unfollowUser(username);
+      if (success) {
+        currentFollowingCount--;
+        
+        // Find repo ID if exists to log action properly
+        const { data: dbRepo } = await supabase
+          .from('repos')
+          .select('id')
+          .eq('owner', username)
+          .limit(1)
+          .maybeSingle();
+        const repoId = dbRepo ? dbRepo.id : null;
+
+        // Update database to unfollowed: true, followed: false
+        await supabase
+          .from('repos')
+          .update({ followed: false, unfollowed: true })
+          .eq('owner', username);
+
+        await logAction('UNFOLLOW_RATIO', repoId, 'SUCCESS', `Auto-unfollowed ${username} to balance following/followers ratio.`);
+      } else {
+        console.error(`Failed to unfollow ${username} during ratio cleanup.`);
+      }
+
+      // 2 second delay between unfollow calls to avoid abuse detection
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  } catch (err: any) {
+    console.error('Error in cleanupNonFollowbacks:', err.message || err);
+    await logAction('SYSTEM', null, 'FAILED', `cleanupNonFollowbacks failed: ${err.message || 'Unknown error'}`);
+  }
+}
 
 async function runCleanupJob() {
   console.log('Starting FollowMe cleanup job...');

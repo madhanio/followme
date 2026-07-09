@@ -5,9 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
-const node_cron_1 = __importDefault(require("node-cron"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const cron_parser_1 = __importDefault(require("cron-parser"));
 const github_1 = require("./github");
 const nvidia_1 = require("./nvidia");
 const supabase_1 = require("./supabase");
@@ -18,7 +16,6 @@ app.use(express_1.default.json());
 const PORT = process.env.PORT || 8000;
 const WORKER_SECRET = process.env.WORKER_SECRET || 'dev_secret';
 const GRADE_THRESHOLD = parseInt(process.env.GRADE_THRESHOLD || '7', 10);
-const CRON_SCHEDULE = process.env.CRON_SCHEDULE || '0 */12 * * *'; // Default: every 12 hours
 const TOPICS = ['ai', 'machine-learning', 'llm', 'flutter', 'nodejs', 'python'];
 let isJobRunning = false;
 let lastRun = null;
@@ -69,16 +66,6 @@ async function logFatalErrorOrWarn(errorMessage, status) {
     }
     catch (err) {
         console.error('Failed to log fatal error/warn to logs table:', err.message || err);
-    }
-}
-// Helper to parse and print next scheduled run time
-function printNextScheduledTime() {
-    try {
-        const interval = cron_parser_1.default.parse(CRON_SCHEDULE);
-        console.log(`Next scheduled run time: ${interval.next().toString()}`);
-    }
-    catch (err) {
-        console.error('Error parsing cron schedule:', err.message || err);
     }
 }
 async function runAutomationJob() {
@@ -197,6 +184,12 @@ async function runAutomationJob() {
         catch (cleanupErr) {
             console.error('Error running cleanup job as part of automation:', cleanupErr.message || cleanupErr);
         }
+        try {
+            await cleanupNonFollowbacks();
+        }
+        catch (ratioErr) {
+            console.error('Error running auto-unfollow ratio cleanup:', ratioErr.message || ratioErr);
+        }
     }
     catch (err) {
         stats.failed++;
@@ -240,20 +233,16 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', jobRunning: isJobRunning });
 });
 // GET /status
-app.get('/status', (req, res) => {
-    let nextRunStr = null;
-    try {
-        const interval = cron_parser_1.default.parse(CRON_SCHEDULE);
-        nextRunStr = interval.next().toString();
-    }
-    catch (err) {
-        console.error('Error parsing cron schedule for status endpoint:', err);
-    }
+app.get('/status', async (req, res) => {
+    const stats = await (0, github_1.getAuthenticatedUserStats)();
     res.json({
-        nextRun: nextRunStr,
+        nextRun: null,
         lastRun,
         isJobRunning,
         consecutiveFailures,
+        following: stats ? stats.following : null,
+        followers: stats ? stats.followers : null,
+        ratio: stats ? stats.ratio : null,
     });
 });
 // POST /cleanup
@@ -509,11 +498,115 @@ app.post('/unfollow', async (req, res) => {
         return res.status(500).json({ success: false, error: err.message || 'Error manual unfollowing' });
     }
 });
-// Set up Cron schedule
-node_cron_1.default.schedule(CRON_SCHEDULE, () => {
-    console.log('Triggering automated cron job...');
-    runAutomationJob().catch(console.error);
-});
+async function cleanupNonFollowbacks() {
+    console.log('Starting FollowMe auto-unfollow ratio cleanup (cleanupNonFollowbacks)...');
+    try {
+        const following = await (0, github_1.getGitHubFollowing)();
+        const followers = await (0, github_1.getGitHubFollowers)();
+        const followingCount = following.length;
+        const followersCount = followers.length;
+        console.log(`Live counts — Following: ${followingCount}, Followers: ${followersCount}`);
+        if (followingCount <= followersCount * 2) {
+            console.log(`Ratio is healthy (${followingCount} following <= ${followersCount} followers * 2). No cleanup needed.`);
+            return;
+        }
+        console.log(`Ratio unhealthy! following (${followingCount}) > followers (${followersCount}) * 2. Starting unfollow queue...`);
+        // Find users I follow who do not follow me back
+        const followerSet = new Set(followers);
+        const nonFollowbacks = following.filter(user => !followerSet.has(user));
+        if (nonFollowbacks.length === 0) {
+            console.log('No non-followback users found to unfollow.');
+            return;
+        }
+        // Fetch followed_at timestamp from Supabase
+        const { data: dbRepos, error } = await supabase_1.supabase
+            .from('repos')
+            .select('owner, followed_at')
+            .in('owner', nonFollowbacks);
+        if (error) {
+            console.warn('Error fetching followed_at from Supabase, processing in API order:', error.message);
+        }
+        const followedAtMap = new Map();
+        if (dbRepos) {
+            for (const r of dbRepos) {
+                if (r.followed_at) {
+                    followedAtMap.set(r.owner, new Date(r.followed_at).getTime());
+                }
+            }
+        }
+        // 7-day grace period cutoff
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        // Filter out users followed less than 7 days ago
+        const eligibleUnfollows = nonFollowbacks.filter(user => {
+            const followedAt = followedAtMap.get(user);
+            if (followedAt !== undefined && followedAt > sevenDaysAgo) {
+                // Less than 7 days ago
+                return false;
+            }
+            return true;
+        });
+        if (eligibleUnfollows.length === 0) {
+            console.log('All non-followback users are within the 7-day grace period. Skipping unfollow cleanup.');
+            return;
+        }
+        // Sort: oldest first (use followed_at if available, otherwise preserve API order)
+        const apiIndexMap = new Map();
+        following.forEach((user, idx) => {
+            apiIndexMap.set(user, idx);
+        });
+        eligibleUnfollows.sort((a, b) => {
+            const timeA = followedAtMap.get(a);
+            const timeB = followedAtMap.get(b);
+            if (timeA !== undefined && timeB !== undefined) {
+                return timeA - timeB;
+            }
+            if (timeA !== undefined) {
+                return -1;
+            }
+            if (timeB !== undefined) {
+                return 1;
+            }
+            return (apiIndexMap.get(a) || 0) - (apiIndexMap.get(b) || 0);
+        });
+        console.log(`Sorted ${eligibleUnfollows.length} non-followers eligible for unfollow.`);
+        let currentFollowingCount = followingCount;
+        const targetCount = Math.floor(followersCount * 1.3);
+        for (const username of eligibleUnfollows) {
+            if (currentFollowingCount <= targetCount) {
+                console.log(`Reached target following count (${currentFollowingCount} <= ${targetCount}). Stopping ratio cleanup.`);
+                break;
+            }
+            console.log(`Unfollowing ${username} to recover ratio...`);
+            const success = await (0, github_1.unfollowUser)(username);
+            if (success) {
+                currentFollowingCount--;
+                // Find repo ID if exists to log action properly
+                const { data: dbRepo } = await supabase_1.supabase
+                    .from('repos')
+                    .select('id')
+                    .eq('owner', username)
+                    .limit(1)
+                    .maybeSingle();
+                const repoId = dbRepo ? dbRepo.id : null;
+                // Update database to unfollowed: true, followed: false
+                await supabase_1.supabase
+                    .from('repos')
+                    .update({ followed: false, unfollowed: true })
+                    .eq('owner', username);
+                await (0, supabase_1.logAction)('UNFOLLOW_RATIO', repoId, 'SUCCESS', `Auto-unfollowed ${username} to balance following/followers ratio.`);
+            }
+            else {
+                console.error(`Failed to unfollow ${username} during ratio cleanup.`);
+            }
+            // 2 second delay between unfollow calls to avoid abuse detection
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+    }
+    catch (err) {
+        console.error('Error in cleanupNonFollowbacks:', err.message || err);
+        await (0, supabase_1.logAction)('SYSTEM', null, 'FAILED', `cleanupNonFollowbacks failed: ${err.message || 'Unknown error'}`);
+    }
+}
 async function runCleanupJob() {
     console.log('Starting FollowMe cleanup job...');
     await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', 'Cleanup job started');
@@ -584,8 +677,6 @@ async function runCleanupJob() {
 // Start Server
 app.listen(PORT, () => {
     console.log(`Worker service is running on port ${PORT}`);
-    console.log(`Cron schedule active: ${CRON_SCHEDULE}`);
-    printNextScheduledTime();
     console.log(`Grade threshold set to: ${GRADE_THRESHOLD}`);
 });
 // Global error handlers to prevent silent process crashes and log them
