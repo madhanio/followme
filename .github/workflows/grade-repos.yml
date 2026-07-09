@@ -1,0 +1,36 @@
+name: Trigger FollowMe Worker
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # runs at 00:00, 06:00, 12:00, 18:00 UTC
+  workflow_dispatch:         # lets you trigger it manually from GitHub UI
+
+jobs:
+  trigger-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake and trigger worker job
+        run: |
+          response=$(curl -s -o response.json -w "%{http_code}" -X POST \
+            https://followme-gg6q.onrender.com/run \
+            -H "x-worker-secret: ${{ secrets.WORKER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 90 \
+            --retry 3 \
+            --retry-delay 15 \
+            --retry-connrefused)
+
+          echo "HTTP status: $response"
+          cat response.json
+
+          if [ "$response" -lt 200 ] || [ "$response" -ge 300 ]; then
+            echo "Worker trigger failed with status $response"
+            exit 1
+          fi
+
+      - name: Wait for job to process
+        run: sleep 45
+
+      - name: Check worker status
+        run: |
+          curl -s https://followme-gg6q.onrender.com/status | tee status.json
