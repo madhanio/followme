@@ -695,66 +695,83 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       fetchStatus();
     }
   };
-
   // Handle manual unstar
   const handleUnstar = async (owner: string, name: string) => {
-    const res = await triggerUnstar(owner, name);
-    if (res.success) {
-      // Optimistically update local state to hide starred status
-      setRepos(prev => prev.map(r => r.owner === owner && r.name === name ? { ...r, starred: false } : r));
-      // Refresh backend logs
-      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
-      if (logsRes.data) setLogs(logsRes.data);
-    } else {
-      alert(`Failed to unstar: ${res.error}`);
+    const previousRepos = [...repos];
+    setRepos(prev => prev.map(r => r.owner === owner && r.name === name ? { ...r, starred: false } : r));
+    
+    try {
+      const res = await triggerUnstar(owner, name);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(previousRepos);
+        alert(`Failed to unstar: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(previousRepos);
+      alert(`Failed to unstar: ${err.message || err}`);
     }
   };
 
   // Handle manual unfollow
   const handleUnfollowUser = async (username: string) => {
-    setIsActionLoading(true);
-    const res = await triggerUnfollow(username);
-    setIsActionLoading(false);
-    if (res.success) {
-      // Optimistically update local state
-      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false, unfollowed: true } : r));
-      // Refresh backend logs
-      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
-      if (logsRes.data) setLogs(logsRes.data);
-    } else {
-      alert(`Failed to unfollow: ${res.error}`);
+    const previousRepos = [...repos];
+    setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false, unfollowed: true } : r));
+    
+    try {
+      const res = await triggerUnfollow(username);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(previousRepos);
+        alert(`Failed to unfollow: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(previousRepos);
+      alert(`Failed to unfollow: ${err.message || err}`);
     }
   };
 
   // Handle manual follow
   const handleFollowUser = async (username: string) => {
-    setIsActionLoading(true);
-    const res = await triggerFollow(username);
-    setIsActionLoading(false);
-    if (res.success) {
-      // Optimistically update local state
-      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false, followed_at: new Date().toISOString() } : r));
-      // Refresh backend logs
-      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
-      if (logsRes.data) setLogs(logsRes.data);
-    } else {
-      alert(`Failed to follow: ${res.error}`);
+    const previousRepos = [...repos];
+    setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false, followed_at: new Date().toISOString() } : r));
+    
+    try {
+      const res = await triggerFollow(username);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(previousRepos);
+        alert(`Failed to follow: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(previousRepos);
+      alert(`Failed to follow: ${err.message || err}`);
     }
   };
 
   // Handle manual star
   const handleStar = async (owner: string, name: string) => {
-    setIsActionLoading(true);
-    const res = await triggerStar(owner, name);
-    setIsActionLoading(false);
-    if (res.success) {
-      // Optimistically update local state
-      setRepos(prev => prev.map(r => r.owner === owner && r.name === name ? { ...r, starred: true } : r));
-      // Refresh backend logs
-      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
-      if (logsRes.data) setLogs(logsRes.data);
-    } else {
-      alert(`Failed to star: ${res.error}`);
+    const previousRepos = [...repos];
+    setRepos(prev => prev.map(r => r.owner === owner && r.name === name ? { ...r, starred: true } : r));
+    
+    try {
+      const res = await triggerStar(owner, name);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(previousRepos);
+        alert(`Failed to star: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(previousRepos);
+      alert(`Failed to star: ${err.message || err}`);
     }
   };
 
@@ -763,21 +780,25 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     if (!confirm(`Are you sure you want to permanently delete @${username} and all of their repositories from the database?`)) {
       return;
     }
-    setIsActionLoading(true);
-    const res = await triggerDeleteProfile(username);
-    setIsActionLoading(false);
-    if (res.success) {
-      setRepos(prev => prev.filter(r => r.owner.toLowerCase() !== username.toLowerCase()));
-      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
-      if (logsRes.data) setLogs(logsRes.data);
-    } else {
-      alert(`Failed to delete profile: ${res.error}`);
+    const previousRepos = [...repos];
+    setRepos(prev => prev.filter(r => r.owner.toLowerCase() !== username.toLowerCase()));
+    
+    try {
+      const res = await triggerDeleteProfile(username);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(previousRepos);
+        alert(`Failed to delete profile: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(previousRepos);
+      alert(`Failed to delete profile: ${err.message || err}`);
     }
   };
 
-  // State for tracking action buttons loading status
   const [isActionLoading, setIsActionLoading] = useState(false);
-
   // Grade color ramp (green -> sky -> yellow -> red) with blurred pill refinements
   const getGradeColor = (grade: number) => {
     if (grade >= 8) return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-3 py-1 rounded-full backdrop-blur-sm shadow-sm font-bold text-[10px] font-mono tracking-wider';
