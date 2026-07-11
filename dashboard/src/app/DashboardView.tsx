@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Lottie from 'lottie-react';
 import mainCharacter from '../../public/animations/main_character.json';
+import { supabase } from '@/lib/supabase';
 import { triggerWorker, triggerCleanup, getWorkerStatus, triggerStar, triggerUnstar, triggerFollow, triggerUnfollow, triggerLogCleanup, triggerClearStale, triggerDeleteProfile, triggerSyncMutuals, triggerSyncFollowing } from './actions';
 
 // Simple in-memory cache for GitHub stats
