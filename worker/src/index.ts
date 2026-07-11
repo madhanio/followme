@@ -226,6 +226,12 @@ async function runAutomationJob() {
     } catch (ratioErr: any) {
       console.error('Error running auto-unfollow ratio cleanup:', ratioErr.message || ratioErr);
     }
+
+    try {
+      await syncMutuals();
+    } catch (syncErr: any) {
+      console.error('Error running mutuals sync:', syncErr.message || syncErr);
+    }
   } catch (err: any) {
     stats.failed++;
     consecutiveFailures++;
@@ -298,6 +304,18 @@ app.post('/cleanup', async (req: Request, res: Response) => {
 
   runCleanupJob().catch(console.error);
   return res.json({ message: 'Cleanup job triggered successfully.' });
+});
+
+// POST /sync-mutuals
+app.post('/sync-mutuals', async (req: Request, res: Response) => {
+  const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+
+  if (authHeader !== WORKER_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+  }
+
+  syncMutuals().catch(console.error);
+  return res.json({ message: 'Mutuals sync triggered successfully.' });
 });
 
 // POST /cleanlogs
@@ -587,6 +605,89 @@ app.post('/unfollow', async (req: Request, res: Response) => {
 
 
 
+/**
+ * Syncs follow_back status in Supabase by comparing our followed profiles
+ * against the live list of users who follow us back on GitHub.
+ * Sets follow_back=true for matches, follow_back=false for non-matches.
+ */
+async function syncMutuals() {
+  console.log('Starting mutuals sync (syncMutuals)...');
+  try {
+    // 1. Fetch all GitHub followers (paginated)
+    const followers = await getGitHubFollowers();
+    const followerSet = new Set(followers.map(u => u.toLowerCase()));
+    console.log(`Fetched ${followers.length} GitHub followers for mutuals sync.`);
+
+    // 2. Fetch all profiles in Supabase where followed = true
+    const { data: followedProfiles, error } = await supabase
+      .from('repos')
+      .select('id, owner')
+      .eq('followed', true);
+
+    if (error) {
+      console.error('Error fetching followed profiles for mutuals sync:', error.message);
+      return;
+    }
+
+    if (!followedProfiles || followedProfiles.length === 0) {
+      console.log('No followed profiles found to sync.');
+      return;
+    }
+
+    console.log(`Found ${followedProfiles.length} followed profile rows to sync follow_back status.`);
+
+    // 3. Separate into mutual (follows back) vs non-mutual
+    const mutualOwners: string[] = [];
+    const nonMutualOwners: string[] = [];
+
+    for (const profile of followedProfiles) {
+      if (followerSet.has(profile.owner.toLowerCase())) {
+        mutualOwners.push(profile.owner);
+      } else {
+        nonMutualOwners.push(profile.owner);
+      }
+    }
+
+    console.log(`Mutuals: ${mutualOwners.length}, Non-mutuals: ${nonMutualOwners.length}`);
+
+    // 4. Batch update follow_back = true for mutual owners
+    if (mutualOwners.length > 0) {
+      const { error: mutualErr } = await supabase
+        .from('repos')
+        .update({ follow_back: true })
+        .eq('followed', true)
+        .in('owner', mutualOwners);
+
+      if (mutualErr) {
+        console.error('Error updating follow_back=true for mutuals:', mutualErr.message);
+      } else {
+        console.log(`Updated follow_back=true for ${mutualOwners.length} mutual owner entries.`);
+      }
+    }
+
+    // 5. Batch update follow_back = false for non-mutual owners
+    if (nonMutualOwners.length > 0) {
+      const { error: nonMutualErr } = await supabase
+        .from('repos')
+        .update({ follow_back: false })
+        .eq('followed', true)
+        .in('owner', nonMutualOwners);
+
+      if (nonMutualErr) {
+        console.error('Error updating follow_back=false for non-mutuals:', nonMutualErr.message);
+      } else {
+        console.log(`Updated follow_back=false for ${nonMutualOwners.length} non-mutual owner entries.`);
+      }
+    }
+
+    await logAction('SYSTEM', null, 'SUCCESS', `Mutuals sync complete. Mutuals: ${mutualOwners.length}, Non-mutuals: ${nonMutualOwners.length}`);
+    console.log('Mutuals sync completed successfully.');
+  } catch (err: any) {
+    console.error('Error in syncMutuals:', err.message || err);
+    await logAction('SYSTEM', null, 'FAILED', `syncMutuals failed: ${err.message || 'Unknown error'}`);
+  }
+}
+
 async function cleanupNonFollowbacks() {
   console.log('Starting FollowMe auto-unfollow ratio cleanup (cleanupNonFollowbacks)...');
   try {
@@ -786,6 +887,13 @@ async function runCleanupJob() {
 
     console.log('Cleanup job completed.');
     await logAction('SYSTEM', null, 'SUCCESS', `Cleanup job completed successfully.`);
+
+    // Sync mutuals at the end of every cleanup run
+    try {
+      await syncMutuals();
+    } catch (syncErr: any) {
+      console.error('Error running mutuals sync after cleanup:', syncErr.message || syncErr);
+    }
   } catch (err: any) {
     console.error('Error during cleanup job:', err.message || err);
     await logAction('SYSTEM', null, 'FAILED', `Cleanup job failed: ${err.message || 'Unknown error'}`);

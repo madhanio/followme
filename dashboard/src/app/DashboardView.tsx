@@ -894,9 +894,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                 <span className="text-zinc-800">•</span>
                 <span>
                   Next: {(() => {
-                    if (!workerStatus?.nextRun) return 'None';
-                    const date = new Date(workerStatus.nextRun);
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
+                    if (!workerStatus?.lastRun) return '~6h interval';
+                    const nextRun = new Date(new Date(workerStatus.lastRun).getTime() + 6 * 60 * 60 * 1000);
+                    const diffMs = nextRun.getTime() - Date.now();
+                    if (diffMs <= 0) return 'soon';
+                    const diffMins = Math.floor(diffMs / (1000 * 60));
+                    const h = Math.floor(diffMins / 60);
+                    const m = diffMins % 60;
+                    return h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
                   })()}
                 </span>
               </div>
