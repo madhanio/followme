@@ -4,8 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Lottie from 'lottie-react';
 import mainCharacter from '../../public/animations/main_character.json';
-import { supabase } from '@/lib/supabase';
-import { triggerWorker, triggerCleanup, getWorkerStatus, triggerStar, triggerUnstar, triggerFollow, triggerUnfollow, triggerLogCleanup, triggerClearStale, triggerDeleteProfile, triggerSyncMutuals } from './actions';
+import { triggerWorker, triggerCleanup, getWorkerStatus, triggerStar, triggerUnstar, triggerFollow, triggerUnfollow, triggerLogCleanup, triggerClearStale, triggerDeleteProfile, triggerSyncMutuals, triggerSyncFollowing } from './actions';
 
 // Simple in-memory cache for GitHub stats
 const githubStatsCache = new Map<string, { followers: number; following: number }>();
@@ -565,7 +564,8 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     try {
       // Sync follow_back state from GitHub before refreshing local data
       await triggerSyncMutuals();
-      await fetch('/api/sync-following', { method: 'POST' });
+      // Sync following lists to determine if any we followed were unfollowed
+      await triggerSyncFollowing();
       const [reposRes, logsRes] = await Promise.all([
         supabase.from('repos').select('*'),
         supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50)

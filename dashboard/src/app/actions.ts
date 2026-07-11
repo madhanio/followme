@@ -307,3 +307,29 @@ export async function triggerSyncMutuals() {
     return { success: false, error: err.message || 'Failed to connect to worker' };
   }
 }
+
+export async function triggerSyncFollowing() {
+  // Call the Next.js API route that handles sync-following.
+  // Next.js API routes are internal, but since we are executing on the server (Server Action),
+  // we can also call it or execute its logic. To trigger the endpoint itself:
+  const dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:3000';
+  
+  try {
+    const res = await fetch(`${dashboardUrl}/api/sync-following`, {
+      method: 'POST',
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `Sync following error: ${res.status} - ${text}` };
+    }
+
+    const data = await res.json();
+    revalidatePath('/');
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('Error triggering sync-following:', err);
+    return { success: false, error: err.message || 'Failed to run sync-following' };
+  }
+}
