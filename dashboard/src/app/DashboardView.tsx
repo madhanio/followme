@@ -361,8 +361,8 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanupStatus, setCleanupStatus] = useState<{ success?: boolean; message?: string } | null>(null);
 
-  // Sync Mutuals State
-  const [isSyncingMutuals, setIsSyncingMutuals] = useState(false);
+  // Sync State
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Worker status states
   const [workerStatus, setWorkerStatus] = useState<{
@@ -562,10 +562,6 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      // Sync follow_back state from GitHub before refreshing local data
-      await triggerSyncMutuals();
-      // Sync following lists to determine if any we followed were unfollowed
-      await triggerSyncFollowing();
       const [reposRes, logsRes] = await Promise.all([
         supabase.from('repos').select('*'),
         supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50)
@@ -580,20 +576,27 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     }
   };
 
-  // Handle manual mutuals sync
-  const handleSyncMutuals = async () => {
-    if (isSyncingMutuals) return;
-    setIsSyncingMutuals(true);
+  // Handle manual full sync
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
     try {
+      // 1. Sync follow_back state from GitHub
       await triggerSyncMutuals();
-      // Reload repos so follow_back changes are reflected immediately
-      const reposRes = await supabase.from('repos').select('*');
+      // 2. Sync following lists to determine if any we followed were unfollowed
+      await triggerSyncFollowing();
+      // 3. Reload repos and logs so changes are reflected immediately
+      const [reposRes, logsRes] = await Promise.all([
+        supabase.from('repos').select('*'),
+        supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(50)
+      ]);
       if (reposRes.data) setRepos(reposRes.data);
+      if (logsRes.data) setLogs(logsRes.data);
       router.refresh();
     } catch (err) {
-      console.error('Mutuals sync failed:', err);
+      console.error('Sync failed:', err);
     } finally {
-      setIsSyncingMutuals(false);
+      setIsSyncing(false);
     }
   };
 
@@ -932,14 +935,14 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
  
           <div className="flex items-center space-x-3 w-full sm:w-auto">
             <button
-              onClick={handleSyncMutuals}
-              disabled={isSyncingMutuals || workerStatus?.isJobRunning}
+              onClick={handleSync}
+              disabled={isSyncing || workerStatus?.isJobRunning}
               className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white rounded-lg text-xs font-mono font-bold uppercase disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition flex items-center justify-center min-h-[44px]"
             >
-              {isSyncingMutuals ? (
+              {isSyncing ? (
                 <><RotateCw className="h-3 w-3 animate-spin mr-1" />Syncing...</>
               ) : (
-                <>🔁 Sync Mutuals</>
+                <>🔁 Sync</>
               )}
             </button>
             <button
@@ -951,9 +954,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             </button>
             <button
               onClick={handleRefresh}
-              disabled={isRefreshing || isSyncingMutuals}
+              disabled={isRefreshing || isSyncing}
               className="p-2 text-zinc-400 hover:text-white rounded-lg border border-zinc-800 bg-[#0f0f11] hover:bg-zinc-900 transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
-              title="Refresh Dashboard Data (also syncs mutuals)"
+              title="Refresh Dashboard Data"
             >
               <RotateCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-white' : ''}`} />
             </button>
