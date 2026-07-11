@@ -618,29 +618,28 @@ async function syncMutuals() {
     const followerSet = new Set(followers.map(u => u.toLowerCase()));
     console.log(`Fetched ${followers.length} GitHub followers for mutuals sync.`);
 
-    // 2. Fetch all profiles in Supabase where followed = true
-    const { data: followedProfiles, error } = await supabase
+    // 2. Fetch all profiles in Supabase repos table (no followed = true filter)
+    const { data: allProfiles, error } = await supabase
       .from('repos')
-      .select('id, owner')
-      .eq('followed', true);
+      .select('id, owner');
 
     if (error) {
-      console.error('Error fetching followed profiles for mutuals sync:', error.message);
+      console.error('Error fetching profiles for mutuals sync:', error.message);
       return;
     }
 
-    if (!followedProfiles || followedProfiles.length === 0) {
-      console.log('No followed profiles found to sync.');
+    if (!allProfiles || allProfiles.length === 0) {
+      console.log('No profiles found in repos table to sync.');
       return;
     }
 
-    console.log(`Found ${followedProfiles.length} followed profile rows to sync follow_back status.`);
+    console.log(`Found ${allProfiles.length} total profile rows to sync follow_back status.`);
 
     // 3. Separate into mutual (follows back) vs non-mutual
     const mutualOwners: string[] = [];
     const nonMutualOwners: string[] = [];
 
-    for (const profile of followedProfiles) {
+    for (const profile of allProfiles) {
       if (followerSet.has(profile.owner.toLowerCase())) {
         mutualOwners.push(profile.owner);
       } else {
@@ -655,7 +654,6 @@ async function syncMutuals() {
       const { error: mutualErr } = await supabase
         .from('repos')
         .update({ follow_back: true })
-        .eq('followed', true)
         .in('owner', mutualOwners);
 
       if (mutualErr) {
@@ -670,7 +668,6 @@ async function syncMutuals() {
       const { error: nonMutualErr } = await supabase
         .from('repos')
         .update({ follow_back: false })
-        .eq('followed', true)
         .in('owner', nonMutualOwners);
 
       if (nonMutualErr) {
