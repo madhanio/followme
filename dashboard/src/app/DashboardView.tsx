@@ -921,12 +921,12 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   Next: {(() => {
                     if (!workerStatus?.lastRun) return '~6h interval';
                     const nextRun = new Date(new Date(workerStatus.lastRun).getTime() + 6 * 60 * 60 * 1000);
-                    const diffMs = nextRun.getTime() - Date.now();
-                    if (diffMs <= 0) return 'soon';
-                    const diffMins = Math.floor(diffMs / (1000 * 60));
-                    const h = Math.floor(diffMins / 60);
-                    const m = diffMins % 60;
-                    return h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
+                    const formattedTime = nextRun.toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    });
+                    return `~${formattedTime}`;
                   })()}
                 </span>
               </div>
