@@ -14,6 +14,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 8000;
 const WORKER_SECRET = process.env.WORKER_SECRET || 'dev_secret';
 const GRADE_THRESHOLD = parseInt(process.env.GRADE_THRESHOLD || '7', 10);
+const MAX_ACTIONS_PER_RUN = 20;
 
 const TOPICS = ['ai', 'machine-learning', 'llm', 'flutter', 'nodejs', 'python'];
 
@@ -127,35 +128,43 @@ async function runAutomationJob() {
       let followSkipReason: string | null = null;
 
       if (grading.grade >= GRADE_THRESHOLD) {
-        console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring...`);
-
-        // Always star a high-grade repo
-        const starSuccess = await starRepo(repo.owner, repo.name);
-        if (starSuccess) {
-          starred = true;
-          stats.starred++;
-          starResult = { success: true, message: `Starred repository ${repo.owner}/${repo.name}` };
-        } else {
-          starResult = { success: false, message: `Failed to star repository ${repo.owner}/${repo.name}` };
-        }
-
-        // Check owner profile before following
-        const profileCheck = await checkOwnerProfile(repo.owner);
-        if (profileCheck.shouldFollow) {
-          console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
-          const followSuccess = await followUser(repo.owner);
-          if (followSuccess) {
-            followed = true;
-            stats.followed++;
-            followResult = { success: true, message: `Followed user ${repo.owner}` };
+        // Star if under the actions cap
+        if (stats.starred < MAX_ACTIONS_PER_RUN) {
+          console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring...`);
+          const starSuccess = await starRepo(repo.owner, repo.name);
+          if (starSuccess) {
+            starred = true;
+            stats.starred++;
+            starResult = { success: true, message: `Starred repository ${repo.owner}/${repo.name}` };
           } else {
-            followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+            starResult = { success: false, message: `Failed to star repository ${repo.owner}/${repo.name}` };
           }
         } else {
-          followSkipped = true;
-          followSkipReason = profileCheck.skipReason;
-          stats.skipped++;
-          console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
+          console.log(`Star limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping star for ${repo.owner}/${repo.name}.`);
+        }
+
+        // Follow if under the actions cap
+        if (stats.followed < MAX_ACTIONS_PER_RUN) {
+          // Check owner profile before following
+          const profileCheck = await checkOwnerProfile(repo.owner);
+          if (profileCheck.shouldFollow) {
+            console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
+            const followSuccess = await followUser(repo.owner);
+            if (followSuccess) {
+              followed = true;
+              stats.followed++;
+              followResult = { success: true, message: `Followed user ${repo.owner}` };
+            } else {
+              followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+            }
+          } else {
+            followSkipped = true;
+            followSkipReason = profileCheck.skipReason;
+            stats.skipped++;
+            console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
+          }
+        } else {
+          console.log(`Follow limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping profile checks / follow for ${repo.owner}.`);
         }
       }
 
