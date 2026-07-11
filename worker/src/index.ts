@@ -14,7 +14,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 8000;
 const WORKER_SECRET = process.env.WORKER_SECRET || 'dev_secret';
 const GRADE_THRESHOLD = parseInt(process.env.GRADE_THRESHOLD || '7', 10);
-const MAX_ACTIONS_PER_RUN = 20;
+const MAX_ACTIONS_PER_RUN = 30;
 
 const TOPICS = ['ai', 'machine-learning', 'llm', 'flutter', 'nodejs', 'python'];
 
