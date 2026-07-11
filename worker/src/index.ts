@@ -416,7 +416,7 @@ app.post('/star', async (req: Request, res: Response) => {
       const { data: dbRepo } = await supabase
         .from('repos')
         .select('id')
-        .eq('owner', owner)
+        .ilike('owner', owner)
         .eq('name', repo)
         .maybeSingle();
 
@@ -425,7 +425,7 @@ app.post('/star', async (req: Request, res: Response) => {
       const { error } = await supabase
         .from('repos')
         .update({ starred: true })
-        .eq('owner', owner)
+        .ilike('owner', owner)
         .eq('name', repo);
 
       if (error) {
@@ -459,7 +459,7 @@ app.post('/deleteprofile', async (req: Request, res: Response) => {
     const { data, error } = await supabase
       .from('repos')
       .delete()
-      .eq('owner', username);
+      .ilike('owner', username);
 
     if (error) {
       console.error(`Error deleting profile ${username}:`, error.message);
@@ -493,7 +493,7 @@ app.post('/unstar', async (req: Request, res: Response) => {
       const { data: dbRepo } = await supabase
         .from('repos')
         .select('id')
-        .eq('owner', owner)
+        .ilike('owner', owner)
         .eq('name', repo)
         .maybeSingle();
 
@@ -502,7 +502,7 @@ app.post('/unstar', async (req: Request, res: Response) => {
       const { error } = await supabase
         .from('repos')
         .update({ starred: false })
-        .eq('owner', owner)
+        .ilike('owner', owner)
         .eq('name', repo);
 
       if (error) {
@@ -538,7 +538,7 @@ app.post('/follow', async (req: Request, res: Response) => {
       const { data: dbRepo } = await supabase
         .from('repos')
         .select('id')
-        .eq('owner', username)
+        .ilike('owner', username)
         .limit(1)
         .maybeSingle();
 
@@ -547,7 +547,7 @@ app.post('/follow', async (req: Request, res: Response) => {
       const { error } = await supabase
         .from('repos')
         .update({ followed: true, unfollowed: false, followed_at: new Date().toISOString() })
-        .eq('owner', username);
+        .ilike('owner', username);
 
       if (error) {
         console.error(`Error updating DB after follow for ${username}:`, error.message);
@@ -583,7 +583,7 @@ app.post('/unfollow', async (req: Request, res: Response) => {
       const { data: dbRepo } = await supabase
         .from('repos')
         .select('id')
-        .eq('owner', username)
+        .ilike('owner', username)
         .limit(1)
         .maybeSingle();
 
@@ -592,7 +592,7 @@ app.post('/unfollow', async (req: Request, res: Response) => {
       const { error } = await supabase
         .from('repos')
         .update({ followed: false, unfollowed: true })
-        .eq('owner', username);
+        .ilike('owner', username);
 
       if (error) {
         console.error(`Error updating DB after unfollow for ${username}:`, error.message);
@@ -805,7 +805,7 @@ async function cleanupNonFollowbacks() {
         const { data: dbRepo } = await supabase
           .from('repos')
           .select('id')
-          .eq('owner', username)
+          .ilike('owner', username)
           .limit(1)
           .maybeSingle();
         const repoId = dbRepo ? dbRepo.id : null;
@@ -814,7 +814,7 @@ async function cleanupNonFollowbacks() {
         await supabase
           .from('repos')
           .update({ followed: false, unfollowed: true })
-          .eq('owner', username);
+          .ilike('owner', username);
 
         await logAction('UNFOLLOW_RATIO', repoId, 'SUCCESS', `Auto-unfollowed ${username} to balance following/followers ratio.`);
       } else {
