@@ -382,8 +382,6 @@ app.post('/clearstale', async (req: Request, res: Response) => {
       .from('repos')
       .delete()
       .eq('followed', false)
-      .eq('starred', false)
-      .eq('unfollowed', false)
       .select('id');
 
     if (error) {

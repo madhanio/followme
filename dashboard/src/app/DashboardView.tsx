@@ -537,6 +537,16 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       
       if (!matchesSearch) return false;
 
+      // Filter out low-quality skipped profiles (follow_skipped = true, followed = false, starred = false)
+      // Any repository star indicates starred = true for the profile.
+      const isStarred = profile.repos.some(r => r.starred);
+      const isFollowed = profile.followStatus.followed;
+      const isSkipped = profile.followStatus.follow_skipped;
+
+      if (isSkipped && !isFollowed && !isStarred) {
+        return false;
+      }
+
       if (activeFilter === 'followed') {
         return profile.followStatus.followed && !profile.followStatus.follow_back;
       }
