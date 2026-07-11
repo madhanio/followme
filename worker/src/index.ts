@@ -719,21 +719,24 @@ async function cleanupNonFollowbacks() {
       return;
     }
 
-    // Fetch followed_at timestamp from Supabase
+    // Fetch followed profiles from Supabase where we set followed = true
     const { data: dbRepos, error } = await supabase
       .from('repos')
       .select('owner, followed_at')
+      .eq('followed', true)
       .in('owner', nonFollowbacks);
 
     if (error) {
-      console.warn('Error fetching followed_at from Supabase, processing in API order:', error.message);
+      console.warn('Error fetching followed users from Supabase, processing in API order:', error.message);
     }
 
     const followedAtMap = new Map<string, number>();
+    const isFollowedByBot = new Set<string>();
     if (dbRepos) {
       for (const r of dbRepos) {
+        isFollowedByBot.add(r.owner.toLowerCase());
         if (r.followed_at) {
-          followedAtMap.set(r.owner, new Date(r.followed_at).getTime());
+          followedAtMap.set(r.owner.toLowerCase(), new Date(r.followed_at).getTime());
         }
       }
     }
@@ -741,9 +744,13 @@ async function cleanupNonFollowbacks() {
     // 7-day grace period cutoff
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-    // Filter out users followed less than 7 days ago
+    // Filter out users followed less than 7 days ago AND users not followed by FollowMe bot
     const eligibleUnfollows = nonFollowbacks.filter(user => {
-      const followedAt = followedAtMap.get(user);
+      // Must be followed by the bot (in repos table with followed = true)
+      if (!isFollowedByBot.has(user.toLowerCase())) {
+        return false;
+      }
+      const followedAt = followedAtMap.get(user.toLowerCase());
       if (followedAt !== undefined && followedAt > sevenDaysAgo) {
         // Less than 7 days ago
         return false;
@@ -752,19 +759,19 @@ async function cleanupNonFollowbacks() {
     });
 
     if (eligibleUnfollows.length === 0) {
-      console.log('All non-followback users are within the 7-day grace period. Skipping unfollow cleanup.');
+      console.log('All eligible non-followback users are within the 7-day grace period or were followed manually. Skipping unfollow cleanup.');
       return;
     }
 
     // Sort: oldest first (use followed_at if available, otherwise preserve API order)
     const apiIndexMap = new Map<string, number>();
     following.forEach((user, idx) => {
-      apiIndexMap.set(user, idx);
+      apiIndexMap.set(user.toLowerCase(), idx);
     });
 
     eligibleUnfollows.sort((a, b) => {
-      const timeA = followedAtMap.get(a);
-      const timeB = followedAtMap.get(b);
+      const timeA = followedAtMap.get(a.toLowerCase());
+      const timeB = followedAtMap.get(b.toLowerCase());
 
       if (timeA !== undefined && timeB !== undefined) {
         return timeA - timeB;
@@ -775,10 +782,10 @@ async function cleanupNonFollowbacks() {
       if (timeB !== undefined) {
         return 1;
       }
-      return (apiIndexMap.get(a) || 0) - (apiIndexMap.get(b) || 0);
+      return (apiIndexMap.get(a.toLowerCase()) || 0) - (apiIndexMap.get(b.toLowerCase()) || 0);
     });
 
-    console.log(`Sorted ${eligibleUnfollows.length} non-followers eligible for unfollow.`);
+    console.log(`Sorted ${eligibleUnfollows.length} bot-followed non-followers eligible for unfollow.`);
 
     let currentFollowingCount = followingCount;
     const targetCount = Math.floor(followersCount * 1.3);
