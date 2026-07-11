@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Lottie from 'lottie-react';
 import mainCharacter from '../../public/animations/main_character.json';
 import { supabase } from '@/lib/supabase';
-import { triggerWorker, triggerCleanup, getWorkerStatus, triggerStar, triggerUnstar, triggerFollow, triggerUnfollow, triggerLogCleanup, triggerClearStale, triggerDeleteProfile } from './actions';
+import { triggerWorker, triggerCleanup, getWorkerStatus, triggerStar, triggerUnstar, triggerFollow, triggerUnfollow, triggerLogCleanup, triggerClearStale, triggerDeleteProfile, triggerSyncMutuals } from './actions';
 
 // Simple in-memory cache for GitHub stats
 const githubStatsCache = new Map<string, { followers: number; following: number }>();
@@ -362,6 +362,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanupStatus, setCleanupStatus] = useState<{ success?: boolean; message?: string } | null>(null);
 
+  // Sync Mutuals State
+  const [isSyncingMutuals, setIsSyncingMutuals] = useState(false);
+
   // Worker status states
   const [workerStatus, setWorkerStatus] = useState<{
     nextRun: string | null;
@@ -560,6 +563,8 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
+      // Sync follow_back state from GitHub before refreshing local data
+      await triggerSyncMutuals();
       await fetch('/api/sync-following', { method: 'POST' });
       const [reposRes, logsRes] = await Promise.all([
         supabase.from('repos').select('*'),
@@ -572,6 +577,23 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       console.error('Refresh failed:', err);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  // Handle manual mutuals sync
+  const handleSyncMutuals = async () => {
+    if (isSyncingMutuals) return;
+    setIsSyncingMutuals(true);
+    try {
+      await triggerSyncMutuals();
+      // Reload repos so follow_back changes are reflected immediately
+      const reposRes = await supabase.from('repos').select('*');
+      if (reposRes.data) setRepos(reposRes.data);
+      router.refresh();
+    } catch (err) {
+      console.error('Mutuals sync failed:', err);
+    } finally {
+      setIsSyncingMutuals(false);
     }
   };
 
@@ -910,6 +932,17 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
  
           <div className="flex items-center space-x-3 w-full sm:w-auto">
             <button
+              onClick={handleSyncMutuals}
+              disabled={isSyncingMutuals || workerStatus?.isJobRunning}
+              className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white rounded-lg text-xs font-mono font-bold uppercase disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition flex items-center justify-center min-h-[44px]"
+            >
+              {isSyncingMutuals ? (
+                <><RotateCw className="h-3 w-3 animate-spin mr-1" />Syncing...</>
+              ) : (
+                <>🔁 Sync Mutuals</>
+              )}
+            </button>
+            <button
               onClick={() => setIsCleanupOpen(true)}
               disabled={workerStatus?.isJobRunning}
               className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white rounded-lg text-xs font-mono font-bold uppercase disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition flex items-center justify-center min-h-[44px]"
@@ -918,9 +951,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             </button>
             <button
               onClick={handleRefresh}
-              disabled={isRefreshing}
+              disabled={isRefreshing || isSyncingMutuals}
               className="p-2 text-zinc-400 hover:text-white rounded-lg border border-zinc-800 bg-[#0f0f11] hover:bg-zinc-900 transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
-              title="Refresh Dashboard Data"
+              title="Refresh Dashboard Data (also syncs mutuals)"
             >
               <RotateCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-white' : ''}`} />
             </button>
