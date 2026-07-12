@@ -16,6 +16,7 @@ app.use(express_1.default.json());
 const PORT = process.env.PORT || 8000;
 const WORKER_SECRET = process.env.WORKER_SECRET || 'dev_secret';
 const GRADE_THRESHOLD = parseInt(process.env.GRADE_THRESHOLD || '7', 10);
+const MAX_ACTIONS_PER_RUN = 30;
 const TOPICS = ['ai', 'machine-learning', 'llm', 'flutter', 'nodejs', 'python'];
 let isJobRunning = false;
 let lastRun = null;
@@ -111,36 +112,47 @@ async function runAutomationJob() {
             let followSkipped = false;
             let followSkipReason = null;
             if (grading.grade >= GRADE_THRESHOLD) {
-                console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring...`);
-                // Always star a high-grade repo
-                const starSuccess = await (0, github_1.starRepo)(repo.owner, repo.name);
-                if (starSuccess) {
-                    starred = true;
-                    stats.starred++;
-                    starResult = { success: true, message: `Starred repository ${repo.owner}/${repo.name}` };
-                }
-                else {
-                    starResult = { success: false, message: `Failed to star repository ${repo.owner}/${repo.name}` };
-                }
-                // Check owner profile before following
-                const profileCheck = await (0, github_1.checkOwnerProfile)(repo.owner);
-                if (profileCheck.shouldFollow) {
-                    console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
-                    const followSuccess = await (0, github_1.followUser)(repo.owner);
-                    if (followSuccess) {
-                        followed = true;
-                        stats.followed++;
-                        followResult = { success: true, message: `Followed user ${repo.owner}` };
+                // Star if under the actions cap
+                if (stats.starred < MAX_ACTIONS_PER_RUN) {
+                    console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring...`);
+                    const starSuccess = await (0, github_1.starRepo)(repo.owner, repo.name);
+                    if (starSuccess) {
+                        starred = true;
+                        stats.starred++;
+                        starResult = { success: true, message: `Starred repository ${repo.owner}/${repo.name}` };
                     }
                     else {
-                        followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+                        starResult = { success: false, message: `Failed to star repository ${repo.owner}/${repo.name}` };
                     }
                 }
                 else {
-                    followSkipped = true;
-                    followSkipReason = profileCheck.skipReason;
-                    stats.skipped++;
-                    console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
+                    console.log(`Star limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping star for ${repo.owner}/${repo.name}.`);
+                }
+                // Follow if under the actions cap
+                if (stats.followed < MAX_ACTIONS_PER_RUN) {
+                    // Check owner profile before following
+                    const profileCheck = await (0, github_1.checkOwnerProfile)(repo.owner);
+                    if (profileCheck.shouldFollow) {
+                        console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
+                        const followSuccess = await (0, github_1.followUser)(repo.owner);
+                        if (followSuccess) {
+                            followed = true;
+                            stats.followed++;
+                            followResult = { success: true, message: `Followed user ${repo.owner}` };
+                        }
+                        else {
+                            followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+                        }
+                    }
+                    else {
+                        followSkipped = true;
+                        followSkipReason = profileCheck.skipReason;
+                        stats.skipped++;
+                        console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
+                    }
+                }
+                else {
+                    console.log(`Follow limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping profile checks / follow for ${repo.owner}.`);
                 }
             }
             // 5. Save repository to database and log if followed or starred
@@ -189,6 +201,12 @@ async function runAutomationJob() {
         }
         catch (ratioErr) {
             console.error('Error running auto-unfollow ratio cleanup:', ratioErr.message || ratioErr);
+        }
+        try {
+            await syncMutuals();
+        }
+        catch (syncErr) {
+            console.error('Error running mutuals sync:', syncErr.message || syncErr);
         }
     }
     catch (err) {
@@ -253,6 +271,15 @@ app.post('/cleanup', async (req, res) => {
     }
     runCleanupJob().catch(console.error);
     return res.json({ message: 'Cleanup job triggered successfully.' });
+});
+// POST /sync-mutuals
+app.post('/sync-mutuals', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    syncMutuals().catch(console.error);
+    return res.json({ message: 'Mutuals sync triggered successfully.' });
 });
 // POST /cleanlogs
 app.post('/cleanlogs', async (req, res) => {
@@ -332,14 +359,14 @@ app.post('/star', async (req, res) => {
             const { data: dbRepo } = await supabase_1.supabase
                 .from('repos')
                 .select('id')
-                .eq('owner', owner)
+                .ilike('owner', owner)
                 .eq('name', repo)
                 .maybeSingle();
             const repoId = dbRepo ? dbRepo.id : null;
             const { error } = await supabase_1.supabase
                 .from('repos')
                 .update({ starred: true })
-                .eq('owner', owner)
+                .ilike('owner', owner)
                 .eq('name', repo);
             if (error) {
                 console.error(`Error updating DB after star for ${owner}/${repo}:`, error.message);
@@ -369,7 +396,7 @@ app.post('/deleteprofile', async (req, res) => {
         const { data, error } = await supabase_1.supabase
             .from('repos')
             .delete()
-            .eq('owner', username);
+            .ilike('owner', username);
         if (error) {
             console.error(`Error deleting profile ${username}:`, error.message);
             return res.status(500).json({ success: false, error: error.message });
@@ -398,14 +425,14 @@ app.post('/unstar', async (req, res) => {
             const { data: dbRepo } = await supabase_1.supabase
                 .from('repos')
                 .select('id')
-                .eq('owner', owner)
+                .ilike('owner', owner)
                 .eq('name', repo)
                 .maybeSingle();
             const repoId = dbRepo ? dbRepo.id : null;
             const { error } = await supabase_1.supabase
                 .from('repos')
                 .update({ starred: false })
-                .eq('owner', owner)
+                .ilike('owner', owner)
                 .eq('name', repo);
             if (error) {
                 console.error(`Error updating DB after unstar for ${owner}/${repo}:`, error.message);
@@ -437,14 +464,14 @@ app.post('/follow', async (req, res) => {
             const { data: dbRepo } = await supabase_1.supabase
                 .from('repos')
                 .select('id')
-                .eq('owner', username)
+                .ilike('owner', username)
                 .limit(1)
                 .maybeSingle();
             const repoId = dbRepo ? dbRepo.id : null;
             const { error } = await supabase_1.supabase
                 .from('repos')
                 .update({ followed: true, unfollowed: false, followed_at: new Date().toISOString() })
-                .eq('owner', username);
+                .ilike('owner', username);
             if (error) {
                 console.error(`Error updating DB after follow for ${username}:`, error.message);
             }
@@ -476,14 +503,14 @@ app.post('/unfollow', async (req, res) => {
             const { data: dbRepo } = await supabase_1.supabase
                 .from('repos')
                 .select('id')
-                .eq('owner', username)
+                .ilike('owner', username)
                 .limit(1)
                 .maybeSingle();
             const repoId = dbRepo ? dbRepo.id : null;
             const { error } = await supabase_1.supabase
                 .from('repos')
                 .update({ followed: false, unfollowed: true })
-                .eq('owner', username);
+                .ilike('owner', username);
             if (error) {
                 console.error(`Error updating DB after unfollow for ${username}:`, error.message);
             }
@@ -498,6 +525,77 @@ app.post('/unfollow', async (req, res) => {
         return res.status(500).json({ success: false, error: err.message || 'Error manual unfollowing' });
     }
 });
+/**
+ * Syncs follow_back status in Supabase by comparing our followed profiles
+ * against the live list of users who follow us back on GitHub.
+ * Sets follow_back=true for matches, follow_back=false for non-matches.
+ */
+async function syncMutuals() {
+    console.log('Starting mutuals sync (syncMutuals)...');
+    try {
+        // 1. Fetch all GitHub followers (paginated)
+        const followers = await (0, github_1.getGitHubFollowers)();
+        const followerSet = new Set(followers.map(u => u.toLowerCase()));
+        console.log(`Fetched ${followers.length} GitHub followers for mutuals sync.`);
+        // 2. Fetch all profiles in Supabase repos table (no followed = true filter)
+        const { data: allProfiles, error } = await supabase_1.supabase
+            .from('repos')
+            .select('id, owner');
+        if (error) {
+            console.error('Error fetching profiles for mutuals sync:', error.message);
+            return;
+        }
+        if (!allProfiles || allProfiles.length === 0) {
+            console.log('No profiles found in repos table to sync.');
+            return;
+        }
+        console.log(`Found ${allProfiles.length} total profile rows to sync follow_back status.`);
+        // 3. Separate into mutual (follows back) vs non-mutual
+        const mutualOwners = [];
+        const nonMutualOwners = [];
+        for (const profile of allProfiles) {
+            if (followerSet.has(profile.owner.toLowerCase())) {
+                mutualOwners.push(profile.owner);
+            }
+            else {
+                nonMutualOwners.push(profile.owner);
+            }
+        }
+        console.log(`Mutuals: ${mutualOwners.length}, Non-mutuals: ${nonMutualOwners.length}`);
+        // 4. Batch update follow_back = true for mutual owners
+        if (mutualOwners.length > 0) {
+            const { error: mutualErr } = await supabase_1.supabase
+                .from('repos')
+                .update({ follow_back: true })
+                .in('owner', mutualOwners);
+            if (mutualErr) {
+                console.error('Error updating follow_back=true for mutuals:', mutualErr.message);
+            }
+            else {
+                console.log(`Updated follow_back=true for ${mutualOwners.length} mutual owner entries.`);
+            }
+        }
+        // 5. Batch update follow_back = false for non-mutual owners
+        if (nonMutualOwners.length > 0) {
+            const { error: nonMutualErr } = await supabase_1.supabase
+                .from('repos')
+                .update({ follow_back: false })
+                .in('owner', nonMutualOwners);
+            if (nonMutualErr) {
+                console.error('Error updating follow_back=false for non-mutuals:', nonMutualErr.message);
+            }
+            else {
+                console.log(`Updated follow_back=false for ${nonMutualOwners.length} non-mutual owner entries.`);
+            }
+        }
+        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Mutuals sync complete. Mutuals: ${mutualOwners.length}, Non-mutuals: ${nonMutualOwners.length}`);
+        console.log('Mutuals sync completed successfully.');
+    }
+    catch (err) {
+        console.error('Error in syncMutuals:', err.message || err);
+        await (0, supabase_1.logAction)('SYSTEM', null, 'FAILED', `syncMutuals failed: ${err.message || 'Unknown error'}`);
+    }
+}
 async function cleanupNonFollowbacks() {
     console.log('Starting FollowMe auto-unfollow ratio cleanup (cleanupNonFollowbacks)...');
     try {
@@ -518,27 +616,34 @@ async function cleanupNonFollowbacks() {
             console.log('No non-followback users found to unfollow.');
             return;
         }
-        // Fetch followed_at timestamp from Supabase
+        // Fetch followed profiles from Supabase where we set followed = true
         const { data: dbRepos, error } = await supabase_1.supabase
             .from('repos')
             .select('owner, followed_at')
+            .eq('followed', true)
             .in('owner', nonFollowbacks);
         if (error) {
-            console.warn('Error fetching followed_at from Supabase, processing in API order:', error.message);
+            console.warn('Error fetching followed users from Supabase, processing in API order:', error.message);
         }
         const followedAtMap = new Map();
+        const isFollowedByBot = new Set();
         if (dbRepos) {
             for (const r of dbRepos) {
+                isFollowedByBot.add(r.owner.toLowerCase());
                 if (r.followed_at) {
-                    followedAtMap.set(r.owner, new Date(r.followed_at).getTime());
+                    followedAtMap.set(r.owner.toLowerCase(), new Date(r.followed_at).getTime());
                 }
             }
         }
         // 7-day grace period cutoff
         const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        // Filter out users followed less than 7 days ago
+        // Filter out users followed less than 7 days ago AND users not followed by FollowMe bot
         const eligibleUnfollows = nonFollowbacks.filter(user => {
-            const followedAt = followedAtMap.get(user);
+            // Must be followed by the bot (in repos table with followed = true)
+            if (!isFollowedByBot.has(user.toLowerCase())) {
+                return false;
+            }
+            const followedAt = followedAtMap.get(user.toLowerCase());
             if (followedAt !== undefined && followedAt > sevenDaysAgo) {
                 // Less than 7 days ago
                 return false;
@@ -546,17 +651,17 @@ async function cleanupNonFollowbacks() {
             return true;
         });
         if (eligibleUnfollows.length === 0) {
-            console.log('All non-followback users are within the 7-day grace period. Skipping unfollow cleanup.');
+            console.log('All eligible non-followback users are within the 7-day grace period or were followed manually. Skipping unfollow cleanup.');
             return;
         }
         // Sort: oldest first (use followed_at if available, otherwise preserve API order)
         const apiIndexMap = new Map();
         following.forEach((user, idx) => {
-            apiIndexMap.set(user, idx);
+            apiIndexMap.set(user.toLowerCase(), idx);
         });
         eligibleUnfollows.sort((a, b) => {
-            const timeA = followedAtMap.get(a);
-            const timeB = followedAtMap.get(b);
+            const timeA = followedAtMap.get(a.toLowerCase());
+            const timeB = followedAtMap.get(b.toLowerCase());
             if (timeA !== undefined && timeB !== undefined) {
                 return timeA - timeB;
             }
@@ -566,9 +671,9 @@ async function cleanupNonFollowbacks() {
             if (timeB !== undefined) {
                 return 1;
             }
-            return (apiIndexMap.get(a) || 0) - (apiIndexMap.get(b) || 0);
+            return (apiIndexMap.get(a.toLowerCase()) || 0) - (apiIndexMap.get(b.toLowerCase()) || 0);
         });
-        console.log(`Sorted ${eligibleUnfollows.length} non-followers eligible for unfollow.`);
+        console.log(`Sorted ${eligibleUnfollows.length} bot-followed non-followers eligible for unfollow.`);
         let currentFollowingCount = followingCount;
         const targetCount = Math.floor(followersCount * 1.3);
         for (const username of eligibleUnfollows) {
@@ -584,7 +689,7 @@ async function cleanupNonFollowbacks() {
                 const { data: dbRepo } = await supabase_1.supabase
                     .from('repos')
                     .select('id')
-                    .eq('owner', username)
+                    .ilike('owner', username)
                     .limit(1)
                     .maybeSingle();
                 const repoId = dbRepo ? dbRepo.id : null;
@@ -592,7 +697,7 @@ async function cleanupNonFollowbacks() {
                 await supabase_1.supabase
                     .from('repos')
                     .update({ followed: false, unfollowed: true })
-                    .eq('owner', username);
+                    .ilike('owner', username);
                 await (0, supabase_1.logAction)('UNFOLLOW_RATIO', repoId, 'SUCCESS', `Auto-unfollowed ${username} to balance following/followers ratio.`);
             }
             else {
@@ -668,6 +773,13 @@ async function runCleanupJob() {
         }
         console.log('Cleanup job completed.');
         await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Cleanup job completed successfully.`);
+        // Sync mutuals at the end of every cleanup run
+        try {
+            await syncMutuals();
+        }
+        catch (syncErr) {
+            console.error('Error running mutuals sync after cleanup:', syncErr.message || syncErr);
+        }
     }
     catch (err) {
         console.error('Error during cleanup job:', err.message || err);

@@ -344,7 +344,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
   const [cleanupOption, setCleanupOption] = useState<'list' | 'logs' | 'stale' | null>(null);
   const [totalLogsCount, setTotalLogsCount] = useState<number>(0);
-  const [staleProfilesCount, setStaleProfilesCount] = useState<number>(0);
+  const staleProfilesCount = useMemo(() => {
+    return repos.filter(r => !r.followed && !r.starred && !r.unfollowed).length;
+  }, [repos]);
   const [unfollowList, setUnfollowList] = useState<{ id: number; owner: string; name: string; followed_at: string }[]>([]);
   const [isFetchingUnfollowList, setIsFetchingUnfollowList] = useState(false);
 
@@ -411,17 +413,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     }
   };
 
-  const fetchStaleProfilesCount = async () => {
-    const { count, error } = await supabase
-      .from('repos')
-      .select('*', { count: 'exact', head: true })
-      .eq('followed', false)
-      .eq('starred', false)
-      .eq('unfollowed', false);
-    if (!error && count !== null) {
-      setStaleProfilesCount(count);
-    }
-  };
+
 
   // Selected Repo Modal
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
@@ -930,14 +922,16 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                 <span className="text-zinc-800">•</span>
                 <span>
                   Next: {(() => {
-                    if (!workerStatus?.lastRun) return '~6h interval';
-                    const nextRun = new Date(new Date(workerStatus.lastRun).getTime() + 6 * 60 * 60 * 1000);
+                    const lastSuccessLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message?.includes('finished'));
+                    const lastRunTime = workerStatus?.lastRun || (lastSuccessLog ? lastSuccessLog.timestamp : null);
+                    const baseTime = lastRunTime ? new Date(lastRunTime) : new Date();
+                    const nextRun = new Date(baseTime.getTime() + 6 * 60 * 60 * 1000);
                     const formattedTime = nextRun.toLocaleTimeString('en-US', {
                       hour: 'numeric',
                       minute: '2-digit',
                       hour12: true
                     });
-                    return `~${formattedTime}`;
+                    return formattedTime;
                   })()}
                 </span>
               </div>
@@ -1663,8 +1657,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                         </p>
                       </div>
                       <button
-                        onClick={async () => {
-                          await fetchStaleProfilesCount();
+                        onClick={() => {
                           setCleanupOption('stale');
                         }}
                         className="w-full min-h-[40px] flex items-center justify-center bg-amber-955/20 hover:bg-amber-900/30 text-amber-300 border border-amber-900/40 text-xs font-bold rounded-lg transition cursor-pointer"
