@@ -345,7 +345,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   const [cleanupOption, setCleanupOption] = useState<'list' | 'logs' | 'stale' | null>(null);
   const [totalLogsCount, setTotalLogsCount] = useState<number>(0);
   const staleProfilesCount = useMemo(() => {
-    return repos.filter(r => !r.followed && !r.starred && !r.unfollowed).length;
+    return repos.filter(r => !r.followed && !r.starred && !r.unfollowed && r.follow_skipped).length;
   }, [repos]);
   const [unfollowList, setUnfollowList] = useState<{ id: number; owner: string; name: string; followed_at: string }[]>([]);
   const [isFetchingUnfollowList, setIsFetchingUnfollowList] = useState(false);

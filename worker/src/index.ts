@@ -384,6 +384,7 @@ app.post('/clearstale', async (req: Request, res: Response) => {
       .eq('followed', false)
       .eq('starred', false)
       .eq('unfollowed', false)
+      .eq('follow_skipped', true)
       .select('id');
 
     if (error) {
