@@ -57,6 +57,7 @@ export async function saveRepo(
   followSkipReason: string | null = null
 ) {
   try {
+    const actualStarred = followSkipped ? false : starred;
     const upsertData: any = {
       id: repo.id,
       github_url: repo.github_url,
@@ -69,7 +70,7 @@ export async function saveRepo(
       grade: repo.grade,
       graded_at: new Date().toISOString(),
       followed,
-      starred,
+      starred: actualStarred,
       follow_skipped: followSkipped,
       follow_skip_reason: followSkipReason,
     };
