@@ -536,7 +536,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       const isFollowed = profile.followStatus.followed;
       const isSkipped = profile.followStatus.follow_skipped;
 
-      if (isSkipped && !isFollowed && !isStarred) {
+      if (isSkipped && !isFollowed && !isStarred && activeFilter !== 'skipped') {
         return false;
       }
 
