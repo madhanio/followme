@@ -855,14 +855,12 @@ async function runCleanupJob() {
   await logAction('SYSTEM', null, 'SUCCESS', 'Cleanup job started');
 
   try {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data: repos, error } = await supabase
       .from('repos')
-      .select('id, owner, name')
-      .eq('followed', true)
-      .eq('unfollowed', false)
+      .select('*')
       .eq('follow_back', false)
-      .lte('followed_at', sevenDaysAgo);
+      .eq('unfollowed', false)
+      .lt('followed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
     if (error) {
       console.error('Error fetching repos for cleanup:', error.message);
@@ -878,38 +876,22 @@ async function runCleanupJob() {
     console.log(`Found ${repos.length} users to check for follow-back status.`);
 
     for (const repo of repos) {
-      const followsBack = await checkIfFollowsBack(repo.owner);
+      // Unfollow
+      const unfollowedSuccess = await unfollowUser(repo.owner);
 
-      if (followsBack) {
-        // Update database
+      if (unfollowedSuccess) {
         const { error: updateErr } = await supabase
           .from('repos')
-          .update({ follow_back: true })
+          .update({ unfollowed: true })
           .eq('id', repo.id);
 
         if (updateErr) {
-          console.error(`Error updating follow_back for ${repo.owner}:`, updateErr.message);
+          console.error(`Error updating unfollowed status for ${repo.owner}:`, updateErr.message);
         } else {
-          await logAction('FOLLOW_BACK', repo.id, 'SUCCESS', `Confirmed user ${repo.owner} followed back`);
+          await logAction('UNFOLLOW', repo.id, 'SUCCESS', `Unfollowed user ${repo.owner} (no follow-back within 7 days)`);
         }
       } else {
-        // Unfollow
-        const unfollowedSuccess = await unfollowUser(repo.owner);
-
-        if (unfollowedSuccess) {
-          const { error: updateErr } = await supabase
-            .from('repos')
-            .update({ unfollowed: true, followed: false })
-            .eq('id', repo.id);
-
-          if (updateErr) {
-            console.error(`Error updating unfollowed status for ${repo.owner}:`, updateErr.message);
-          } else {
-            await logAction('UNFOLLOW', repo.id, 'SUCCESS', `Unfollowed user ${repo.owner} (no follow-back within 7 days)`);
-          }
-        } else {
-          await logAction('UNFOLLOW', repo.id, 'FAILED', `Failed to unfollow user ${repo.owner}`);
-        }
+        await logAction('UNFOLLOW', repo.id, 'FAILED', `Failed to unfollow user ${repo.owner}`);
       }
 
       // Small delay between checks

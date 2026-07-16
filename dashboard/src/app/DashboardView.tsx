@@ -387,14 +387,12 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
   const fetchUnfollowList = async () => {
     setIsFetchingUnfollowList(true);
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('repos')
-      .select('id, owner, name, followed_at')
-      .eq('followed', true)
-      .eq('unfollowed', false)
+      .select('*')
       .eq('follow_back', false)
-      .lte('followed_at', sevenDaysAgo);
+      .eq('unfollowed', false)
+      .lt('followed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
     
     if (!error && data) {
       setUnfollowList(data);
