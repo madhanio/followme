@@ -145,23 +145,40 @@ async function runAutomationJob() {
 
         // Follow if under the actions cap
         if (stats.followed < MAX_ACTIONS_PER_RUN) {
-          // Check owner profile before following
-          const profileCheck = await checkOwnerProfile(repo.owner);
-          if (profileCheck.shouldFollow) {
-            console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
-            const followSuccess = await followUser(repo.owner);
-            if (followSuccess) {
-              followed = true;
-              stats.followed++;
-              followResult = { success: true, message: `Followed user ${repo.owner}` };
-            } else {
-              followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
-            }
-          } else {
+          // Check if owner already exists in repos table with follow_back = false and unfollowed = false
+          const { data: existingFollow } = await supabase
+            .from('repos')
+            .select('id')
+            .ilike('owner', repo.owner)
+            .eq('follow_back', false)
+            .eq('unfollowed', false)
+            .limit(1)
+            .maybeSingle();
+
+          if (existingFollow) {
+            console.log(`Skipping follow for ${repo.owner} — already followed (follow_back=false, unfollowed=false)`);
             followSkipped = true;
-            followSkipReason = profileCheck.skipReason;
+            followSkipReason = 'already-followed-pending-followback';
             stats.skipped++;
-            console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
+          } else {
+            // Check owner profile before following
+            const profileCheck = await checkOwnerProfile(repo.owner);
+            if (profileCheck.shouldFollow) {
+              console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
+              const followSuccess = await followUser(repo.owner);
+              if (followSuccess) {
+                followed = true;
+                stats.followed++;
+                followResult = { success: true, message: `Followed user ${repo.owner}` };
+              } else {
+                followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+              }
+            } else {
+              followSkipped = true;
+              followSkipReason = profileCheck.skipReason;
+              stats.skipped++;
+              console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
+            }
           }
         } else {
           console.log(`Follow limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping profile checks / follow for ${repo.owner}.`);

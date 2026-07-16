@@ -44,6 +44,7 @@ async function isRepoGraded(repoId) {
 }
 async function saveRepo(repo, followed, starred, followSkipped = false, followSkipReason = null) {
     try {
+        const actualStarred = followSkipped ? false : starred;
         const upsertData = {
             id: repo.id,
             github_url: repo.github_url,
@@ -56,7 +57,7 @@ async function saveRepo(repo, followed, starred, followSkipped = false, followSk
             grade: repo.grade,
             graded_at: new Date().toISOString(),
             followed,
-            starred,
+            starred: actualStarred,
             follow_skipped: followSkipped,
             follow_skip_reason: followSkipReason,
         };

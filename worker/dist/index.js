@@ -130,25 +130,42 @@ async function runAutomationJob() {
                 }
                 // Follow if under the actions cap
                 if (stats.followed < MAX_ACTIONS_PER_RUN) {
-                    // Check owner profile before following
-                    const profileCheck = await (0, github_1.checkOwnerProfile)(repo.owner);
-                    if (profileCheck.shouldFollow) {
-                        console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
-                        const followSuccess = await (0, github_1.followUser)(repo.owner);
-                        if (followSuccess) {
-                            followed = true;
-                            stats.followed++;
-                            followResult = { success: true, message: `Followed user ${repo.owner}` };
-                        }
-                        else {
-                            followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
-                        }
+                    // Check if owner already exists in repos table with follow_back = false and unfollowed = false
+                    const { data: existingFollow } = await supabase_1.supabase
+                        .from('repos')
+                        .select('id')
+                        .ilike('owner', repo.owner)
+                        .eq('follow_back', false)
+                        .eq('unfollowed', false)
+                        .limit(1)
+                        .maybeSingle();
+                    if (existingFollow) {
+                        console.log(`Skipping follow for ${repo.owner} — already followed (follow_back=false, unfollowed=false)`);
+                        followSkipped = true;
+                        followSkipReason = 'already-followed-pending-followback';
+                        stats.skipped++;
                     }
                     else {
-                        followSkipped = true;
-                        followSkipReason = profileCheck.skipReason;
-                        stats.skipped++;
-                        console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
+                        // Check owner profile before following
+                        const profileCheck = await (0, github_1.checkOwnerProfile)(repo.owner);
+                        if (profileCheck.shouldFollow) {
+                            console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
+                            const followSuccess = await (0, github_1.followUser)(repo.owner);
+                            if (followSuccess) {
+                                followed = true;
+                                stats.followed++;
+                                followResult = { success: true, message: `Followed user ${repo.owner}` };
+                            }
+                            else {
+                                followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
+                            }
+                        }
+                        else {
+                            followSkipped = true;
+                            followSkipReason = profileCheck.skipReason;
+                            stats.skipped++;
+                            console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
+                        }
                     }
                 }
                 else {
@@ -330,6 +347,7 @@ app.post('/clearstale', async (req, res) => {
             .eq('followed', false)
             .eq('starred', false)
             .eq('unfollowed', false)
+            .eq('follow_skipped', true)
             .select('id');
         if (error) {
             console.error('Error clearing stale profiles:', error.message);
