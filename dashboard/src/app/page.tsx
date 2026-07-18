@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     .from('logs')
     .select('*')
     .order('timestamp', { ascending: false })
-    .limit(50);
+    .limit(500);
 
   console.log("Supabase Logs Fetch:", { dataCount: logs?.length, error: logsError });
   if (logsError) {
