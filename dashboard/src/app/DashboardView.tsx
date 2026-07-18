@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -1327,7 +1327,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   <span className="text-[#767676]">Active filter:</span>
                   <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#e60023]/10 border border-[#e60023]/20 text-[#e60023] rounded-full font-bold">
                     <span className="capitalize">{activeFilter}</span>
-                    <button onClick={() => setActiveFilter(null)} className="font-extrabold hover:text-white cursor-pointer leading-none">Ã—</button>
+                    <button onClick={() => setActiveFilter(null)} className="font-extrabold hover:text-white cursor-pointer leading-none">Ãƒâ€”</button>
                   </span>
                 </div>
               )}
@@ -1340,7 +1340,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   {topProfile && (
                     <div 
                       onClick={() => setActiveTab('profiles')}
-                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[220px]"
+                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[220px]"
                     >
                       {/* Top Banner (two-tone design) */}
                       <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a]" />
@@ -1425,7 +1425,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   {topRepo && (
                     <div 
                       onClick={() => setActiveTab('repos')}
-                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Featured Repository</span>
@@ -1468,23 +1468,23 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   {/* Card 3: Recent Logs Card */}
                   <div 
                     onClick={() => setActiveTab('logs')}
-                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between px-1">
                       <h3 className="text-sm font-bold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0]">Recent Logs</h3>
-                      <span className="text-zinc-400 font-bold">â€¢â€¢â€¢</span>
+                      <span className="text-zinc-400 font-bold tracking-widest text-[10px]">...</span>
                     </div>
 
-                    <div className="space-y-3 font-sans text-xs min-h-[160px]">
-                      {logs.slice(0, 5).map(log => {
+                    <div className="space-y-3 font-sans text-xs">
+                      {logs.slice(0, 3).map(log => {
                         let dotColor = "bg-blue-400";
                         if (log.status === 'SUCCESS') dotColor = "bg-[#10b981]";
-                        else if (log.status === 'FAILED' || log.status === 'ERROR') dotColor = "bg-[#rose-500] bg-rose-500";
+                        else if (log.status === 'FAILED' || log.status === 'ERROR') dotColor = "bg-rose-500";
                         else if (log.status === 'WARN') dotColor = "bg-orange-500";
                         
                         return (
-                          <div key={log.id} className="p-3 bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-xl flex items-start space-x-3">
-                            <span className={`h-2.5 w-2.5 rounded-full mt-1 shrink-0 ${dotColor}`} />
+                          <div key={log.id} className="p-3 bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[20px] flex items-start space-x-3 transition-all hover:bg-slate-50 dark:hover:bg-[#202022]">
+                            <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${dotColor}`} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] truncate">{log.action}: {log.status}</span>
@@ -1498,23 +1498,23 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       })}
                     </div>
 
-                    <div className="pt-2 text-center border-t border-[#eeeeee] dark:border-[#2a2a2a]">
-                      <span 
+                    <div className="pt-2">
+                      <button 
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveTab('logs');
                         }}
-                        className="text-xs font-bold font-geist text-[#e60023] hover:underline cursor-pointer"
+                        className="w-full min-h-[38px] bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 flex items-center justify-center space-x-1.5"
                       >
-                        View System Console
-                      </span>
+                        <span>View System Console</span>
+                      </button>
                     </div>
                   </div>
 
                   {/* Card 4: Stats Snapshot Card */}
                   <div 
                     onClick={() => setActiveTab('stats')}
-                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
                   >
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Activity snapshot (7D)</span>
                     
@@ -1543,7 +1543,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   </div>
 
                   {/* Card 5: AI Narrator Card */}
-                  <div className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow p-5 flex flex-col space-y-4 cursor-default">
+                  <div className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-default">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-1.5 text-[#e60023]">
                         <Zap className="h-4 w-4 fill-current" />
@@ -1553,8 +1553,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     </div>
 
                     {/* Speech-bubble block styling */}
-                    <div className="relative p-4 rounded-2xl bg-rose-50 border border-rose-100 dark:bg-rose-950/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 font-sans text-xs leading-relaxed">
-                      <div className="absolute top-[-6px] left-6 w-3 h-3 bg-rose-50 border-t border-l border-rose-100 dark:bg-rose-950 dark:border-rose-900/30 transform rotate-45" />
+                    <div className="relative p-4 rounded-[20px] bg-rose-50 border border-rose-100 dark:bg-rose-950/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 font-sans text-xs leading-relaxed">
+                      <div className="absolute top-[-6px] left-6 w-3 h-3 bg-rose-50 border-t border-l border-rose-100 dark:bg-[#281116] dark:border-rose-900/30 transform rotate-45" />
                       "{narration}"
                     </div>
 
@@ -1923,7 +1923,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           </div>
 
           <footer className="mt-auto border-t border-[#dadada] dark:border-[#2a2a2a] py-6 text-center text-[10px] font-mono text-[#767676] bg-white dark:bg-[#111111] transition-colors duration-200">
-            <p>FollowMe Dashboard â€” Verified evaluation runs logged in real time</p>
+            <p>FollowMe Dashboard Ã¢â‚¬â€ Verified evaluation runs logged in real time</p>
           </footer>
         </main>
       </div>
@@ -2102,7 +2102,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   </div>
 
                   <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-xl text-[#0058bb] dark:text-blue-400 font-sans">
-                    <p className="font-bold text-xs">âš ï¸ PURGING HISTORICAL ACTION LOGS</p>
+                    <p className="font-bold text-xs">Ã¢Å¡Â Ã¯Â¸Â PURGING HISTORICAL ACTION LOGS</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
                       This action will delete all old worker logs except for the latest 200 entries. It will not alter repository evaluation scores or follower details.
                     </p>
@@ -2138,7 +2138,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   </div>
 
                   <div className="p-4 bg-orange-50 dark:bg-orange-950/10 border border-orange-200 dark:border-orange-900/30 rounded-xl text-orange-600 dark:text-orange-400 font-sans">
-                    <p className="font-bold text-xs">âš ï¸ STALE PROFILE DATA REMOVAL</p>
+                    <p className="font-bold text-xs">Ã¢Å¡Â Ã¯Â¸Â STALE PROFILE DATA REMOVAL</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
                       Deletes profiles from the database that were evaluated and skipped, but never starred or followed. Freeing up unnecessary metadata storage.
                     </p>
@@ -2210,5 +2210,6 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     </div>
   );
 }
+
 
 
