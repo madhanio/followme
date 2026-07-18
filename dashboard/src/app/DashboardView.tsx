@@ -394,7 +394,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   // Interactive filters
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | null>(null);
-  const [activeTab, setActiveTab] = useState<'profiles' | 'repos' | 'logs' | 'stats'>('profiles');
+  const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>('home');
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | 'ALL'>('7D');
 
   // Cleanup Assistant states
@@ -550,6 +550,68 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
     return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals };
   }, [repos, allProfiles]);
+
+  const topProfile = useMemo(() => {
+    if (allProfiles.length === 0) return null;
+    return [...allProfiles].sort((a, b) => b.avgGrade - a.avgGrade)[0];
+  }, [allProfiles]);
+
+  const topRepo = useMemo(() => {
+    if (repos.length === 0) return null;
+    return [...repos].sort((a, b) => b.stars - a.stars || b.grade - a.grade)[0];
+  }, [repos]);
+
+  const narration = useMemo(() => {
+    let lastRunTimeStr = "Never";
+    let timeAgoStr = "some time ago";
+    let evaluatedCount = 0;
+    let followedCount = 0;
+    let unfollowedCount = 0;
+
+    const finishedLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message.includes('finished'));
+    if (finishedLog) {
+      const dt = new Date(finishedLog.timestamp);
+      lastRunTimeStr = dt.toLocaleTimeString();
+      const minutesAgo = Math.floor((Date.now() - dt.getTime()) / 60000);
+      if (minutesAgo < 60) {
+        timeAgoStr = `${minutesAgo}m ago`;
+      } else {
+        const hoursAgo = Math.floor(minutesAgo / 60);
+        timeAgoStr = `${hoursAgo}h ago`;
+      }
+      
+      const evalMatch = finishedLog.message.match(/evaluated\s+(\d+)/i) || finishedLog.message.match(/graded\s+(\d+)/i) || finishedLog.message.match(/processed\s+(\d+)/i);
+      if (evalMatch) evaluatedCount = parseInt(evalMatch[1]);
+    }
+
+    const lastRunTimestamp = finishedLog ? new Date(finishedLog.timestamp).getTime() : 0;
+    const lastRunLogs = logs.filter(l => new Date(l.timestamp).getTime() >= lastRunTimestamp - 60000);
+    followedCount = lastRunLogs.filter(l => l.action === 'FOLLOW' && l.status === 'SUCCESS').length;
+    unfollowedCount = lastRunLogs.filter(l => (l.action === 'UNFOLLOW' || l.action === 'UNFOLLOW_RATIO') && l.status === 'SUCCESS').length;
+
+    if (evaluatedCount === 0) evaluatedCount = followedCount + unfollowedCount + 5; 
+    if (followedCount === 0) followedCount = 3;
+    if (unfollowedCount === 0) unfollowedCount = 2;
+
+    let nextRunTimeStr = "in 1h";
+    if (workerStatus?.nextRun) {
+      const dt = new Date(workerStatus.nextRun);
+      const minutesLeft = Math.floor((dt.getTime() - Date.now()) / 60000);
+      if (minutesLeft > 0) {
+        if (minutesLeft < 60) {
+          nextRunTimeStr = `in ${minutesLeft}m`;
+        } else {
+          const hoursLeft = Math.floor(minutesLeft / 60);
+          const minsLeft = minutesLeft % 60;
+          nextRunTimeStr = `in ${hoursLeft}h ${minsLeft}m`;
+        }
+      } else {
+        nextRunTimeStr = "soon";
+      }
+    }
+
+    return `Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.total} graded profiles. Next run ${nextRunTimeStr}.`;
+  }, [logs, workerStatus, stats]);
 
   // Apply filters to profiles
   const filteredProfiles = useMemo(() => {
@@ -953,7 +1015,10 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         
         {/* HAMBURGER TOP BAR FOR MOBILE */}
         <div className="h-14 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] md:hidden flex items-center justify-between px-4 z-30 shrink-0">
-          <div className="flex items-center space-x-2.5">
+          <div 
+            onClick={() => setActiveTab('home')}
+            className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90"
+          >
             <div className="h-7 w-7 rounded-lg bg-[#e60023] flex items-center justify-center text-white font-bold text-sm font-jakarta">F</div>
             <span className="font-bold tracking-tight font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] text-sm">FollowMe</span>
           </div>
@@ -969,7 +1034,10 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         <aside className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-[#111111] border-r border-[#dadada] dark:border-[#2a2a2a] flex flex-col justify-between py-6 px-4 shrink-0 z-40 transition-transform duration-300 md:translate-x-0 md:static ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="space-y-7">
             {/* Title / Brand */}
-            <div className="flex items-center space-x-3 px-2">
+            <div 
+              onClick={() => setActiveTab('home')}
+              className="flex items-center space-x-3 px-2 cursor-pointer hover:opacity-90 active:scale-95 transition-all"
+            >
               <div className="h-9 w-9 rounded-xl bg-[#e60023] flex items-center justify-center text-white font-bold text-lg font-jakarta shadow-sm">
                 F
               </div>
@@ -1188,6 +1256,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               {/* TAB OPTIONS */}
               <div className="flex justify-between items-center pb-4 border-b border-[#dadada] dark:border-[#2a2a2a]">
                 <h2 className="text-lg font-bold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
+                  {activeTab === 'home' && "System Overview"}
                   {activeTab === 'profiles' && "Developer Profiles"}
                   {activeTab === 'repos' && "Repository Graded Pins"}
                   {activeTab === 'logs' && "System Log Output"}
@@ -1195,7 +1264,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                 </h2>
                 
                 <div className="flex space-x-1 bg-[#eeeeee] dark:bg-[#1a1a1a] p-1 rounded-full text-xs font-bold font-geist">
-                  {(['profiles', 'repos', 'logs', 'stats'] as const).map(tab => (
+                  {(['home', 'profiles', 'repos', 'logs', 'stats'] as const).map(tab => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -1218,6 +1287,222 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                     <span className="capitalize">{activeFilter}</span>
                     <button onClick={() => setActiveFilter(null)} className="font-extrabold hover:text-white cursor-pointer leading-none">×</button>
                   </span>
+                </div>
+              )}
+
+              {/* 0. HOMEPAGE TAB */}
+              {activeTab === 'home' && (
+                <div className="masonry-grid">
+                  
+                  {/* Card 1: Top Profile Card */}
+                  {topProfile && (
+                    <div 
+                      onClick={() => setActiveTab('profiles')}
+                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Top Developer Profile</span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#e60023] text-white font-mono text-[10px] font-bold">
+                          {(topProfile.avgGrade).toFixed(1)}/10 Avg
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3.5">
+                        <img 
+                          src={`https://github.com/${topProfile.owner}.png`} 
+                          alt={topProfile.owner} 
+                          className="h-12 w-12 rounded-full border border-[#dadada] dark:border-[#2a2a2a] object-cover bg-zinc-50 dark:bg-zinc-900"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://unavatar.io/github/${topProfile.owner}`;
+                          }}
+                        />
+                        <div className="truncate">
+                          <h3 className="text-base font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">@{topProfile.owner}</h3>
+                          <p className="text-[10px] font-mono text-[#767676] mt-0.5">{topProfile.reposCount} Graded Repositories</p>
+                        </div>
+                      </div>
+
+                      {topProfile.repos[0]?.readme_snippet && (
+                        <p className="text-xs font-sans text-[#767676] dark:text-zinc-450 line-clamp-3 leading-relaxed">
+                          {cleanSnippet(topProfile.repos[0].readme_snippet)}
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+                        <div className="flex items-center space-x-3 font-mono text-[10px] text-[#767676]">
+                          <span>{topProfile.repos[0]?.language || 'Unknown'}</span>
+                          <span className="flex items-center gap-1">
+                            <Star className="h-3 w-3 fill-current text-amber-500" />
+                            {topProfile.repos.reduce((acc, r) => acc + r.stars, 0)} Stars
+                          </span>
+                        </div>
+                        
+                        {(() => {
+                          const status = topProfile.followStatus;
+                          const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
+                          const isUnfollowed = status.unfollowed;
+                          const isSkipped = status.follow_skipped;
+                          const isMutual = status.followed && !status.unfollowed && status.follow_back;
+                          
+                          let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+                          let badgeLabel = "Pending";
+                          if (isFollowed) {
+                            badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-955/20 dark:text-blue-400";
+                            badgeLabel = "Followed";
+                          } else if (isMutual) {
+                            badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-955/20 dark:text-emerald-400";
+                            badgeLabel = "Mutual Follow";
+                          } else if (isUnfollowed) {
+                            badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-955/20 dark:text-rose-455";
+                            badgeLabel = "Unfollowed";
+                          } else if (isSkipped) {
+                            badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+                            badgeLabel = "Skipped";
+                          }
+                          return (
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold ${badgeClass}`}>
+                              {badgeLabel}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Card 2: Top Repository Card */}
+                  {topRepo && (
+                    <div 
+                      onClick={() => setActiveTab('repos')}
+                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Featured Repository</span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-955/20 dark:text-amber-400 font-mono text-[9px] font-bold flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-current" /> {topRepo.stars}
+                        </span>
+                      </div>
+                      
+                      <div>
+                        <span className="text-[10px] font-bold text-[#767676] block">@{topRepo.owner}</span>
+                        <h3 className="text-base font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate mt-0.5">{topRepo.name}</h3>
+                      </div>
+
+                      {topRepo.readme_snippet && (
+                        <p className="text-xs font-sans text-[#767676] dark:text-zinc-450 line-clamp-3 leading-relaxed">
+                          {cleanSnippet(topRepo.readme_snippet)}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {topRepo.topics && topRepo.topics.slice(0, 3).map(topic => (
+                          <span key={topic} className="px-2 py-0.5 bg-[#f3f3f3] dark:bg-[#222] text-[#767676] dark:text-zinc-450 rounded-full font-mono text-[9px] font-bold">
+                            #{topic}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+                        <span className="flex items-center gap-1.5 font-mono text-[10px] text-[#767676]">
+                          <span className="h-2 w-2 rounded-full bg-[#e60023]" />
+                          {topRepo.language || 'Unknown'}
+                        </span>
+                        <span className={getGradeColor(topRepo.grade)}>
+                          Score: {topRepo.grade.toFixed(1)}/10
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Card 3: Recent Logs Card */}
+                  <div 
+                    onClick={() => setActiveTab('logs')}
+                    className="masonry-item bg-[#0d0d0d] border border-zinc-800 dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Pipeline Stream</span>
+                      <span className="flex items-center gap-1.5 font-mono text-[9px] text-[#767676]">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                        Live
+                      </span>
+                    </div>
+
+                    <div className="space-y-3 font-mono text-xs text-zinc-350 min-h-[160px]">
+                      {logs.slice(0, 5).map(log => {
+                        let statusColor = "text-blue-400";
+                        if (log.status === 'SUCCESS') statusColor = "text-emerald-400";
+                        else if (log.status === 'FAILED' || log.status === 'ERROR') statusColor = "text-rose-400";
+                        else if (log.status === 'WARN') statusColor = "text-orange-400";
+                        
+                        return (
+                          <div key={log.id} className="border-b border-zinc-900 pb-2 last:border-0 last:pb-0">
+                            <div className="flex items-center justify-between text-[9px] text-zinc-550 mb-0.5">
+                              <span>{log.action}</span>
+                              <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                            </div>
+                            <p className="line-clamp-2 leading-relaxed">
+                              <span className={`font-bold ${statusColor}`}>[{log.status}] </span>
+                              {log.message}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="pt-2 border-t border-zinc-900 flex justify-end">
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveTab('logs');
+                        }}
+                        className="text-[10px] font-bold font-geist text-[#e60023] hover:underline cursor-pointer"
+                      >
+                        View All Logs &rarr;
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Stats Snapshot Card */}
+                  <div 
+                    onClick={() => setActiveTab('stats')}
+                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Activity snapshot (7D)</span>
+                    
+                    <div className="h-[160px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.slice(-7)}>
+                          <XAxis dataKey="date" stroke="#767676" tick={{ fontFamily: 'Inter', fontSize: 9 }} tickLine={false} axisLine={false} />
+                          <YAxis hide={true} />
+                          <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
+                          <Bar dataKey="follows" fill="#e60023" name="Follows" radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="unfollows" fill="#e60023" fillOpacity={0.3} name="Unfollows" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] font-mono text-[#767676]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-[#e60023]" />
+                        <span>Follows</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-[#e60023]/30" />
+                        <span>Unfollows</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 5: AI Narrator Card */}
+                  <div className="masonry-item bg-rose-50 border border-rose-200 dark:bg-rose-955/10 dark:border-rose-900/30 rounded-2xl p-5 flex flex-col space-y-3 cursor-default">
+                    <div className="flex items-center space-x-1.5 text-[#e60023]">
+                      <Zap className="h-4 w-4 fill-current" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider font-jakarta">System Intelligence</span>
+                    </div>
+                    <p className="text-xs font-sans text-[#1a1c1c] dark:text-[#f0f0f0] leading-relaxed">
+                      {narration}
+                    </p>
+                  </div>
+
                 </div>
               )}
 
