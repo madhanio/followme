@@ -70,7 +70,8 @@ import {
   Sun,
   Moon,
   Menu,
-  X
+  X,
+  Compass
 } from 'lucide-react';
 
 const githubStatsCache = new Map<string, { followers: number; following: number }>();
@@ -1050,6 +1051,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             {/* Menu Links */}
             <nav className="space-y-1 font-geist">
               {[
+                { tab: 'home', label: 'Explore', count: null, icon: Compass },
                 { tab: 'profiles', label: 'Developer Profiles', count: filteredProfiles.length, icon: Layers },
                 { tab: 'repos', label: 'Repository Pins', count: filteredRepos.length, icon: Star },
                 { tab: 'logs', label: 'Activity Logs', count: logs.length, icon: Terminal },
@@ -1219,42 +1221,44 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
             )}
 
             {/* STAT CARDS ROW */}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 font-sans">
-              {[
-                { title: "Total Graded", value: stats.total, color: "text-[#1a1c1c] dark:text-[#f0f0f0]", filter: null, tab: 'repos' },
-                { title: "Starred", value: stats.starred, color: "text-amber-500", filter: "starred", tab: 'repos' },
-                { title: "Followed", value: stats.followed, color: "text-[#0058bb] dark:text-blue-450", filter: "followed", tab: 'profiles' },
-                { title: "Mutuals", value: stats.mutuals, color: "text-emerald-600 dark:text-emerald-500", filter: "mutual", tab: 'profiles' },
-                { title: "Skipped", value: stats.skipped, color: "text-orange-500", filter: "skipped", tab: 'profiles' },
-                { title: "Avg AI Grade", value: (stats.avgGrade * 10).toFixed(0) + "%", color: "text-[#e60023]", filter: null, tab: 'profiles' },
-              ].map((card, i) => (
-                <div 
-                  key={i} 
-                  onClick={() => {
-                    if (card.tab) {
-                      setActiveTab(card.tab as any);
-                      setActiveFilter(card.filter as any);
-                    }
-                  }}
-                  className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[120px] aura-shadow hover:scale-[1.01] hover:cursor-pointer transition-all duration-200 flex flex-col justify-between"
-                >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676] dark:text-[#767676] font-jakarta leading-none">{card.title}</span>
-                  <span className={`text-2xl font-extrabold tracking-tight ${card.color} mt-auto`}>
-                    {isRefreshing ? (
-                      <span className="h-6 w-8 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse inline-block" />
-                    ) : (
-                      <span>{card.value}</span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {activeTab !== 'home' && (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 font-sans">
+                {[
+                  { title: "Total Graded", value: stats.total, color: "text-[#1a1c1c] dark:text-[#f0f0f0]", filter: null, tab: 'repos' },
+                  { title: "Starred", value: stats.starred, color: "text-amber-500", filter: "starred", tab: 'repos' },
+                  { title: "Followed", value: stats.followed, color: "text-[#0058bb] dark:text-blue-450", filter: "followed", tab: 'profiles' },
+                  { title: "Mutuals", value: stats.mutuals, color: "text-emerald-600 dark:text-emerald-500", filter: "mutual", tab: 'profiles' },
+                  { title: "Skipped", value: stats.skipped, color: "text-orange-500", filter: "skipped", tab: 'profiles' },
+                  { title: "Avg AI Grade", value: (stats.avgGrade * 10).toFixed(0) + "%", color: "text-[#e60023]", filter: null, tab: 'profiles' },
+                ].map((card, i) => (
+                  <div 
+                    key={i} 
+                    onClick={() => {
+                      if (card.tab) {
+                        setActiveTab(card.tab as any);
+                        setActiveFilter(card.filter as any);
+                      }
+                    }}
+                    className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[120px] aura-shadow hover:scale-[1.01] hover:cursor-pointer transition-all duration-200 flex flex-col justify-between"
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676] dark:text-[#767676] font-jakarta leading-none">{card.title}</span>
+                    <span className={`text-2xl font-extrabold tracking-tight ${card.color} mt-auto`}>
+                      {isRefreshing ? (
+                        <span className="h-6 w-8 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse inline-block" />
+                      ) : (
+                        <span>{card.value}</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* TAB CONTENT GRID CONTAINER */}
             <div className="space-y-6">
               
               {/* TAB OPTIONS */}
-              <div className="flex justify-between items-center pb-4 border-b border-[#dadada] dark:border-[#2a2a2a]">
+              <div className="pb-4 border-b border-[#dadada] dark:border-[#2a2a2a]">
                 <h2 className="text-lg font-bold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
                   {activeTab === 'home' && "System Overview"}
                   {activeTab === 'profiles' && "Developer Profiles"}
@@ -1262,21 +1266,6 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   {activeTab === 'logs' && "System Log Output"}
                   {activeTab === 'stats' && "Historical Metrics & Statistics"}
                 </h2>
-                
-                <div className="flex space-x-1 bg-[#eeeeee] dark:bg-[#1a1a1a] p-1 rounded-full text-xs font-bold font-geist">
-                  {(['home', 'profiles', 'repos', 'logs', 'stats'] as const).map(tab => (
-                    <button
-                      key={tab}
-                      onClick={() => {
-                        setActiveTab(tab);
-                        setActiveFilter(null);
-                      }}
-                      className={`px-4 py-1.5 rounded-full capitalize transition-all cursor-pointer ${activeTab === tab ? 'bg-white dark:bg-[#2c2c2c] text-[#1a1c1c] dark:text-[#f0f0f0] font-bold aura-shadow' : 'text-[#767676] dark:text-[#767676] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'}`}
-                    >
-                      {tab}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* ACTIVE FILTER DISMISS PILL */}
@@ -1416,47 +1405,45 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   {/* Card 3: Recent Logs Card */}
                   <div 
                     onClick={() => setActiveTab('logs')}
-                    className="masonry-item bg-[#0d0d0d] border border-zinc-800 dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Pipeline Stream</span>
-                      <span className="flex items-center gap-1.5 font-mono text-[9px] text-[#767676]">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                        Live
-                      </span>
+                      <h3 className="text-sm font-bold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0]">Recent Logs</h3>
+                      <span className="text-zinc-400 font-bold">•••</span>
                     </div>
 
-                    <div className="space-y-3 font-mono text-xs text-zinc-350 min-h-[160px]">
+                    <div className="space-y-3 font-sans text-xs min-h-[160px]">
                       {logs.slice(0, 5).map(log => {
-                        let statusColor = "text-blue-400";
-                        if (log.status === 'SUCCESS') statusColor = "text-emerald-400";
-                        else if (log.status === 'FAILED' || log.status === 'ERROR') statusColor = "text-rose-400";
-                        else if (log.status === 'WARN') statusColor = "text-orange-400";
+                        let dotColor = "bg-blue-400";
+                        if (log.status === 'SUCCESS') dotColor = "bg-[#10b981]";
+                        else if (log.status === 'FAILED' || log.status === 'ERROR') dotColor = "bg-[#rose-500] bg-rose-500";
+                        else if (log.status === 'WARN') dotColor = "bg-orange-500";
                         
                         return (
-                          <div key={log.id} className="border-b border-zinc-900 pb-2 last:border-0 last:pb-0">
-                            <div className="flex items-center justify-between text-[9px] text-zinc-550 mb-0.5">
-                              <span>{log.action}</span>
-                              <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                          <div key={log.id} className="p-3 bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-xl flex items-start space-x-3">
+                            <span className={`h-2.5 w-2.5 rounded-full mt-1 shrink-0 ${dotColor}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] truncate">{log.action}: {log.status}</span>
+                              </div>
+                              <span className="text-[10px] text-[#767676] block mt-0.5 truncate max-w-[200px]">
+                                {new Date(log.timestamp).toLocaleTimeString()} &bull; {log.message}
+                              </span>
                             </div>
-                            <p className="line-clamp-2 leading-relaxed">
-                              <span className={`font-bold ${statusColor}`}>[{log.status}] </span>
-                              {log.message}
-                            </p>
                           </div>
                         );
                       })}
                     </div>
 
-                    <div className="pt-2 border-t border-zinc-900 flex justify-end">
+                    <div className="pt-2 text-center border-t border-[#eeeeee] dark:border-[#2a2a2a]">
                       <span 
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveTab('logs');
                         }}
-                        className="text-[10px] font-bold font-geist text-[#e60023] hover:underline cursor-pointer"
+                        className="text-xs font-bold font-geist text-[#e60023] hover:underline cursor-pointer"
                       >
-                        View All Logs &rarr;
+                        View System Console
                       </span>
                     </div>
                   </div>
