@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 
 export async function triggerWorker() {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
@@ -312,7 +313,16 @@ export async function triggerSyncFollowing() {
   // Call the Next.js API route that handles sync-following.
   // Next.js API routes are internal, but since we are executing on the server (Server Action),
   // we can also call it or execute its logic. To trigger the endpoint itself:
-  const dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:3000';
+  let dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL;
+  if (!dashboardUrl) {
+    try {
+      const host = (await headers()).get('host') || 'localhost:3000';
+      const protocol = host.includes('localhost') ? 'http' : 'https';
+      dashboardUrl = `${protocol}://${host}`;
+    } catch (e) {
+      dashboardUrl = 'http://localhost:3000';
+    }
+  }
   
   try {
     const res = await fetch(`${dashboardUrl}/api/sync-following`, {
