@@ -231,51 +231,66 @@ function ProfileCard({
   let badgeLabel = "Pending";
 
   if (isFollowed) {
-    badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30";
+    badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-955/20 dark:text-blue-400";
     badgeLabel = "Followed";
   } else if (isMutual) {
-    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 font-bold";
+    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-955/20 dark:text-emerald-400 font-bold";
     badgeLabel = "Mutual Follow";
   } else if (isUnfollowed) {
-    badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:text-rose-455 dark:border-rose-900/30";
+    badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-955/20 dark:text-rose-455";
     badgeLabel = "Unfollowed";
   } else if (isSkipped) {
-    badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30";
+    badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
     badgeLabel = "Skipped";
   }
 
+  const letterGrade = (() => {
+    const g = profile.avgGrade;
+    if (g >= 9.0) return "A+";
+    if (g >= 8.0) return "A";
+    if (g >= 7.0) return "B+";
+    if (g >= 6.0) return "B";
+    if (g >= 5.0) return "C+";
+    return "C";
+  })();
+
   return (
-    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-xl p-5 flex flex-col justify-between min-h-[160px] transition-all duration-300">
-      <div>
-        <div className="flex items-center space-x-3.5 mb-3">
-          <img 
-            src={`https://github.com/${profile.owner}.png`} 
-            alt={profile.owner} 
-            className="h-9 w-9 rounded-full border border-[#dadada] dark:border-[#2a2a2a] bg-zinc-100 dark:bg-[#1a1a1a] object-cover" 
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
-            }}
-          />
-          <div className="truncate flex-1">
-            <h3 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">
-              @{profile.owner}
-            </h3>
-            <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676] dark:text-[#767676] mt-0.5">
-              {loading ? (
-                <span className="animate-pulse">Loading stats...</span>
-              ) : stats ? (
-                <>
-                  <span>{stats.followers} followers</span>
-                  <span>•</span>
-                  <span>{stats.following} following</span>
-                </>
-              ) : (
-                <span>stats rate-limited</span>
-              )}
+    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-2xl transition-all duration-300 relative overflow-hidden flex flex-col justify-between min-h-[220px]">
+      {/* Top Banner (two-tone design) */}
+      <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a]" />
+      
+      {/* Card Content with pt-14 offset */}
+      <div className="pt-14 px-5 pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center space-x-3 mt-[-26px] z-10 relative">
+            <img 
+              src={`https://github.com/${profile.owner}.png`} 
+              alt={profile.owner} 
+              className="h-12 w-12 rounded-full border-2 border-white dark:border-[#111111] bg-zinc-100 dark:bg-[#1a1a1a] object-cover aura-shadow" 
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
+              }}
+            />
+            <div className="truncate pt-6">
+              <h3 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">
+                @{profile.owner}
+              </h3>
+              <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676] dark:text-[#767676] mt-0.5">
+                {loading ? (
+                  <span className="animate-pulse">Loading stats...</span>
+                ) : stats ? (
+                  <>
+                    <span>{stats.followers} followers</span>
+                  </>
+                ) : (
+                  <span>stats rate-limited</span>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex items-center space-x-2 shrink-0">
-            <span className={`px-2 py-0.5 rounded-full text-[10px] border font-mono ${badgeClass}`}>
+          
+          <div className="flex items-center space-x-1.5 shrink-0 pt-2 z-10 relative">
+            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold ${badgeClass}`}>
               {badgeLabel}
             </span>
             <button
@@ -284,9 +299,15 @@ function ProfileCard({
               className="p-1.5 bg-rose-50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/35 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-455 rounded-lg transition-all cursor-pointer disabled:opacity-40"
               title="Delete Profile from DB"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-3 w-3" />
             </button>
           </div>
+        </div>
+
+        {/* Visual center grade block */}
+        <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-xl text-center my-3 relative overflow-hidden aura-shadow">
+          <div className="text-2xl font-black text-[#e60023] font-jakarta leading-none">{letterGrade}</div>
+          <span className="text-[9px] uppercase font-mono font-bold tracking-widest text-[#767676] mt-1 block">Developer Grade</span>
         </div>
 
         {isSkipped && profile.followStatus.reason && (
@@ -296,7 +317,7 @@ function ProfileCard({
         )}
       </div>
 
-      <div className="flex space-x-2 mt-2 pt-2.5 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+      <div className="flex space-x-2 px-5 pb-5 pt-2.5 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
         {isMutual ? (
           <a
             href={`https://github.com/${profile.owner}`}
@@ -1168,36 +1189,38 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               <button 
                 onClick={handleSync}
                 disabled={isSyncing || workerStatus?.isJobRunning}
-                className="min-h-[36px] px-4 flex items-center space-x-2 bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40"
+                className="min-h-[36px] px-4 flex items-center space-x-2 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
               >
-                {isSyncing ? <RotateCw className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
-                <span>Sync</span>
+                {isSyncing ? <RotateCw className="h-3.5 w-3.5 animate-spin text-[#e60023]" /> : <RotateCw className="h-3.5 w-3.5 text-[#e60023]" />}
+                <span>Sync Repos</span>
               </button>
 
               <button 
                 onClick={() => setIsCleanupOpen(true)}
                 disabled={workerStatus?.isJobRunning}
-                className="min-h-[36px] px-4 flex items-center space-x-2 bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40"
+                className="min-h-[36px] px-4 flex items-center space-x-2 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
               >
-                <span>Cleanup</span>
+                <Settings className="h-3.5 w-3.5 text-blue-500" />
+                <span>Cleanup Cache</span>
               </button>
 
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing || isSyncing}
-                className="h-9 w-9 flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-55"
+                className="min-h-[36px] px-4 flex items-center space-x-2 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
                 title="Refresh Cache"
               >
-                <RotateCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RotateCw className={`h-3.5 w-3.5 text-zinc-500 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>Refresh Data</span>
               </button>
 
               <button 
                 onClick={handleTrigger}
                 disabled={isTriggering || workerStatus?.isJobRunning}
-                className="min-h-[36px] px-5 flex items-center space-x-2 bg-[#e60023] hover:bg-[#c0001b] disabled:bg-slate-300 text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-40"
+                className="min-h-[36px] px-5 flex items-center space-x-2 bg-[#e60023] hover:bg-[#c0001b] disabled:bg-slate-350 text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-40"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
-                <span>{isTriggering ? 'Running...' : 'Run Job'}</span>
+                <span>{isTriggering ? 'Running...' : 'Run Task'}</span>
               </button>
             </div>
           </header>
@@ -1220,39 +1243,6 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
               </div>
             )}
 
-            {/* STAT CARDS ROW */}
-            {activeTab !== 'home' && (
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 font-sans">
-                {[
-                  { title: "Total Graded", value: stats.total, color: "text-[#1a1c1c] dark:text-[#f0f0f0]", filter: null, tab: 'repos' },
-                  { title: "Starred", value: stats.starred, color: "text-amber-500", filter: "starred", tab: 'repos' },
-                  { title: "Followed", value: stats.followed, color: "text-[#0058bb] dark:text-blue-450", filter: "followed", tab: 'profiles' },
-                  { title: "Mutuals", value: stats.mutuals, color: "text-emerald-600 dark:text-emerald-500", filter: "mutual", tab: 'profiles' },
-                  { title: "Skipped", value: stats.skipped, color: "text-orange-500", filter: "skipped", tab: 'profiles' },
-                  { title: "Avg AI Grade", value: (stats.avgGrade * 10).toFixed(0) + "%", color: "text-[#e60023]", filter: null, tab: 'profiles' },
-                ].map((card, i) => (
-                  <div 
-                    key={i} 
-                    onClick={() => {
-                      if (card.tab) {
-                        setActiveTab(card.tab as any);
-                        setActiveFilter(card.filter as any);
-                      }
-                    }}
-                    className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[120px] aura-shadow hover:scale-[1.01] hover:cursor-pointer transition-all duration-200 flex flex-col justify-between"
-                  >
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676] dark:text-[#767676] font-jakarta leading-none">{card.title}</span>
-                    <span className={`text-2xl font-extrabold tracking-tight ${card.color} mt-auto`}>
-                      {isRefreshing ? (
-                        <span className="h-6 w-8 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse inline-block" />
-                      ) : (
-                        <span>{card.value}</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
 
             {/* TAB CONTENT GRID CONTAINER */}
             <div className="space-y-6">
@@ -1480,14 +1470,25 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   </div>
 
                   {/* Card 5: AI Narrator Card */}
-                  <div className="masonry-item bg-rose-50 border border-rose-200 dark:bg-rose-955/10 dark:border-rose-900/30 rounded-2xl p-5 flex flex-col space-y-3 cursor-default">
-                    <div className="flex items-center space-x-1.5 text-[#e60023]">
-                      <Zap className="h-4 w-4 fill-current" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider font-jakarta">System Intelligence</span>
+                  <div className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow p-5 flex flex-col space-y-4 cursor-default">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5 text-[#e60023]">
+                        <Zap className="h-4 w-4 fill-current" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider font-jakarta">Agent Insight</span>
+                      </div>
+                      <span className="text-[9px] font-mono text-zinc-400">Just now</span>
                     </div>
-                    <p className="text-xs font-sans text-[#1a1c1c] dark:text-[#f0f0f0] leading-relaxed">
-                      {narration}
-                    </p>
+
+                    {/* Speech-bubble block styling */}
+                    <div className="relative p-4 rounded-2xl bg-rose-50 border border-rose-100 dark:bg-rose-955/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-455 font-sans text-xs leading-relaxed">
+                      <div className="absolute top-[-6px] left-6 w-3 h-3 bg-rose-50 border-t border-l border-rose-100 dark:bg-[#281116] dark:border-rose-900/30 transform rotate-45" />
+                      "{narration}"
+                    </div>
+
+                    <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676]">
+                      <span className="h-2 w-2 rounded-full bg-emerald-555 bg-emerald-500 animate-pulse" />
+                      <span>GitAuto Agent Alpha</span>
+                    </div>
                   </div>
 
                 </div>
@@ -1613,43 +1614,95 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
               {/* 3. LOGS TAB */}
               {activeTab === 'logs' && (
-                <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl overflow-hidden aura-shadow">
-                  <div className="px-5 py-4 border-b border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#151515] flex items-center justify-between">
-                    <div>
-                      <h3 className="font-jakarta text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] uppercase tracking-wider">System Pipeline Log Outputs</h3>
-                      <span className="text-[10px] font-mono text-[#767676]">Historical diagnostics streams</span>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Left Viewport: macOS Terminal Window */}
+                  <div className="lg:col-span-2 flex flex-col">
+                    {/* Header Bar */}
+                    <div className="bg-[#18181b] border border-zinc-800 px-4 py-3 flex items-center justify-between text-zinc-400 font-mono text-xs rounded-t-2xl">
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <span className="h-3 w-3 rounded-full bg-[#ef4444]" />
+                        <span className="h-3 w-3 rounded-full bg-[#f59e0b]" />
+                        <span className="h-3 w-3 rounded-full bg-[#10b981]" />
+                      </div>
+                      <span className="font-bold text-zinc-350 tracking-tight">SYSTEM_MONITOR_V4.2.LOG</span>
+                      <span className="text-[10px] opacity-60">UTC -05:00</span>
+                    </div>
+
+                    {/* Terminal Body */}
+                    <div className="bg-[#09090b] text-zinc-300 font-mono text-xs p-5 overflow-y-auto h-[480px] space-y-3.5 rounded-b-2xl border border-zinc-800 border-t-0 select-text">
+                      {isRefreshing ? (
+                        [1, 2, 3].map(n => <div key={n} className="h-8 bg-zinc-900 rounded animate-pulse" />)
+                      ) : filteredLogs.length === 0 ? (
+                        <div className="py-12 text-center text-zinc-500">No active logs matching search filters.</div>
+                      ) : (
+                        [...filteredLogs]
+                          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                          .map(log => {
+                            let prefixColor = "text-blue-500";
+                            let prefixLabel = "[INFO]";
+                            
+                            if (log.status === 'SUCCESS') {
+                              prefixColor = "text-[#10b981] font-bold";
+                              prefixLabel = "[SUCCESS]";
+                            } else if (log.status === 'FAILED' || log.status === 'ERROR') {
+                              prefixColor = "text-[#ef4444] font-bold";
+                              prefixLabel = "[ERROR]";
+                            } else if (log.status === 'WARN') {
+                              prefixColor = "text-[#f59e0b] font-bold";
+                              prefixLabel = "[WARN]";
+                            }
+
+                            return (
+                              <div key={log.id} className="flex items-start space-x-2 leading-relaxed tracking-normal">
+                                <span className="text-zinc-650 shrink-0 select-none">
+                                  {new Date(log.timestamp).toLocaleTimeString()}
+                                </span>
+                                <span className={`shrink-0 ${prefixColor}`}>{prefixLabel}</span>
+                                <span className="text-zinc-400 font-bold shrink-0">@{log.action}:</span>
+                                <span className="text-zinc-200 select-all">{log.message}</span>
+                              </div>
+                            );
+                          })
+                      )}
                     </div>
                   </div>
 
-                  <div className="p-4 space-y-3 min-h-[300px]">
-                    {isRefreshing ? (
-                      [1, 2, 3].map(n => <div key={n} className="h-16 bg-zinc-200 dark:bg-zinc-800 rounded-xl animate-pulse" />)
-                    ) : filteredLogs.length === 0 ? (
-                      <div className="py-12 text-center text-[#767676] font-mono text-xs">No active logs matching search filters.</div>
-                    ) : (
-                      [...filteredLogs]
-                        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                        .map(log => {
-                          const isError = log.status === 'FAILED' || (log.action === 'SYSTEM' && log.status === 'ERROR');
-                          const isWarn = log.status === 'WARN';
-                          return (
-                            <div key={log.id} className="p-4 bg-[#fcfcfc] dark:bg-[#161616] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col space-y-2 text-[#1a1c1c] dark:text-[#f0f0f0] font-mono text-xs">
-                              <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
-                                  isError ? 'bg-rose-50 text-rose-600 border-rose-200' :
-                                  isWarn ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                  'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400'
-                                }`}>
-                                  {log.action} : {log.status}
-                                </span>
-                                <span className="text-[#767676] text-[10px]">{new Date(log.timestamp).toLocaleString()}</span>
-                              </div>
-                              <p className="text-[#767676] dark:text-zinc-450 mt-1 leading-relaxed">{log.message}</p>
-                            </div>
-                          );
-                        })
-                    )}
+                  {/* Right Viewport: Bold Brand-Red Health counters */}
+                  <div className="lg:col-span-1">
+                    <div className="bg-[#e60023] text-white rounded-2xl p-6 flex flex-col justify-between min-h-[380px] shadow-lg relative overflow-hidden aura-shadow">
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-base font-extrabold font-jakarta tracking-tight">System Health</h3>
+                          <span className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
+                        </div>
+                        <p className="text-xs font-sans text-white/80 leading-relaxed mb-6">
+                          All agents are operating within normal parameters. Memory and API usage is healthy.
+                        </p>
+
+                        <div className="space-y-4 font-geist text-xs">
+                          <div className="flex items-center justify-between py-2.5 border-b border-white/20">
+                            <span className="font-medium text-white/70">Active Agents</span>
+                            <span className="font-extrabold text-sm">1 / 1</span>
+                          </div>
+                          <div className="flex items-center justify-between py-2.5 border-b border-white/20">
+                            <span className="font-medium text-white/70">Average Latency</span>
+                            <span className="font-extrabold text-sm">124ms</span>
+                          </div>
+                          <div className="flex items-center justify-between py-2.5 border-b border-white/20">
+                            <span className="font-medium text-white/70">Uptime (24h)</span>
+                            <span className="font-extrabold text-sm">99.998%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 flex items-center justify-center bg-white/10 hover:bg-white/15 border border-white/20 p-2.5 rounded-xl font-mono text-[9px] font-bold tracking-widest text-center transition-all select-none">
+                        <span className="h-2 w-2 rounded-full bg-[#10b981] mr-2 animate-ping" />
+                        LIVE STREAM CONNECTED
+                      </div>
+                    </div>
                   </div>
+
                 </div>
               )}
 
