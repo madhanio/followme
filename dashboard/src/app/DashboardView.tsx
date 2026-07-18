@@ -377,14 +377,17 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   }, []);
 
   const toggleDarkMode = () => {
+    console.log("toggleDarkMode clicked. Current isDark:", isDark);
     const nextDark = !isDark;
     setIsDark(nextDark);
     if (nextDark) {
       document.documentElement.classList.add('dark');
       localStorage.theme = 'dark';
+      console.log("Added dark class. documentElement class list:", document.documentElement.classList.toString());
     } else {
       document.documentElement.classList.remove('dark');
       localStorage.theme = 'light';
+      console.log("Removed dark class. documentElement class list:", document.documentElement.classList.toString());
     }
   };
 
@@ -929,6 +932,21 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         .dark .aura-shadow-hover:hover {
           box-shadow: 0px 8px 30px rgba(0, 0, 0, 0.35);
         }
+
+        .masonry-grid {
+          column-count: 1;
+          column-gap: 1.5rem;
+        }
+        @media (min-width: 768px) {
+          .masonry-grid { column-count: 2; }
+        }
+        @media (min-width: 1200px) {
+          .masonry-grid { column-count: 3; }
+        }
+        .masonry-item {
+          break-inside: avoid;
+          margin-bottom: 1.5rem;
+        }
       `}</style>
 
       <div className="flex flex-1 flex-col md:flex-row relative">
@@ -1205,9 +1223,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
               {/* 1. PROFILES TAB */}
               {activeTab === 'profiles' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="masonry-grid">
                   {isRefreshing ? (
-                    [1, 2, 3].map(n => <div key={n} className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
+                    [1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
                   ) : filteredProfiles.length === 0 ? (
                     <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl text-center text-xs font-mono text-[#767676] space-y-3">
                       <Lottie animationData={mainCharacter} loop={true} className="w-32 h-32 opacity-80" />
@@ -1215,14 +1233,15 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                     </div>
                   ) : (
                     filteredProfiles.map(profile => (
-                      <ProfileCard
-                        key={profile.owner}
-                        profile={profile}
-                        onFollow={handleFollowUser}
-                        onUnfollow={handleUnfollowUser}
-                        onDelete={handleDeleteProfile}
-                        isActionLoading={isActionLoading}
-                      />
+                      <div key={profile.owner} className="masonry-item">
+                        <ProfileCard
+                          profile={profile}
+                          onFollow={handleFollowUser}
+                          onUnfollow={handleUnfollowUser}
+                          onDelete={handleDeleteProfile}
+                          isActionLoading={isActionLoading}
+                        />
+                      </div>
                     ))
                   )}
                 </div>
@@ -1230,9 +1249,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
               {/* 2. REPOS TAB */}
               {activeTab === 'repos' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="masonry-grid">
                   {isRefreshing ? (
-                    [1, 2, 3].map(n => <div key={n} className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
+                    [1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
                   ) : filteredRepos.length === 0 ? (
                     <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl text-center text-xs font-mono text-[#767676] space-y-3">
                       <Lottie animationData={mainCharacter} loop={true} className="w-32 h-32 opacity-80" />
@@ -1242,7 +1261,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                     filteredRepos.map(repo => (
                       <div 
                         key={repo.id}
-                        className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-xl p-6 transition-all duration-350 flex flex-col justify-between space-y-4"
+                        className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-xl p-6 transition-all duration-350 flex flex-col justify-between space-y-4"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex items-center space-x-3.5 min-w-0">
