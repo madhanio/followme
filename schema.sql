@@ -39,3 +39,17 @@ CREATE INDEX IF NOT EXISTS idx_repos_follow_back ON repos(follow_back);
 CREATE INDEX IF NOT EXISTS idx_repos_unfollowed ON repos(unfollowed);
 CREATE INDEX IF NOT EXISTS idx_repos_follow_skipped ON repos(follow_skipped);
 CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC);
+
+-- Create lightweight run_summary table
+CREATE TABLE IF NOT EXISTS run_summary (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  ran_at timestamptz DEFAULT now(),
+  profiles_followed int DEFAULT 0,
+  profiles_unfollowed int DEFAULT 0,
+  repos_starred int DEFAULT 0,
+  mutuals_found int DEFAULT 0,
+  profiles_skipped int DEFAULT 0,
+  profiles_evaluated int DEFAULT 0,
+  run_type text DEFAULT 'evaluation'
+);
+

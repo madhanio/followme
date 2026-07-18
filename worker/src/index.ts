@@ -238,6 +238,33 @@ async function runAutomationJob() {
       `Automation job finished. Graded ${stats.graded} new repos. Followed: ${stats.followed}, Starred: ${stats.starred}, Skipped: ${stats.skipped}`
     );
 
+    // Write to run_summary at the end of the main evaluation job
+    let mutualsCount = 0;
+    try {
+      const { count } = await supabase
+        .from('repos')
+        .select('*', { count: 'exact', head: true })
+        .eq('follow_back', true);
+      mutualsCount = count || 0;
+    } catch (countErr) {
+      console.warn('Failed to query mutuals count for run_summary:', countErr);
+    }
+
+    try {
+      await supabase.from('run_summary').insert({
+        profiles_followed: stats.followed,
+        profiles_unfollowed: 0,
+        repos_starred: stats.starred,
+        mutuals_found: mutualsCount,
+        profiles_skipped: stats.skipped,
+        profiles_evaluated: stats.graded,
+        run_type: 'evaluation'
+      });
+      console.log('Successfully recorded evaluation run to run_summary.');
+    } catch (summaryErr: any) {
+      console.error('Error inserting into run_summary:', summaryErr.message || summaryErr);
+    }
+
     consecutiveFailures = 0; // Reset failure counter on success
 
     // Call cleanup at the end of every automation run
@@ -366,6 +393,7 @@ app.post('/cleanlogs', async (req: Request, res: Response) => {
     if (allLogs && allLogs.length > 200) {
       const idsToDelete = allLogs.slice(200).map(row => row.id);
       
+      // run_summary is append-only — never delete from this table.
       const { error: delErr } = await supabase
         .from('logs')
         .delete()
@@ -714,6 +742,7 @@ async function syncMutuals() {
 
 async function cleanupNonFollowbacks() {
   console.log('Starting FollowMe auto-unfollow ratio cleanup (cleanupNonFollowbacks)...');
+  let unfollowedRatioCount = 0;
   try {
     const following = await getGitHubFollowing();
     const followers = await getGitHubFollowers();
@@ -820,6 +849,7 @@ async function cleanupNonFollowbacks() {
       const success = await unfollowUser(username);
       if (success) {
         currentFollowingCount--;
+        unfollowedRatioCount++;
         
         // Find repo ID if exists to log action properly
         const { data: dbRepo } = await supabase
@@ -844,6 +874,23 @@ async function cleanupNonFollowbacks() {
       // 2 second delay between unfollow calls to avoid abuse detection
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
+
+    // Write a summary row for ratio cleanup
+    // run_summary is append-only — never delete from this table.
+    try {
+      await supabase.from('run_summary').insert({
+        run_type: 'cleanup',
+        profiles_unfollowed: unfollowedRatioCount,
+        profiles_followed: 0,
+        repos_starred: 0,
+        mutuals_found: 0,
+        profiles_skipped: 0,
+        profiles_evaluated: 0
+      });
+      console.log(`Recorded ratio cleanup run to run_summary (${unfollowedRatioCount} unfollowed).`);
+    } catch (summaryErr: any) {
+      console.error('Error inserting into run_summary for ratio cleanup:', summaryErr.message || summaryErr);
+    }
   } catch (err: any) {
     console.error('Error in cleanupNonFollowbacks:', err.message || err);
     await logAction('SYSTEM', null, 'FAILED', `cleanupNonFollowbacks failed: ${err.message || 'Unknown error'}`);
@@ -853,6 +900,8 @@ async function cleanupNonFollowbacks() {
 async function runCleanupJob() {
   console.log('Starting FollowMe cleanup job...');
   await logAction('SYSTEM', null, 'SUCCESS', 'Cleanup job started');
+
+  let unfollowedCount = 0;
 
   try {
     const { data: repos, error } = await supabase
@@ -870,6 +919,21 @@ async function runCleanupJob() {
     if (!repos || repos.length === 0) {
       console.log('No users found to check for follow-back cleanup.');
       await logAction('SYSTEM', null, 'SUCCESS', 'Cleanup job finished: no actions needed');
+      
+      // Write a summary row for cleanup run even if 0 unfollowed
+      try {
+        await supabase.from('run_summary').insert({
+          run_type: 'cleanup',
+          profiles_unfollowed: 0,
+          profiles_followed: 0,
+          repos_starred: 0,
+          mutuals_found: 0,
+          profiles_skipped: 0,
+          profiles_evaluated: 0
+        });
+      } catch (sumErr) {
+        console.error('Error logging empty cleanup run:', sumErr);
+      }
       return;
     }
 
@@ -880,6 +944,7 @@ async function runCleanupJob() {
       const unfollowedSuccess = await unfollowUser(repo.owner);
 
       if (unfollowedSuccess) {
+        unfollowedCount++;
         const { error: updateErr } = await supabase
           .from('repos')
           .update({ unfollowed: true, followed: false })
@@ -900,6 +965,23 @@ async function runCleanupJob() {
 
     console.log('Cleanup job completed.');
     await logAction('SYSTEM', null, 'SUCCESS', `Cleanup job completed successfully.`);
+
+    // Write a summary row for the cleanup run
+    // run_summary is append-only — never delete from this table.
+    try {
+      await supabase.from('run_summary').insert({
+        run_type: 'cleanup',
+        profiles_unfollowed: unfollowedCount,
+        profiles_followed: 0,
+        repos_starred: 0,
+        mutuals_found: 0,
+        profiles_skipped: 0,
+        profiles_evaluated: 0
+      });
+      console.log('Recorded cleanup run to run_summary.');
+    } catch (summaryErr: any) {
+      console.error('Error inserting into run_summary for cleanup:', summaryErr.message || summaryErr);
+    }
 
     // Sync mutuals at the end of every cleanup run
     try {

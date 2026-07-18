@@ -93,7 +93,15 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 const cleanSnippet = (text: string) => {
   if (!text) return '';
-  return text.replace(/<[^>]*>/g, '').trim();
+  return text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // Strip images: ![alt](url)
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // Strip links keeping text: [text](url)
+    .replace(/<[^>]*>/g, '') // Strip HTML tags
+    .replace(/`{3,}[\s\S]*?`{3,}/g, '') // Strip code blocks
+    .replace(/`([^`]+)`/g, '$1') // Strip inline code backticks
+    .replace(/[*_~#>-]/g, '') // Strip markdown formatting chars
+    .replace(/\s+/g, ' ') // Collapse whitespaces
+    .trim();
 };
 
 function AnimatedCounter({ value, duration = 500, active = true }: { value: number; duration?: number; active?: boolean }) {
@@ -275,17 +283,7 @@ function ProfileCard({
               <h3 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">
                 @{profile.owner}
               </h3>
-              <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676] dark:text-[#767676] mt-0.5">
-                {loading ? (
-                  <span className="animate-pulse">Loading stats...</span>
-                ) : stats ? (
-                  <>
-                    <span>{stats.followers} followers</span>
-                  </>
-                ) : (
-                  <span>stats rate-limited</span>
-                )}
-              </div>
+              <p className="text-[9px] font-mono text-zinc-400 mt-0.5">{profile.repos.length} Graded Repos</p>
             </div>
           </div>
           
@@ -304,10 +302,10 @@ function ProfileCard({
           </div>
         </div>
 
-        {/* Visual center grade block */}
-        <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-xl text-center my-3 relative overflow-hidden aura-shadow">
-          <div className="text-2xl font-black text-[#e60023] font-jakarta leading-none">{letterGrade}</div>
-          <span className="text-[9px] uppercase font-mono font-bold tracking-widest text-[#767676] mt-1 block">Developer Grade</span>
+        {/* Compact numeric quality grade block */}
+        <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-xl text-center my-3 relative overflow-hidden flex items-center justify-between">
+          <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Average Quality Score</span>
+          <span className="text-sm font-extrabold text-[#e60023] font-mono leading-none">{profile.avgGrade.toFixed(1)}/10</span>
         </div>
 
         {isSkipped && profile.followStatus.reason && (
@@ -369,17 +367,31 @@ function ProfileCard({
   );
 }
 
+interface RunSummary {
+  id: string;
+  ran_at: string;
+  profiles_followed: number;
+  profiles_unfollowed: number;
+  repos_starred: number;
+  mutuals_found: number;
+  profiles_skipped: number;
+  profiles_evaluated: number;
+  run_type: string;
+}
+
 interface DashboardViewProps {
   initialRepos: Repo[];
   initialLogs: Log[];
+  initialRunSummary?: RunSummary[];
 }
 
-export default function DashboardView({ initialRepos, initialLogs }: DashboardViewProps) {
+export default function DashboardView({ initialRepos, initialLogs, initialRunSummary = [] }: DashboardViewProps) {
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
   const [repos, setRepos] = useState<Repo[]>(initialRepos);
   const [logs, setLogs] = useState<Log[]>(initialLogs);
+  const [runSummary, setRunSummary] = useState<RunSummary[]>(initialRunSummary);
   const [isDark, setIsDark] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -391,6 +403,10 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
   useEffect(() => {
     setLogs(initialLogs);
   }, [initialLogs]);
+
+  useEffect(() => {
+    setRunSummary(initialRunSummary);
+  }, [initialRunSummary]);
 
   useEffect(() => {
     setMounted(true);
@@ -590,9 +606,9 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     let followedCount = 0;
     let unfollowedCount = 0;
 
-    const finishedLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message.includes('finished'));
-    if (finishedLog) {
-      const dt = new Date(finishedLog.timestamp);
+    const latestRun = runSummary[0]; // Since it is sorted descending by ran_at
+    if (latestRun) {
+      const dt = new Date(latestRun.ran_at);
       lastRunTimeStr = dt.toLocaleTimeString();
       const minutesAgo = Math.floor((Date.now() - dt.getTime()) / 60000);
       if (minutesAgo < 60) {
@@ -601,15 +617,43 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         const hoursAgo = Math.floor(minutesAgo / 60);
         timeAgoStr = `${hoursAgo}h ago`;
       }
-      
-      const evalMatch = finishedLog.message.match(/evaluated\s+(\d+)/i) || finishedLog.message.match(/graded\s+(\d+)/i) || finishedLog.message.match(/processed\s+(\d+)/i);
-      if (evalMatch) evaluatedCount = parseInt(evalMatch[1]);
-    }
 
-    const lastRunTimestamp = finishedLog ? new Date(finishedLog.timestamp).getTime() : 0;
-    const lastRunLogs = logs.filter(l => new Date(l.timestamp).getTime() >= lastRunTimestamp - 60000);
-    followedCount = lastRunLogs.filter(l => l.action === 'FOLLOW' && l.status === 'SUCCESS').length;
-    unfollowedCount = lastRunLogs.filter(l => (l.action === 'UNFOLLOW' || l.action === 'UNFOLLOW_RATIO') && l.status === 'SUCCESS').length;
+      if (latestRun.run_type === 'cleanup') {
+        unfollowedCount = latestRun.profiles_unfollowed;
+        const lastEvalRun = runSummary.find(r => r.run_type === 'evaluation');
+        if (lastEvalRun) {
+          evaluatedCount = lastEvalRun.profiles_evaluated;
+          followedCount = lastEvalRun.profiles_followed;
+        }
+      } else {
+        evaluatedCount = latestRun.profiles_evaluated;
+        followedCount = latestRun.profiles_followed;
+        const lastCleanupRun = runSummary.find(r => r.run_type === 'cleanup');
+        if (lastCleanupRun) {
+          unfollowedCount = lastCleanupRun.profiles_unfollowed;
+        }
+      }
+    } else {
+      // Fallback
+      const finishedLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message.includes('finished'));
+      if (finishedLog) {
+        const dt = new Date(finishedLog.timestamp);
+        lastRunTimeStr = dt.toLocaleTimeString();
+        const minutesAgo = Math.floor((Date.now() - dt.getTime()) / 60000);
+        if (minutesAgo < 60) {
+          timeAgoStr = `${minutesAgo}m ago`;
+        } else {
+          const hoursAgo = Math.floor(minutesAgo / 60);
+          timeAgoStr = `${hoursAgo}h ago`;
+        }
+        const evalMatch = finishedLog.message.match(/evaluated\s+(\d+)/i) || finishedLog.message.match(/graded\s+(\d+)/i) || finishedLog.message.match(/processed\s+(\d+)/i);
+        if (evalMatch) evaluatedCount = parseInt(evalMatch[1]);
+      }
+      const lastRunTimestamp = finishedLog ? new Date(finishedLog.timestamp).getTime() : 0;
+      const lastRunLogs = logs.filter(l => new Date(l.timestamp).getTime() >= lastRunTimestamp - 60000);
+      followedCount = lastRunLogs.filter(l => l.action === 'FOLLOW' && l.status === 'SUCCESS').length;
+      unfollowedCount = lastRunLogs.filter(l => (l.action === 'UNFOLLOW' || l.action === 'UNFOLLOW_RATIO') && l.status === 'SUCCESS').length;
+    }
 
     if (evaluatedCount === 0) evaluatedCount = followedCount + unfollowedCount + 5; 
     if (followedCount === 0) followedCount = 3;
@@ -633,7 +677,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     }
 
     return `Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.total} graded profiles. Next run ${nextRunTimeStr}.`;
-  }, [logs, workerStatus, stats]);
+  }, [runSummary, logs, workerStatus, stats]);
 
   // Apply filters to profiles
   const filteredProfiles = useMemo(() => {
@@ -786,6 +830,8 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       if (reposRes.data) setRepos(reposRes.data);
       const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
       if (logsRes.data) setLogs(logsRes.data);
+      const summaryRes = await supabase.from('run_summary').select('*').order('ran_at', { ascending: false });
+      if (summaryRes.data) setRunSummary(summaryRes.data);
       await fetchStatus();
     } catch (err) {
       console.error('Error refreshing data:', err);
@@ -937,17 +983,15 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       dailyMap.set(key, { date: label, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
     }
 
-    logs.forEach(log => {
-      const logDate = log.timestamp.split('T')[0];
-      if (dailyMap.has(logDate)) {
-        const dayData = dailyMap.get(logDate)!;
-        if (log.action === 'FOLLOW' && log.status === 'SUCCESS') {
-          dayData.follows++;
-        } else if ((log.action === 'UNFOLLOW' || log.action === 'UNFOLLOW_RATIO') && log.status === 'SUCCESS') {
-          dayData.unfollows++;
-        } else if (log.action === 'GRADE' && log.status === 'SUCCESS') {
-          dayData.evaluations++;
-        }
+    // Populate stats from runSummary instead of logs
+    runSummary.forEach(run => {
+      if (!run.ran_at) return;
+      const runDate = run.ran_at.split('T')[0];
+      if (dailyMap.has(runDate)) {
+        const dayData = dailyMap.get(runDate)!;
+        dayData.follows += (run.profiles_followed || 0);
+        dayData.unfollows += (run.profiles_unfollowed || 0);
+        dayData.evaluations += (run.profiles_evaluated || 0);
       }
     });
 
@@ -982,7 +1026,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
     });
 
     return reversedResult.reverse();
-  }, [logs, repos, timeRange, stats]);
+  }, [runSummary, repos, timeRange, stats]);
 
   const statusDistribution = useMemo(() => {
     return [
@@ -1277,37 +1321,75 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                   {topProfile && (
                     <div 
                       onClick={() => setActiveTab('profiles')}
-                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
+                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[220px]"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Top Developer Profile</span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#e60023] text-white font-mono text-[10px] font-bold">
-                          {(topProfile.avgGrade).toFixed(1)}/10 Avg
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center space-x-3.5">
-                        <img 
-                          src={`https://github.com/${topProfile.owner}.png`} 
-                          alt={topProfile.owner} 
-                          className="h-12 w-12 rounded-full border border-[#dadada] dark:border-[#2a2a2a] object-cover bg-zinc-50 dark:bg-zinc-900"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://unavatar.io/github/${topProfile.owner}`;
-                          }}
-                        />
-                        <div className="truncate">
-                          <h3 className="text-base font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">@{topProfile.owner}</h3>
-                          <p className="text-[10px] font-mono text-[#767676] mt-0.5">{topProfile.reposCount} Graded Repositories</p>
+                      {/* Top Banner (two-tone design) */}
+                      <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a]" />
+
+                      {/* Content with offset */}
+                      <div className="pt-14 px-5 pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-3.5 mt-[-26px] z-10 relative">
+                            <img 
+                              src={`https://github.com/${topProfile.owner}.png`} 
+                              alt={topProfile.owner} 
+                              className="h-12 w-12 rounded-full border-2 border-white dark:border-[#111111] object-cover bg-zinc-50 dark:bg-zinc-900 aura-shadow"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = `https://unavatar.io/github/${topProfile.owner}`;
+                              }}
+                            />
+                            <div className="truncate pt-6">
+                              <h3 className="text-sm font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">@{topProfile.owner}</h3>
+                              <p className="text-[10px] font-mono text-[#767676] mt-0.5">{topProfile.reposCount} Graded Repos</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-1.5 shrink-0 pt-2 z-10 relative">
+                            {(() => {
+                              const status = topProfile.followStatus;
+                              const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
+                              const isUnfollowed = status.unfollowed;
+                              const isSkipped = status.follow_skipped;
+                              const isMutual = status.followed && !status.unfollowed && status.follow_back;
+                              
+                              let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+                              let badgeLabel = "Pending";
+                              if (isFollowed) {
+                                badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-955/20 dark:text-blue-400";
+                                badgeLabel = "Followed";
+                              } else if (isMutual) {
+                                badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-955/20 dark:text-emerald-400";
+                                badgeLabel = "Mutual Follow";
+                              } else if (isUnfollowed) {
+                                badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-955/20 dark:text-rose-455";
+                                badgeLabel = "Unfollowed";
+                              } else if (isSkipped) {
+                                badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+                                badgeLabel = "Skipped";
+                              }
+                              return (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold ${badgeClass}`}>
+                                  {badgeLabel}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </div>
+
+                        {/* Visual center grade block */}
+                        <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-lg text-center my-3 relative overflow-hidden flex items-center justify-between">
+                          <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Average Quality Score</span>
+                          <span className="text-sm font-extrabold text-[#e60023] font-mono leading-none">{(topProfile.avgGrade).toFixed(1)}/10</span>
+                        </div>
+
+                        {topProfile.repos[0]?.readme_snippet && (
+                          <p className="text-xs font-sans text-[#767676] dark:text-zinc-450 line-clamp-3 leading-relaxed mt-2">
+                            {cleanSnippet(topProfile.repos[0].readme_snippet)}
+                          </p>
+                        )}
                       </div>
 
-                      {topProfile.repos[0]?.readme_snippet && (
-                        <p className="text-xs font-sans text-[#767676] dark:text-zinc-450 line-clamp-3 leading-relaxed">
-                          {cleanSnippet(topProfile.repos[0].readme_snippet)}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+                      <div className="flex items-center justify-between px-5 pb-5 pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
                         <div className="flex items-center space-x-3 font-mono text-[10px] text-[#767676]">
                           <span>{topProfile.repos[0]?.language || 'Unknown'}</span>
                           <span className="flex items-center gap-1">
@@ -1315,35 +1397,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
                             {topProfile.repos.reduce((acc, r) => acc + r.stars, 0)} Stars
                           </span>
                         </div>
-                        
-                        {(() => {
-                          const status = topProfile.followStatus;
-                          const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
-                          const isUnfollowed = status.unfollowed;
-                          const isSkipped = status.follow_skipped;
-                          const isMutual = status.followed && !status.unfollowed && status.follow_back;
-                          
-                          let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
-                          let badgeLabel = "Pending";
-                          if (isFollowed) {
-                            badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-955/20 dark:text-blue-400";
-                            badgeLabel = "Followed";
-                          } else if (isMutual) {
-                            badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-955/20 dark:text-emerald-400";
-                            badgeLabel = "Mutual Follow";
-                          } else if (isUnfollowed) {
-                            badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-955/20 dark:text-rose-455";
-                            badgeLabel = "Unfollowed";
-                          } else if (isSkipped) {
-                            badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
-                            badgeLabel = "Skipped";
-                          }
-                          return (
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold ${badgeClass}`}>
-                              {badgeLabel}
-                            </span>
-                          );
-                        })()}
+                        <span className="text-xs font-bold text-[#e60023] hover:underline">View Profile</span>
                       </div>
                     </div>
                   )}

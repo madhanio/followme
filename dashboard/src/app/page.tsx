@@ -26,10 +26,22 @@ export default async function DashboardPage() {
     console.error('Error fetching logs details:', logsError.message);
   }
 
+  // Fetch run summaries
+  const { data: runSummary, error: summaryError } = await supabase
+    .from('run_summary')
+    .select('*')
+    .order('ran_at', { ascending: false });
+
+  console.log("Supabase run_summary Fetch:", { dataCount: runSummary?.length, error: summaryError });
+  if (summaryError) {
+    console.error('Error fetching run summary details:', summaryError.message);
+  }
+
   return (
     <DashboardView 
       initialRepos={repos || []} 
       initialLogs={logs || []} 
+      initialRunSummary={runSummary || []}
     />
   );
 }
