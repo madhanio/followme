@@ -187,7 +187,7 @@ function ProfileCard({
   const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
   const isUnfollowed = status.unfollowed;
   const isSkipped = status.follow_skipped;
-  const isMutual = status.follow_back;
+  const isMutual = status.followed && !status.unfollowed && status.follow_back;
 
   let badgeColor = "bg-zinc-900 border-zinc-800 text-zinc-400";
   let badgeLabel = "Pending";
@@ -493,7 +493,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       if (status.followed && !status.unfollowed && !status.follow_back) followed++;
       if (status.unfollowed) unfollowed++;
       if (status.follow_skipped) skipped++;
-      if (status.follow_back) mutuals++;
+      if (status.followed && !status.unfollowed && status.follow_back) mutuals++;
     });
 
     const totalGrade = repos.reduce((acc, r) => acc + (r.grade || 0), 0);
@@ -548,7 +548,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
         return profile.followStatus.unfollowed;
       }
       if (activeFilter === 'mutual') {
-        return profile.followStatus.follow_back;
+        return profile.followStatus.followed && !profile.followStatus.unfollowed && profile.followStatus.follow_back;
       }
       return true;
     });
