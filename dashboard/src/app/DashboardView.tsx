@@ -969,26 +969,40 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   // Process historical data for Recharts based on timeRange (7D / 30D / ALL)
   const chartData = useMemo(() => {
+    const dailyMap = new Map<string, { date: string; dateObj: Date; follows: number; unfollows: number; evaluations: number; totalGrade: number; gradeCount: number }>();
+
     const now = new Date();
-    let daysToInclude = 7;
-    if (timeRange === '30D') daysToInclude = 30;
-    else if (timeRange === 'ALL') daysToInclude = 90;
-
-    const dailyMap = new Map<string, { date: string; follows: number; unfollows: number; evaluations: number; totalGrade: number; gradeCount: number }>();
-
-    for (let i = daysToInclude - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const key = d.toISOString().split('T')[0];
-      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      dailyMap.set(key, { date: label, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
+    let cutoffDate = new Date();
+    if (timeRange === '7D') {
+      cutoffDate.setDate(now.getDate() - 7);
+    } else if (timeRange === '30D') {
+      cutoffDate.setDate(now.getDate() - 30);
+    } else {
+      cutoffDate = new Date(0);
     }
 
-    // Populate stats from runSummary instead of logs
+    if (timeRange !== 'ALL') {
+      const daysToInclude = timeRange === '7D' ? 7 : 30;
+      for (let i = daysToInclude - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const key = d.toISOString().split('T')[0];
+        const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        dailyMap.set(key, { date: label, dateObj: d, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
+      }
+    }
+
     runSummary.forEach(run => {
       if (!run.ran_at) return;
-      const runDate = run.ran_at.split('T')[0];
-      if (dailyMap.has(runDate)) {
-        const dayData = dailyMap.get(runDate)!;
+      const runDateObj = new Date(run.ran_at);
+      const runDateStr = run.ran_at.split('T')[0];
+      const isBackfill = run.run_type === 'backfill';
+
+      if (isBackfill || runDateObj.getTime() >= cutoffDate.getTime() || timeRange === 'ALL') {
+        if (!dailyMap.has(runDateStr)) {
+          const label = runDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          dailyMap.set(runDateStr, { date: label, dateObj: runDateObj, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
+        }
+        const dayData = dailyMap.get(runDateStr)!;
         dayData.follows += (run.profiles_followed || 0);
         dayData.unfollows += (run.profiles_unfollowed || 0);
         dayData.evaluations += (run.profiles_evaluated || 0);
@@ -997,36 +1011,41 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
     repos.forEach(repo => {
       if (repo.graded_at) {
-        const gradeDate = repo.graded_at.split('T')[0];
-        if (dailyMap.has(gradeDate)) {
-          const dayData = dailyMap.get(gradeDate)!;
-          dayData.totalGrade += repo.grade;
+        const gradeDateStr = repo.graded_at.split('T')[0];
+        if (dailyMap.has(gradeDateStr)) {
+          const dayData = dailyMap.get(gradeDateStr)!;
+          dayData.totalGrade += (repo.grade || 0);
           dayData.gradeCount++;
         }
       }
     });
 
-    const dailyList = Array.from(dailyMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
-    const reversedResult: any[] = [];
-    let tempFollowersCumulative = stats.followed + stats.mutuals;
-
-    dailyList.forEach(([key, dayData]) => {
-      const avgScore = dayData.gradeCount > 0 ? Number((dayData.totalGrade / dayData.gradeCount).toFixed(1)) : 0;
-      
-      reversedResult.push({
-        date: dayData.date,
-        follows: dayData.follows,
-        unfollows: dayData.unfollows,
-        evaluations: dayData.evaluations,
-        avgScore: avgScore,
-        followingGrowth: tempFollowersCumulative
+    const sortedList = Array.from(dailyMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, dayData]) => {
+        const avgScore = dayData.gradeCount > 0 ? Number((dayData.totalGrade / dayData.gradeCount).toFixed(1)) : 0;
+        return {
+          key,
+          date: dayData.date,
+          follows: dayData.follows,
+          unfollows: dayData.unfollows,
+          evaluations: dayData.evaluations,
+          avgScore,
+          followingGrowth: 0
+        };
       });
 
-      tempFollowersCumulative = Math.max(0, tempFollowersCumulative - dayData.follows + dayData.unfollows);
+    let runningTotal = 0;
+    const finalResult = sortedList.map(item => {
+      runningTotal += (item.follows - item.unfollows);
+      return {
+        ...item,
+        followingGrowth: Math.max(0, runningTotal)
+      };
     });
 
-    return reversedResult.reverse();
-  }, [runSummary, repos, timeRange, stats]);
+    return finalResult;
+  }, [runSummary, repos, timeRange]);
 
   const statusDistribution = useMemo(() => {
     return [
