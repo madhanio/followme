@@ -10,7 +10,7 @@ async function fetchAllFollowing(): Promise<Set<string>> {
   let page = 1;
   while (true) {
     const res = await fetch(
-      `https://api.github.com/users/${process.env.GITHUB_USERNAME}/following?per_page=100&page=${page}`,
+      `https://api.github.com/user/following?per_page=100&page=${page}`,
       { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json' } }
     );
     if (!res.ok) break;

@@ -882,7 +882,7 @@ async function runCleanupJob() {
       if (unfollowedSuccess) {
         const { error: updateErr } = await supabase
           .from('repos')
-          .update({ unfollowed: true })
+          .update({ unfollowed: true, followed: false })
           .eq('id', repo.id);
 
         if (updateErr) {
@@ -913,10 +913,73 @@ async function runCleanupJob() {
   }
 }
 
+async function reconcileFollowing() {
+  console.log('Starting following list reconciliation...');
+  try {
+    const actualFollowingList = await getGitHubFollowing();
+    const actualFollowingSet = new Set(actualFollowingList.map(u => u.toLowerCase()));
+    console.log(`Live following count from GitHub: ${actualFollowingList.length}`);
+
+    // Fetch all profiles in Supabase marked followed = true
+    const { data: dbFollowed, error } = await supabase
+      .from('repos')
+      .select('id, owner')
+      .eq('followed', true);
+
+    if (error) {
+      console.error('Error fetching followed profiles for reconciliation:', error.message);
+      return;
+    }
+
+    const toUnfollowInDb = dbFollowed?.filter(
+      row => !actualFollowingSet.has(row.owner.toLowerCase())
+    ) ?? [];
+
+    console.log(`Reconciliation: found ${toUnfollowInDb.length} profiles to mark unfollowed in DB.`);
+
+    if (toUnfollowInDb.length > 0) {
+      const idsToUpdate = toUnfollowInDb.map(r => r.id);
+      const { error: updateErr } = await supabase
+        .from('repos')
+        .update({ followed: false, unfollowed: true })
+        .in('id', idsToUpdate);
+
+      if (updateErr) {
+        console.error('Error updating profiles during reconciliation:', updateErr.message);
+      } else {
+        console.log(`Successfully updated ${toUnfollowInDb.length} profiles to followed = false, unfollowed = true.`);
+        for (const profile of toUnfollowInDb) {
+          await logAction('SYSTEM', profile.id, 'SUCCESS', `Reconciliation: marked ${profile.owner} as unfollowed/not-followed to match live GitHub state.`);
+        }
+      }
+    }
+    console.log('Reconciliation complete.');
+  } catch (err: any) {
+    console.error('Error in reconcileFollowing:', err.message || err);
+  }
+}
+
+// POST /reconcile
+app.post('/reconcile', async (req: Request, res: Response) => {
+  const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+
+  if (authHeader !== WORKER_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+  }
+
+  reconcileFollowing().catch(console.error);
+  return res.json({ message: 'Reconciliation job triggered successfully.' });
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`Worker service is running on port ${PORT}`);
   console.log(`Grade threshold set to: ${GRADE_THRESHOLD}`);
+  
+  // Run reconciliation once on deploy/startup
+  reconcileFollowing().catch(err => {
+    console.error('Failed to run startup reconciliation:', err);
+  });
 });
 
 // Global error handlers to prevent silent process crashes and log them

@@ -184,7 +184,7 @@ function ProfileCard({
   }, [profile.owner]);
 
   const status = profile.followStatus;
-  const isFollowed = status.followed && !status.follow_back;
+  const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
   const isUnfollowed = status.unfollowed;
   const isSkipped = status.follow_skipped;
   const isMutual = status.follow_back;
@@ -490,7 +490,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
 
     allProfiles.forEach((profile) => {
       const status = profile.followStatus;
-      if (status.followed && !status.follow_back) followed++;
+      if (status.followed && !status.unfollowed && !status.follow_back) followed++;
       if (status.unfollowed) unfollowed++;
       if (status.follow_skipped) skipped++;
       if (status.follow_back) mutuals++;
@@ -531,7 +531,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       // Filter out low-quality skipped profiles (follow_skipped = true, followed = false, starred = false)
       // Any repository star indicates starred = true for the profile.
       const isStarred = profile.repos.some(r => r.starred);
-      const isFollowed = profile.followStatus.followed;
+      const isFollowed = profile.followStatus.followed && !profile.followStatus.unfollowed;
       const isSkipped = profile.followStatus.follow_skipped;
 
       if (isSkipped && !isFollowed && !isStarred && activeFilter !== 'skipped') {
@@ -539,7 +539,7 @@ export default function DashboardView({ initialRepos, initialLogs }: DashboardVi
       }
 
       if (activeFilter === 'followed') {
-        return profile.followStatus.followed && !profile.followStatus.follow_back;
+        return profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_back;
       }
       if (activeFilter === 'skipped') {
         return profile.followStatus.follow_skipped;
