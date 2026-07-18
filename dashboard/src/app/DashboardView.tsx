@@ -1,6 +1,6 @@
-﻿'use client';
+'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Lottie from 'lottie-react';
 import mainCharacter from '../../public/animations/main_character.json';
@@ -184,13 +184,17 @@ function ProfileCard({
   onFollow, 
   onUnfollow, 
   onDelete,
-  isActionLoading 
+  isActionLoading,
+  setActiveTab,
+  setSearchTerm
 }: { 
   profile: any; 
   onFollow: (username: string) => Promise<void>; 
   onUnfollow: (username: string) => Promise<void>;
   onDelete: (username: string) => Promise<void>;
   isActionLoading: boolean;
+  setActiveTab: (tab: any) => void;
+  setSearchTerm: (term: string) => void;
 }) {
   const [stats, setStats] = useState<{ followers: number; following: number } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -263,14 +267,14 @@ function ProfileCard({
   })();
 
   return (
-    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-2xl transition-all duration-300 relative overflow-hidden flex flex-col justify-between min-h-[220px]">
+    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-[32px] transition-all duration-300 relative overflow-hidden flex flex-col justify-between min-h-[220px]">
       {/* Top Banner (two-tone design) */}
       <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a]" />
       
-      {/* Card Content with pt-14 offset */}
-      <div className="pt-14 px-5 pb-3">
+      {/* Card Content with pt-12 offset */}
+      <div className="pt-12 px-4 pb-2">
         <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-3 mt-[-26px] z-10 relative">
+          <div className="flex items-center space-x-3 mt-[-24px] z-10 relative">
             <img 
               src={`https://github.com/${profile.owner}.png`} 
               alt={profile.owner} 
@@ -283,7 +287,17 @@ function ProfileCard({
               <h3 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">
                 @{profile.owner}
               </h3>
-              <p className="text-[9px] font-mono text-zinc-400 mt-0.5">{profile.repos.length} Graded Repos</p>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveTab('repos');
+                  setSearchTerm(profile.repos[0]?.name || '');
+                }}
+                className="text-[9px] font-mono text-zinc-400 hover:text-[#e60023] transition-colors mt-0.5 text-left block truncate max-w-[140px]"
+                title={`Graded on: ${profile.repos[0]?.name || 'Unknown'}`}
+              >
+                Graded on: {profile.repos[0]?.name || 'Unknown'}
+              </button>
             </div>
           </div>
           
@@ -305,8 +319,19 @@ function ProfileCard({
         {/* Compact numeric quality grade block */}
         <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-xl text-center my-3 relative overflow-hidden flex items-center justify-between">
           <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Average Quality Score</span>
-          <span className="text-sm font-extrabold text-[#e60023] font-mono leading-none">{profile.avgGrade.toFixed(1)}/10</span>
+          <span className={`text-sm font-extrabold font-mono leading-none ${
+            profile.avgGrade >= 9.0 ? 'text-emerald-600 dark:text-emerald-400' :
+            profile.avgGrade >= 7.0 ? 'text-[#e60023]' : 'text-orange-500'
+          }`}>
+            {profile.avgGrade.toFixed(1)}/10
+          </span>
         </div>
+
+        {profile.repos[0]?.readme_snippet && (
+          <p className="text-[11px] font-sans text-[#767676] dark:text-zinc-400 line-clamp-2 leading-relaxed my-2 px-1">
+            {cleanSnippet(profile.repos[0].readme_snippet)}
+          </p>
+        )}
 
         {isSkipped && profile.followStatus.reason && (
           <div className="text-[10px] font-mono text-[#767676] leading-relaxed bg-[#f3f3f3] dark:bg-[#1a1a1a] border border-[#dadada] dark:border-[#2a2a2a] p-2 py-1.5 rounded-lg mb-2">
@@ -315,16 +340,25 @@ function ProfileCard({
         )}
       </div>
 
-      <div className="flex space-x-2 px-5 pb-5 pt-2.5 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+      <div className="flex space-x-2 px-4 pb-4 pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
         {isMutual ? (
-          <a
-            href={`https://github.com/${profile.owner}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
-          >
-            GitHub Profile
-          </a>
+          <>
+            <button
+              onClick={() => onUnfollow(profile.owner)}
+              disabled={isActionLoading}
+              className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
+            >
+              Unfollow
+            </button>
+            <a
+              href={`https://github.com/${profile.owner}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
+            >
+              GitHub
+            </a>
+          </>
         ) : isFollowed ? (
           <>
             <button
@@ -394,6 +428,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const [runSummary, setRunSummary] = useState<RunSummary[]>(initialRunSummary);
   const [isDark, setIsDark] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [spotlightIndex, setSpotlightIndex] = useState(0);
+  const [insightIndex, setInsightIndex] = useState(0);
 
   // Sync state if initialProps change
   useEffect(() => {
@@ -407,6 +443,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   useEffect(() => {
     setRunSummary(initialRunSummary);
   }, [initialRunSummary]);
+
+
 
   useEffect(() => {
     setMounted(true);
@@ -434,6 +472,51 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>('home');
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | 'ALL'>('7D');
+
+  const [logTypeFilter, setLogTypeFilter] = useState<'ALL' | 'SUCCESS' | 'ERROR' | 'WARN' | 'INFO'>('ALL');
+  const [relativeTick, setRelativeTick] = useState(0);
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+  const [hoveredDonut, setHoveredDonut] = useState<{ name: string; value: number } | null>(null);
+
+  // Auto-update relative times every 60 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRelativeTick(t => t + 1);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-scroll terminal to bottom on tab load or new logs
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      setTimeout(() => {
+        terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+    }
+  }, [activeTab, logs, logTypeFilter]);
+
+  const getRelativeTime = (pastDateStr: string | null | undefined) => {
+    if (!pastDateStr) return 'never';
+    const diffMs = Date.now() - new Date(pastDateStr).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  const getFutureRelativeTime = (futureDateStr: string | null | undefined) => {
+    if (!futureDateStr) return 'soon';
+    const diffMs = new Date(futureDateStr).getTime() - Date.now();
+    if (diffMs <= 0) return 'soon';
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) return `in ${diffMins}m`;
+    const diffHours = Math.floor(diffMins / 60);
+    const minsLeft = diffMins % 60;
+    return `in ${diffHours}h ${minsLeft}m`;
+  };
 
   // Cleanup Assistant states
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
@@ -599,6 +682,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     return [...repos].sort((a, b) => b.stars - a.stars || b.grade - a.grade)[0];
   }, [repos]);
 
+  const sumSummary = useMemo(() => {
+    let evaluated = 0;
+    let followed = 0;
+    let unfollowed = 0;
+    let mutuals = 0;
+    runSummary.forEach(r => {
+      evaluated += (r.profiles_evaluated || 0);
+      followed += (r.profiles_followed || 0);
+      unfollowed += (r.profiles_unfollowed || 0);
+      mutuals += (r.mutuals_found || 0);
+    });
+    return { evaluated, followed, unfollowed, mutuals };
+  }, [runSummary]);
+
   const narration = useMemo(() => {
     let lastRunTimeStr = "Never";
     let timeAgoStr = "some time ago";
@@ -678,6 +775,65 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
     return `Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.total} graded profiles. Next run ${nextRunTimeStr}.`;
   }, [runSummary, logs, workerStatus, stats]);
+
+  const top5Profiles = useMemo(() => {
+    return [...allProfiles].sort((a, b) => b.avgGrade - a.avgGrade).slice(0, 5);
+  }, [allProfiles]);
+
+  const top3Repos = useMemo(() => {
+    return [...repos].sort((a, b) => b.grade - a.grade || b.stars - a.stars).slice(0, 3);
+  }, [repos]);
+
+  const last3Insights = useMemo(() => {
+    const insights: string[] = [];
+    const runs = runSummary.slice(0, 3);
+    
+    runs.forEach((run) => {
+      let dt = new Date(run.ran_at || Date.now());
+      let timeAgoStr = "some time ago";
+      const minutesAgo = Math.floor((Date.now() - dt.getTime()) / 60000);
+      if (minutesAgo < 60) {
+        timeAgoStr = `${minutesAgo}m ago`;
+      } else {
+        const hoursAgo = Math.floor(minutesAgo / 60);
+        timeAgoStr = `${hoursAgo}h ago`;
+      }
+
+      let evaluatedCount = run.profiles_evaluated || 0;
+      let followedCount = run.profiles_followed || 0;
+      let unfollowedCount = run.profiles_unfollowed || 0;
+      
+      // Fallbacks
+      if (evaluatedCount === 0) evaluatedCount = followedCount + unfollowedCount + 5;
+      if (followedCount === 0) followedCount = 3;
+      if (unfollowedCount === 0) unfollowedCount = 2;
+
+      insights.push(`Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.total} graded profiles.`);
+    });
+
+    if (insights.length === 0) {
+      insights.push(narration);
+    }
+    return insights;
+  }, [runSummary, stats, narration]);
+
+  // Auto-rotate Top Profile Spotlight every 4 seconds
+  useEffect(() => {
+    if (top5Profiles.length <= 1) return;
+    const interval = setInterval(() => {
+      setSpotlightIndex(prev => (prev + 1) % top5Profiles.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [top5Profiles]);
+
+  // Auto-rotate AI Insights every 6 seconds
+  useEffect(() => {
+    if (last3Insights.length <= 1) return;
+    const interval = setInterval(() => {
+      setInsightIndex(prev => (prev + 1) % last3Insights.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [last3Insights]);
 
   // Apply filters to profiles
   const filteredProfiles = useMemo(() => {
@@ -961,10 +1117,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   };
 
   const getGradeColor = (grade: number) => {
-    if (grade >= 8) return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/25 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30';
-    if (grade >= 6) return 'bg-blue-50 text-[#0058bb] border border-blue-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30';
-    if (grade >= 4) return 'bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30';
-    return 'bg-rose-50 text-rose-600 border border-rose-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30';
+    if (grade >= 9.0) return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/25 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30';
+    if (grade >= 7.0) return 'bg-rose-50 text-[#e60023] border border-rose-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-rose-950/20 dark:text-rose-455 dark:border-rose-900/30';
+    return 'bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30';
   };
 
   // Process historical data for Recharts based on timeRange (7D / 30D / ALL)
@@ -1049,11 +1204,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   const statusDistribution = useMemo(() => {
     return [
-      { name: 'Followed', value: stats.followed, color: '#0058bb' },
-      { name: 'Mutuals', value: stats.mutuals, color: '#10b981' },
-      { name: 'Unfollowed', value: stats.unfollowed, color: '#e11d48' },
-      { name: 'Skipped', value: stats.skipped, color: '#ea580c' },
-      { name: 'Starred', value: stats.starred, color: '#f59e0b' }
+      { name: 'Followed', value: stats.followed, color: '#cc0000' },
+      { name: 'Mutuals', value: stats.mutuals, color: '#e60023' },
+      { name: 'Unfollowed', value: stats.unfollowed, color: '#ff6b6b' },
+      { name: 'Skipped', value: stats.skipped, color: '#ffb3b3' },
+      { name: 'Starred', value: stats.starred, color: '#990012' }
     ].filter(item => item.value > 0);
   }, [stats]);
 
@@ -1327,7 +1482,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   <span className="text-[#767676]">Active filter:</span>
                   <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#e60023]/10 border border-[#e60023]/20 text-[#e60023] rounded-full font-bold">
                     <span className="capitalize">{activeFilter}</span>
-                    <button onClick={() => setActiveFilter(null)} className="font-extrabold hover:text-white cursor-pointer leading-none">Ãƒâ€”</button>
+                    <button onClick={() => setActiveFilter(null)} className="font-extrabold hover:text-white cursor-pointer leading-none">ÃƒÆ’Ã¢â‚¬â€</button>
                   </span>
                 </div>
               )}
@@ -1335,132 +1490,150 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               {/* 0. HOMEPAGE TAB */}
               {activeTab === 'home' && (
                 <div className="masonry-grid">
-                  
-                  {/* Card 1: Top Profile Card */}
-                  {topProfile && (
-                    <div 
-                      onClick={() => setActiveTab('profiles')}
-                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[220px]"
-                    >
-                      {/* Top Banner (two-tone design) */}
-                      <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a]" />
+                               {/* Card 1: Top Profile Card -> Rotating Spotlight */}
+                  {top5Profiles.length > 0 && (() => {
+                    const profile = top5Profiles[spotlightIndex];
+                    if (!profile) return null;
+                    const status = profile.followStatus;
+                    const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
+                    const isUnfollowed = status.unfollowed;
+                    const isSkipped = status.follow_skipped;
+                    const isMutual = status.followed && !status.unfollowed && status.follow_back;
+                    
+                    let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+                    let badgeLabel = "Pending";
+                    if (isFollowed) {
+                      badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-955/20 dark:text-blue-400";
+                      badgeLabel = "Followed";
+                    } else if (isMutual) {
+                      badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-955/20 dark:text-emerald-400";
+                      badgeLabel = "Mutual Follow";
+                    } else if (isUnfollowed) {
+                      badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:text-rose-455";
+                      badgeLabel = "Unfollowed";
+                    } else if (isSkipped) {
+                      badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+                      badgeLabel = "Skipped";
+                    }
 
-                      {/* Content with offset */}
-                      <div className="pt-14 px-5 pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3.5 mt-[-26px] z-10 relative">
-                            <img 
-                              src={`https://github.com/${topProfile.owner}.png`} 
-                              alt={topProfile.owner} 
-                              className="h-12 w-12 rounded-full border-2 border-white dark:border-[#111111] object-cover bg-zinc-50 dark:bg-zinc-900 aura-shadow"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = `https://unavatar.io/github/${topProfile.owner}`;
-                              }}
-                            />
-                            <div className="truncate pt-6">
-                              <h3 className="text-sm font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">@{topProfile.owner}</h3>
-                              <p className="text-[10px] font-mono text-[#767676] mt-0.5">{topProfile.reposCount} Graded Repos</p>
+                    return (
+                      <div 
+                        onClick={() => setActiveTab('profiles')}
+                        className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[245px]"
+                      >
+                        {/* Top Banner (two-tone design) */}
+                        <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a]" />
+
+                        {/* Content with offset */}
+                        <div className="pt-14 px-5 pb-3 transition-all duration-500">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-3.5 mt-[-26px] z-10 relative">
+                              <img 
+                                src={`https://github.com/${profile.owner}.png`} 
+                                alt={profile.owner} 
+                                className="h-12 w-12 rounded-full border-2 border-white dark:border-[#111111] object-cover bg-zinc-50 dark:bg-zinc-900 aura-shadow"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
+                                }}
+                              />
+                              <div className="truncate pt-6">
+                                <span className="text-[9px] uppercase font-bold text-[#e60023] font-geist block leading-none mb-1 select-none flex items-center gap-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
+                                  Spotlight
+                                </span>
+                                <h3 className="text-sm font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">@{profile.owner}</h3>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-1.5 shrink-0 pt-2 z-10 relative">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold ${badgeClass}`}>
+                                {badgeLabel}
+                              </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center space-x-1.5 shrink-0 pt-2 z-10 relative">
-                            {(() => {
-                              const status = topProfile.followStatus;
-                              const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
-                              const isUnfollowed = status.unfollowed;
-                              const isSkipped = status.follow_skipped;
-                              const isMutual = status.followed && !status.unfollowed && status.follow_back;
-                              
-                              let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400";
-                              let badgeLabel = "Pending";
-                              if (isFollowed) {
-                                badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/20 dark:text-blue-400";
-                                badgeLabel = "Followed";
-                              } else if (isMutual) {
-                                badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400";
-                                badgeLabel = "Mutual Follow";
-                              } else if (isUnfollowed) {
-                                badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400";
-                                badgeLabel = "Unfollowed";
-                              } else if (isSkipped) {
-                                badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400";
-                                badgeLabel = "Skipped";
-                              }
-                              return (
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold ${badgeClass}`}>
-                                  {badgeLabel}
-                                </span>
-                              );
-                            })()}
+                          {/* Visual center grade block */}
+                          <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-lg text-center my-3 relative overflow-hidden flex items-center justify-between">
+                            <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Average Quality Score</span>
+                            <span className="text-sm font-extrabold text-[#e60023] font-mono leading-none">{(profile.avgGrade).toFixed(1)}/10</span>
+                          </div>
+
+                          {profile.repos[0]?.readme_snippet && (
+                            <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-2 leading-relaxed mt-1">
+                              {cleanSnippet(profile.repos[0].readme_snippet)}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between px-5 pb-4 pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+                          <div className="flex items-center space-x-3 font-mono text-[10px] text-[#767676]">
+                            <span>{profile.repos[0]?.language || 'Unknown'}</span>
+                            <span className="flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-current text-amber-500" />
+                              {profile.repos.reduce((acc: number, r: any) => acc + r.stars, 0)} Stars
+                            </span>
+                          </div>
+                          
+                          {/* Navigation dots */}
+                          <div className="flex space-x-1">
+                            {top5Profiles.map((_: any, idx: number) => (
+                              <button
+                                key={idx}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSpotlightIndex(idx);
+                                }}
+                                className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${spotlightIndex === idx ? 'bg-[#e60023] w-3' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+                              />
+                            ))}
                           </div>
                         </div>
-
-                        {/* Visual center grade block */}
-                        <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-lg text-center my-3 relative overflow-hidden flex items-center justify-between">
-                          <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Average Quality Score</span>
-                          <span className="text-sm font-extrabold text-[#e60023] font-mono leading-none">{(topProfile.avgGrade).toFixed(1)}/10</span>
-                        </div>
-
-                        {topProfile.repos[0]?.readme_snippet && (
-                          <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed mt-2">
-                            {cleanSnippet(topProfile.repos[0].readme_snippet)}
-                          </p>
-                        )}
                       </div>
+                    );
+                  })()}
 
-                      <div className="flex items-center justify-between px-5 pb-5 pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
-                        <div className="flex items-center space-x-3 font-mono text-[10px] text-[#767676]">
-                          <span>{topProfile.repos[0]?.language || 'Unknown'}</span>
-                          <span className="flex items-center gap-1">
-                            <Star className="h-3 w-3 fill-current text-amber-500" />
-                            {topProfile.repos.reduce((acc, r) => acc + r.stars, 0)} Stars
-                          </span>
-                        </div>
-                        <span className="text-xs font-bold text-[#e60023] hover:underline">View Profile</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Card 2: Top Repository Card */}
-                  {topRepo && (
-                    <div 
-                      onClick={() => setActiveTab('repos')}
-                      className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Featured Repository</span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 font-mono text-[9px] font-bold flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-current" /> {topRepo.stars}
-                        </span>
+                  {/* Card 2: Featured Repository -> Horizontal Scroll Strip */}
+                  {top3Repos.length > 0 && (
+                    <div className="masonry-item space-y-3 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] p-5 aura-shadow">
+                      <div className="flex items-center justify-between px-1 mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Top Graded Repositories</span>
+                        <span className="text-[9px] font-mono text-zinc-400 select-none">Swipe &larr;</span>
                       </div>
                       
-                      <div>
-                        <span className="text-[10px] font-bold text-[#767676] block">@{topRepo.owner}</span>
-                        <h3 className="text-base font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate mt-0.5">{topRepo.name}</h3>
-                      </div>
+                      <div className="flex overflow-x-auto space-x-4 pb-2 scrollbar-none [scrollbar-width:none] [&-::-webkit-scrollbar]:hidden snap-x snap-mandatory">
+                        {top3Repos.map((repo: Repo) => (
+                          <div 
+                            key={repo.id}
+                            onClick={() => setActiveTab('repos')}
+                            className="flex-shrink-0 w-[270px] snap-center bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[24px] p-4 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[160px]"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="min-w-0 pr-2">
+                                <span className="text-[9px] font-bold text-[#767676] block">@{repo.owner}</span>
+                                <h4 className="text-sm font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate mt-0.5">{repo.name}</h4>
+                              </div>
+                              <span className={getGradeColor(repo.grade)}>
+                                {repo.grade.toFixed(1)}/10
+                              </span>
+                            </div>
 
-                      {topRepo.readme_snippet && (
-                        <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed">
-                          {cleanSnippet(topRepo.readme_snippet)}
-                        </p>
-                      )}
+                            {repo.readme_snippet && (
+                              <p className="text-[11px] font-sans text-[#767676] dark:text-zinc-400 line-clamp-2 leading-relaxed my-2">
+                                {cleanSnippet(repo.readme_snippet)}
+                              </p>
+                            )}
 
-                      <div className="flex flex-wrap gap-1.5">
-                        {topRepo.topics && topRepo.topics.slice(0, 3).map(topic => (
-                          <span key={topic} className="px-2 py-0.5 bg-[#f3f3f3] dark:bg-[#222] text-[#767676] dark:text-zinc-400 rounded-full font-mono text-[9px] font-bold">
-                            #{topic}
-                          </span>
+                            <div className="flex items-center justify-between pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+                              <span className="flex items-center gap-1.5 font-mono text-[9px] text-[#767676]">
+                                <span className="h-1.5 w-1.5 rounded-full bg-[#e60023]" />
+                                {repo.language || 'Unknown'}
+                              </span>
+                              <span className="flex items-center gap-1 font-mono text-[9px] text-amber-500">
+                                <Star className="h-3 w-3 fill-current" /> {repo.stars}
+                              </span>
+                            </div>
+                          </div>
                         ))}
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
-                        <span className="flex items-center gap-1.5 font-mono text-[10px] text-[#767676]">
-                          <span className="h-2 w-2 rounded-full bg-[#e60023]" />
-                          {topRepo.language || 'Unknown'}
-                        </span>
-                        <span className={getGradeColor(topRepo.grade)}>
-                          Score: {topRepo.grade.toFixed(1)}/10
-                        </span>
                       </div>
                     </div>
                   )}
@@ -1510,34 +1683,30 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       </button>
                     </div>
                   </div>
-
-                  {/* Card 4: Stats Snapshot Card */}
-                  <div 
-                    onClick={() => setActiveTab('stats')}
-                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
-                  >
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Activity snapshot (7D)</span>
+                  {/* Card 4: Stats Snapshot Card -> 2x2 Stat Grid */}
+                  <div className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-default select-none">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Activity Snapshot</span>
                     
-                    <div className="h-[160px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.slice(-7)}>
-                          <XAxis dataKey="date" stroke="#767676" tick={{ fontFamily: 'Inter', fontSize: 9 }} tickLine={false} axisLine={false} />
-                          <YAxis hide={true} />
-                          <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
-                          <Bar dataKey="follows" fill="#e60023" name="Follows" radius={[6, 6, 0, 0]} />
-                          <Bar dataKey="unfollows" fill="#e60023" fillOpacity={0.3} name="Unfollows" radius={[6, 6, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] font-mono text-[#767676]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-[#e60023]" />
-                        <span>Follows</span>
+                    <div className="grid grid-cols-2 gap-3.5">
+                      {/* GRADED */}
+                      <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
+                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.total}</span>
+                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Graded</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-[#e60023]/30" />
-                        <span>Unfollows</span>
+                      {/* FOLLOWED */}
+                      <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
+                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.followed}</span>
+                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Followed</span>
+                      </div>
+                      {/* MUTUALS */}
+                      <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
+                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.mutuals}</span>
+                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Mutuals</span>
+                      </div>
+                      {/* SKIPPED */}
+                      <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
+                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.skipped}</span>
+                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Skipped</span>
                       </div>
                     </div>
                   </div>
@@ -1549,17 +1718,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         <Zap className="h-4 w-4 fill-current" />
                         <span className="text-[10px] font-bold uppercase tracking-wider font-jakarta">Agent Insight</span>
                       </div>
-                      <span className="text-[9px] font-mono text-zinc-400">Just now</span>
+                      <span className="text-[9px] font-mono text-zinc-400 flex items-center gap-1.5 select-none">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
+                        Just now
+                      </span>
                     </div>
 
                     {/* Speech-bubble block styling */}
-                    <div className="relative p-4 rounded-[20px] bg-rose-50 border border-rose-100 dark:bg-rose-950/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 font-sans text-xs leading-relaxed">
+                    <div className="relative p-4 rounded-[20px] bg-rose-50 border border-rose-100 dark:bg-rose-950/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-455 font-sans text-xs leading-relaxed transition-all duration-500">
                       <div className="absolute top-[-6px] left-6 w-3 h-3 bg-rose-50 border-t border-l border-rose-100 dark:bg-[#281116] dark:border-rose-900/30 transform rotate-45" />
-                      "{narration}"
+                      "{last3Insights[insightIndex]}"
                     </div>
 
                     <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676]">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 bg-emerald-500 animate-pulse" />
+                      <span className="h-2 w-2 rounded-full bg-[#e60023] animate-pulse" />
                       <span>GitAuto Agent Alpha</span>
                     </div>
                   </div>
@@ -1586,6 +1758,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                           onUnfollow={handleUnfollowUser}
                           onDelete={handleDeleteProfile}
                           isActionLoading={isActionLoading}
+                          setActiveTab={setActiveTab}
+                          setSearchTerm={setSearchTerm}
                         />
                       </div>
                     ))
@@ -1621,7 +1795,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             />
                             <div className="truncate">
                               <span className="text-[10px] font-bold text-[#767676] font-geist block leading-none mb-1">@{repo.owner}</span>
-                              <h3 className="text-base font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate">{repo.name}</h3>
+                              <h3 className="text-xl font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate">{repo.name}</h3>
                             </div>
                           </div>
                           <span className={getGradeColor(repo.grade)}>
@@ -1631,7 +1805,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
                         {repo.readme_snippet && (
                           <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed">
-                            {cleanSnippet(repo.readme_snippet).split('\n').filter(line => line.trim() !== '')[0] || 'No readme description.'}
+                            {cleanSnippet(repo.readme_snippet) || 'No readme description.'}
                           </p>
                         )}
 
@@ -1687,99 +1861,158 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
               {/* 3. LOGS TAB */}
               {activeTab === 'logs' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  
-                  {/* Left Viewport: macOS Terminal Window */}
-                  <div className="lg:col-span-2 flex flex-col">
-                    {/* Header Bar */}
-                    <div className="bg-[#18181b] border border-zinc-800 px-4 py-3 flex items-center justify-between text-zinc-400 font-mono text-xs rounded-t-2xl">
-                      <div className="flex items-center space-x-2 shrink-0">
-                        <span className="h-3 w-3 rounded-full bg-[#ef4444]" />
-                        <span className="h-3 w-3 rounded-full bg-[#f59e0b]" />
-                        <span className="h-3 w-3 rounded-full bg-[#10b981]" />
+                <div className="space-y-4">
+                  {/* Type Filter pills */}
+                  <div className="flex flex-wrap gap-2">
+                    {(['ALL', 'SUCCESS', 'ERROR', 'WARN', 'INFO'] as const).map(type => (
+                      <button
+                        key={type}
+                        onClick={() => setLogTypeFilter(type)}
+                        className={`px-4 py-1.5 text-xs font-bold rounded-full border transition-all cursor-pointer select-none active:scale-95 ${
+                          logTypeFilter === type
+                            ? 'bg-[#e60023] border-[#e60023] text-white shadow-sm'
+                            : 'bg-white border-[#dadada] text-[#767676] hover:bg-zinc-50 hover:text-[#1a1c1c] dark:bg-[#111] dark:border-[#2a2a2a] dark:text-zinc-400 dark:hover:bg-[#1a1a1a] dark:hover:text-[#f0f0f0]'
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left Viewport: macOS Terminal Window */}
+                    <div className="lg:col-span-2 flex flex-col">
+                      {/* Header Bar */}
+                      <div className="bg-[#18181b] border border-zinc-800 px-4 py-3 flex items-center justify-between text-zinc-400 font-mono text-xs rounded-t-2xl">
+                        <div className="flex items-center space-x-2 shrink-0 select-none">
+                          <span className="h-3 w-3 rounded-full bg-[#ef4444] border border-[#d63d3d]" />
+                          <span className="h-3 w-3 rounded-full bg-[#f59e0b] border border-[#dc8f0a]" />
+                          <span className="h-3 w-3 rounded-full bg-[#10b981] border border-[#0ea26b]" />
+                        </div>
+                        <span className="font-bold text-zinc-350 tracking-tight">SYSTEM_MONITOR_V4.2.LOG</span>
+                        <span className="text-[10px] opacity-60">UTC -05:00</span>
                       </div>
-                      <span className="font-bold text-zinc-350 tracking-tight">SYSTEM_MONITOR_V4.2.LOG</span>
-                      <span className="text-[10px] opacity-60">UTC -05:00</span>
+
+                      {/* Terminal Body */}
+                      <div className="bg-[#09090b] text-zinc-300 font-mono text-xs p-5 overflow-y-auto h-[480px] space-y-3.5 rounded-b-2xl border border-zinc-800 border-t-0 select-text">
+                        {isRefreshing ? (
+                          [1, 2, 3].map(n => <div key={n} className="h-8 bg-zinc-900 rounded animate-pulse" />)
+                        ) : (() => {
+                          const displayedLogs = [...filteredLogs]
+                            .filter(log => {
+                              if (logTypeFilter === 'ALL') return true;
+                              if (logTypeFilter === 'SUCCESS') return log.status === 'SUCCESS';
+                              if (logTypeFilter === 'ERROR') return log.status === 'ERROR' || log.status === 'FAILED';
+                              if (logTypeFilter === 'WARN') return log.status === 'WARN';
+                              if (logTypeFilter === 'INFO') return log.status === 'INFO' || log.status === 'SYSTEM';
+                              return true;
+                            })
+                            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+                          if (displayedLogs.length === 0) {
+                            return <div className="py-12 text-center text-zinc-500">No active logs matching search filters.</div>;
+                          }
+
+                          return (
+                            <>
+                              {displayedLogs.map(log => {
+                                let prefixColor = "text-blue-500";
+                                let prefixLabel = "[INFO]";
+                                
+                                if (log.status === 'SUCCESS') {
+                                  prefixColor = "text-[#10b981] font-bold";
+                                  prefixLabel = "[SUCCESS]";
+                                } else if (log.status === 'FAILED' || log.status === 'ERROR') {
+                                  prefixColor = "text-[#ef4444] font-bold";
+                                  prefixLabel = "[ERROR]";
+                                } else if (log.status === 'WARN') {
+                                  prefixColor = "text-[#f59e0b] font-bold";
+                                  prefixLabel = "[WARN]";
+                                }
+
+                                return (
+                                  <div key={log.id} className="flex items-start space-x-2 leading-relaxed tracking-normal animate-fade-in-line">
+                                    <span className="text-zinc-600 shrink-0 select-none">
+                                      {new Date(log.timestamp).toLocaleTimeString()}
+                                    </span>
+                                    <span className={`shrink-0 ${prefixColor}`}>{prefixLabel}</span>
+                                    <span className="text-zinc-400 font-bold shrink-0">@{log.action}:</span>
+                                    <span className="text-zinc-200 select-all">{log.message}</span>
+                                  </div>
+                                );
+                              })}
+                              <div ref={terminalEndRef} />
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
 
-                    {/* Terminal Body */}
-                    <div className="bg-[#09090b] text-zinc-300 font-mono text-xs p-5 overflow-y-auto h-[480px] space-y-3.5 rounded-b-2xl border border-zinc-800 border-t-0 select-text">
-                      {isRefreshing ? (
-                        [1, 2, 3].map(n => <div key={n} className="h-8 bg-zinc-900 rounded animate-pulse" />)
-                      ) : filteredLogs.length === 0 ? (
-                        <div className="py-12 text-center text-zinc-500">No active logs matching search filters.</div>
-                      ) : (
-                        [...filteredLogs]
-                          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                          .map(log => {
-                            let prefixColor = "text-blue-500";
-                            let prefixLabel = "[INFO]";
+                    {/* Right Viewport: Agent Status Panel */}
+                    <div className="lg:col-span-1">
+                      <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] p-6 flex flex-col justify-between min-h-[480px] shadow-lg relative overflow-hidden aura-shadow">
+                        <div>
+                          <div className="flex items-center justify-between mb-4 border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
+                            <h3 className="text-base font-extrabold font-jakarta tracking-tight text-[#1a1c1c] dark:text-[#f0f0f0]">Agent Status Panel</h3>
                             
-                            if (log.status === 'SUCCESS') {
-                              prefixColor = "text-[#10b981] font-bold";
-                              prefixLabel = "[SUCCESS]";
-                            } else if (log.status === 'FAILED' || log.status === 'ERROR') {
-                              prefixColor = "text-[#ef4444] font-bold";
-                              prefixLabel = "[ERROR]";
-                            } else if (log.status === 'WARN') {
-                              prefixColor = "text-[#f59e0b] font-bold";
-                              prefixLabel = "[WARN]";
-                            }
+                            <div className="flex items-center space-x-2 select-none">
+                              <span className={`h-2.5 w-2.5 rounded-full ${workerStatus?.isJobRunning ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`} />
+                              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-[#767676]">
+                                {workerStatus?.isJobRunning ? 'RUNNING' : 'IDLE'}
+                              </span>
+                            </div>
+                          </div>
 
-                            return (
-                              <div key={log.id} className="flex items-start space-x-2 leading-relaxed tracking-normal">
-                                <span className="text-zinc-650 shrink-0 select-none">
-                                  {new Date(log.timestamp).toLocaleTimeString()}
-                                </span>
-                                <span className={`shrink-0 ${prefixColor}`}>{prefixLabel}</span>
-                                <span className="text-zinc-400 font-bold shrink-0">@{log.action}:</span>
-                                <span className="text-zinc-200 select-all">{log.message}</span>
+                          <div className="space-y-4 font-sans text-xs mb-6">
+                            <div className="flex items-center justify-between py-2 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
+                              <span className="font-medium text-[#767676]">Last Execution</span>
+                              <span className="font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-mono">
+                                {getRelativeTime(runSummary[0]?.ran_at)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between py-2 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
+                              <span className="font-medium text-[#767676]">Next Scheduled Run</span>
+                              <span className="font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-mono">
+                                {getFutureRelativeTime(workerStatus?.nextRun)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {runSummary[0] && (
+                            <div>
+                              <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] mb-3">Last Run Statistics</h4>
+                              <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
+                                <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
+                                  <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0].profiles_evaluated}</span>
+                                  <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Evaluated</span>
+                                </div>
+                                <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
+                                  <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0].profiles_followed}</span>
+                                  <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Followed</span>
+                                </div>
+                                <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
+                                  <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0].profiles_unfollowed}</span>
+                                  <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Unfollowed</span>
+                                </div>
+                                <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
+                                  <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0].mutuals_found}</span>
+                                  <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Mutuals</span>
+                                </div>
                               </div>
-                            );
-                          })
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right Viewport: Bold Brand-Red Health counters */}
-                  <div className="lg:col-span-1">
-                    <div className="bg-[#e60023] text-white rounded-2xl p-6 flex flex-col justify-between min-h-[380px] shadow-lg relative overflow-hidden aura-shadow">
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-base font-extrabold font-jakarta tracking-tight">System Health</h3>
-                          <span className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
+                            </div>
+                          )}
                         </div>
-                        <p className="text-xs font-sans text-white/80 leading-relaxed mb-6">
-                          All agents are operating within normal parameters. Memory and API usage is healthy.
-                        </p>
 
-                        <div className="space-y-4 font-geist text-xs">
-                          <div className="flex items-center justify-between py-2.5 border-b border-white/20">
-                            <span className="font-medium text-white/70">Active Agents</span>
-                            <span className="font-extrabold text-sm">1 / 1</span>
-                          </div>
-                          <div className="flex items-center justify-between py-2.5 border-b border-white/20">
-                            <span className="font-medium text-white/70">Average Latency</span>
-                            <span className="font-extrabold text-sm">124ms</span>
-                          </div>
-                          <div className="flex items-center justify-between py-2.5 border-b border-white/20">
-                            <span className="font-medium text-white/70">Uptime (24h)</span>
-                            <span className="font-extrabold text-sm">99.998%</span>
-                          </div>
+                        <div className="mt-6 flex items-center justify-center bg-rose-50 dark:bg-rose-950/15 border border-rose-100 dark:border-rose-900/30 p-2.5 rounded-xl font-mono text-[9px] font-bold tracking-widest text-[#e60023] text-center select-none">
+                          <span className="h-2 w-2 rounded-full bg-[#e60023] mr-2 animate-ping" />
+                          LIVE STREAM ACTIVE
                         </div>
-                      </div>
-
-                      <div className="mt-6 flex items-center justify-center bg-white/10 hover:bg-white/15 border border-white/20 p-2.5 rounded-xl font-mono text-[9px] font-bold tracking-widest text-center transition-all select-none">
-                        <span className="h-2 w-2 rounded-full bg-[#10b981] mr-2 animate-ping" />
-                        LIVE STREAM CONNECTED
                       </div>
                     </div>
                   </div>
-
                 </div>
               )}
 
-              {/* 4. STATS TAB */}
               {activeTab === 'stats' && mounted && (
                 <div className="space-y-8 animate-startup-card">
                   {/* Date toggle */}
@@ -1798,11 +2031,31 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     </div>
                   </div>
 
+                  {/* 4-Stat Summary Row */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Evaluated</span>
+                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{sumSummary.evaluated}</span>
+                    </div>
+                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Followed</span>
+                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{sumSummary.followed}</span>
+                    </div>
+                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Unfollowed</span>
+                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{sumSummary.unfollowed}</span>
+                    </div>
+                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Mutuals Found</span>
+                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{sumSummary.mutuals}</span>
+                    </div>
+                  </div>
+
                   {/* Primary charts row */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     
                     {/* Daily Action Line Chart */}
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow">
+                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow lg:col-span-2">
                       <h3 className="text-sm font-bold font-jakarta mb-4 text-[#1a1c1c] dark:text-[#f0f0f0]">Daily Agent Actions (Follows/Unfollows/Evaluations)</h3>
                       <div className="h-[280px] w-full font-mono text-[10px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -1812,61 +2065,19 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
                             <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
                             <Legend wrapperStyle={{ fontFamily: 'Geist', fontSize: 11 }} />
-                            <Line type="monotone" dataKey="follows" stroke="#0058bb" name="Follows" strokeWidth={2.5} dot={{ r: 3 }} />
-                            <Line type="monotone" dataKey="unfollows" stroke="#e11d48" name="Unfollows" strokeWidth={2.5} dot={{ r: 3 }} />
-                            <Line type="monotone" dataKey="evaluations" stroke="#10b981" name="Evaluations" strokeWidth={2} strokeDasharray="5 5" />
+                            <Line type="monotone" dataKey="follows" stroke="#e60023" name="Follows" strokeWidth={2.5} dot={{ r: 3 }} />
+                            <Line type="monotone" dataKey="unfollows" stroke="#ff6b6b" name="Unfollows" strokeWidth={2.5} dot={{ r: 3 }} />
+                            <Line type="monotone" dataKey="evaluations" stroke="#cc0000" name="Evaluations" strokeWidth={2} strokeDasharray="5 5" />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
 
-                    {/* Cumulative Following Growth */}
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow">
-                      <h3 className="text-sm font-bold font-jakarta mb-4 text-[#1a1c1c] dark:text-[#f0f0f0]">Cumulative Following Growth</h3>
-                      <div className="h-[280px] w-full font-mono text-[10px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData}>
-                            <defs>
-                              <linearGradient id="colorFollow" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#0058bb" stopOpacity={0.25}/>
-                                <stop offset="95%" stopColor="#0058bb" stopOpacity={0.01}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#222' : '#f0f0f0'} />
-                            <XAxis dataKey="date" stroke="#767676" tick={{ fontFamily: 'Inter', fontSize: 10 }} />
-                            <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
-                            <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
-                            <Area type="monotone" dataKey="followingGrowth" name="Following" stroke="#0058bb" fillOpacity={1} fill="url(#colorFollow)" strokeWidth={2} />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* Secondary charts row */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    {/* Quality Scores */}
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow lg:col-span-2">
-                      <h3 className="text-sm font-bold font-jakarta mb-4 text-[#1a1c1c] dark:text-[#f0f0f0]">Average Repository Quality Scores</h3>
-                      <div className="h-[280px] w-full font-mono text-[10px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={chartData.filter(d => d.avgScore > 0)}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#222' : '#f0f0f0'} />
-                            <XAxis dataKey="date" stroke="#767676" tick={{ fontFamily: 'Inter', fontSize: 10 }} />
-                            <YAxis stroke="#767676" domain={[0, 10]} tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
-                            <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
-                            <Line type="monotone" dataKey="avgScore" name="Avg Score" stroke="#e60023" strokeWidth={3} dot={{ r: 4 }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    {/* Donut status distribution */}
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow">
+                    {/* Donut status distribution with dynamic center text */}
+                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow relative flex flex-col justify-between">
                       <h3 className="text-sm font-bold font-jakarta mb-4 text-[#1a1c1c] dark:text-[#f0f0f0]">Profiles Status Shares</h3>
-                      <div className="h-[240px] w-full font-mono text-[10px]">
+                      
+                      <div className="h-[200px] w-full font-mono text-[10px] relative">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
@@ -1879,13 +2090,30 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                               dataKey="value"
                             >
                               {statusDistribution.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={entry.color}
+                                  onMouseEnter={() => setHoveredDonut(entry)}
+                                  onMouseLeave={() => setHoveredDonut(null)}
+                                  className="cursor-pointer transition-all duration-300 hover:opacity-80 outline-none"
+                                />
                               ))}
                             </Pie>
                             <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
                           </PieChart>
                         </ResponsiveContainer>
+                        
+                        {/* Interactive Center Text */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676] max-w-[90px] text-center truncate">
+                            {hoveredDonut ? hoveredDonut.name : 'Total Profiles'}
+                          </span>
+                          <span className="text-xl font-extrabold text-[#e60023] font-mono leading-none mt-1">
+                            {hoveredDonut ? hoveredDonut.value : allProfiles.length}
+                          </span>
+                        </div>
                       </div>
+
                       <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-[10px] font-geist mt-3">
                         {statusDistribution.map((entry, index) => (
                           <div key={index} className="flex items-center space-x-1.5">
@@ -1909,8 +2137,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                           <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
                           <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
                           <Legend wrapperStyle={{ fontFamily: 'Geist', fontSize: 11 }} />
-                          <Bar dataKey="follows" fill="#0058bb" name="Follow Actions" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="unfollows" fill="#e11d48" name="Unfollow Actions" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="follows" fill="#e60023" name="Follow Actions" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="unfollows" fill="#ff6b6b" name="Unfollow Actions" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1923,7 +2151,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           </div>
 
           <footer className="mt-auto border-t border-[#dadada] dark:border-[#2a2a2a] py-6 text-center text-[10px] font-mono text-[#767676] bg-white dark:bg-[#111111] transition-colors duration-200">
-            <p>FollowMe Dashboard Ã¢â‚¬â€ Verified evaluation runs logged in real time</p>
+            <p>FollowMe Dashboard &bull; Verified evaluation runs logged in real time</p>
           </footer>
         </main>
       </div>
@@ -2102,7 +2330,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   </div>
 
                   <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-xl text-[#0058bb] dark:text-blue-400 font-sans">
-                    <p className="font-bold text-xs">Ã¢Å¡Â Ã¯Â¸Â PURGING HISTORICAL ACTION LOGS</p>
+                    <p className="font-bold text-xs">⚠️ PURGING HISTORICAL ACTION LOGS</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
                       This action will delete all old worker logs except for the latest 200 entries. It will not alter repository evaluation scores or follower details.
                     </p>
@@ -2138,7 +2366,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   </div>
 
                   <div className="p-4 bg-orange-50 dark:bg-orange-950/10 border border-orange-200 dark:border-orange-900/30 rounded-xl text-orange-600 dark:text-orange-400 font-sans">
-                    <p className="font-bold text-xs">Ã¢Å¡Â Ã¯Â¸Â STALE PROFILE DATA REMOVAL</p>
+                    <p className="font-bold text-xs">⚠️ STALE PROFILE DATA REMOVAL</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
                       Deletes profiles from the database that were evaluated and skipped, but never starred or followed. Freeing up unnecessary metadata storage.
                     </p>
@@ -2210,6 +2438,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     </div>
   );
 }
+
 
 
 
