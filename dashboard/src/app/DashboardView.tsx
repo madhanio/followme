@@ -239,16 +239,16 @@ function ProfileCard({
   let badgeLabel = "Pending";
 
   if (isFollowed) {
-    badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-955/20 dark:text-blue-400";
+    badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/20 dark:text-blue-400";
     badgeLabel = "Followed";
   } else if (isMutual) {
-    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-955/20 dark:text-emerald-400 font-bold";
+    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 font-bold";
     badgeLabel = "Mutual Follow";
   } else if (isUnfollowed) {
-    badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-955/20 dark:text-rose-455";
+    badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400";
     badgeLabel = "Unfollowed";
   } else if (isSkipped) {
-    badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+    badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400";
     badgeLabel = "Skipped";
   }
 
@@ -294,7 +294,7 @@ function ProfileCard({
             <button
               onClick={() => onDelete(profile.owner)}
               disabled={isActionLoading}
-              className="p-1.5 bg-rose-50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/35 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-455 rounded-lg transition-all cursor-pointer disabled:opacity-40"
+              className="p-1.5 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-950/35 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg transition-all cursor-pointer disabled:opacity-40"
               title="Delete Profile from DB"
             >
               <Trash2 className="h-3 w-3" />
@@ -330,7 +330,7 @@ function ProfileCard({
             <button
               onClick={() => onUnfollow(profile.owner)}
               disabled={isActionLoading}
-              className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-955/10 text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
+              className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
             >
               Unfollow
             </button>
@@ -964,7 +964,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     if (grade >= 8) return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/25 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30';
     if (grade >= 6) return 'bg-blue-50 text-[#0058bb] border border-blue-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30';
     if (grade >= 4) return 'bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30';
-    return 'bg-rose-50 text-rose-600 border border-rose-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-rose-955/20 dark:text-rose-455 dark:border-rose-900/30';
+    return 'bg-rose-50 text-rose-600 border border-rose-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30';
   };
 
   // Process historical data for Recharts based on timeRange (7D / 30D / ALL)
@@ -1128,7 +1128,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               </div>
               <div>
                 <h1 className="text-lg font-bold font-jakarta tracking-tight leading-none text-[#1a1c1c] dark:text-[#f0f0f0]">FollowMe</h1>
-                <span className="text-[9px] uppercase font-mono font-semibold tracking-wider text-slate-400 dark:text-zinc-650 mt-1 block">AI Agent Control</span>
+                <span className="text-[9px] uppercase font-mono font-semibold tracking-wider text-slate-400 dark:text-zinc-500 mt-1 block">AI Agent Control</span>
               </div>
             </div>
 
@@ -1162,7 +1162,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       <span>{item.label}</span>
                     </div>
                     {item.count !== null && (
-                      <span className="px-2 py-0.5 rounded-full bg-[#f3f3f3] dark:bg-[#1a1a1a] text-xs font-mono font-bold">
+                      <span className="px-2 py-0.5 rounded-full bg-[#f3f3f3] dark:bg-[#2a2a2a] text-xs font-mono font-bold text-[#767676] dark:text-zinc-400">
                         {item.count}
                       </span>
                     )}
@@ -1327,7 +1327,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   <span className="text-[#767676]">Active filter:</span>
                   <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#e60023]/10 border border-[#e60023]/20 text-[#e60023] rounded-full font-bold">
                     <span className="capitalize">{activeFilter}</span>
-                    <button onClick={() => setActiveFilter(null)} className="font-extrabold hover:text-white cursor-pointer leading-none">×</button>
+                    <button onClick={() => setActiveFilter(null)} className="font-extrabold hover:text-white cursor-pointer leading-none">Ã—</button>
                   </span>
                 </div>
               )}
@@ -1371,19 +1371,19 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                               const isSkipped = status.follow_skipped;
                               const isMutual = status.followed && !status.unfollowed && status.follow_back;
                               
-                              let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+                              let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400";
                               let badgeLabel = "Pending";
                               if (isFollowed) {
-                                badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-955/20 dark:text-blue-400";
+                                badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/20 dark:text-blue-400";
                                 badgeLabel = "Followed";
                               } else if (isMutual) {
-                                badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-955/20 dark:text-emerald-400";
+                                badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400";
                                 badgeLabel = "Mutual Follow";
                               } else if (isUnfollowed) {
-                                badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-955/20 dark:text-rose-455";
+                                badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400";
                                 badgeLabel = "Unfollowed";
                               } else if (isSkipped) {
-                                badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
+                                badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400";
                                 badgeLabel = "Skipped";
                               }
                               return (
@@ -1402,7 +1402,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         </div>
 
                         {topProfile.repos[0]?.readme_snippet && (
-                          <p className="text-xs font-sans text-[#767676] dark:text-zinc-450 line-clamp-3 leading-relaxed mt-2">
+                          <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed mt-2">
                             {cleanSnippet(topProfile.repos[0].readme_snippet)}
                           </p>
                         )}
@@ -1429,7 +1429,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Featured Repository</span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-955/20 dark:text-amber-400 font-mono text-[9px] font-bold flex items-center gap-1">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 font-mono text-[9px] font-bold flex items-center gap-1">
                           <Star className="h-3 w-3 fill-current" /> {topRepo.stars}
                         </span>
                       </div>
@@ -1440,14 +1440,14 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       </div>
 
                       {topRepo.readme_snippet && (
-                        <p className="text-xs font-sans text-[#767676] dark:text-zinc-450 line-clamp-3 leading-relaxed">
+                        <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed">
                           {cleanSnippet(topRepo.readme_snippet)}
                         </p>
                       )}
 
                       <div className="flex flex-wrap gap-1.5">
                         {topRepo.topics && topRepo.topics.slice(0, 3).map(topic => (
-                          <span key={topic} className="px-2 py-0.5 bg-[#f3f3f3] dark:bg-[#222] text-[#767676] dark:text-zinc-450 rounded-full font-mono text-[9px] font-bold">
+                          <span key={topic} className="px-2 py-0.5 bg-[#f3f3f3] dark:bg-[#222] text-[#767676] dark:text-zinc-400 rounded-full font-mono text-[9px] font-bold">
                             #{topic}
                           </span>
                         ))}
@@ -1472,7 +1472,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-bold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0]">Recent Logs</h3>
-                      <span className="text-zinc-400 font-bold">•••</span>
+                      <span className="text-zinc-400 font-bold">â€¢â€¢â€¢</span>
                     </div>
 
                     <div className="space-y-3 font-sans text-xs min-h-[160px]">
@@ -1553,13 +1553,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     </div>
 
                     {/* Speech-bubble block styling */}
-                    <div className="relative p-4 rounded-2xl bg-rose-50 border border-rose-100 dark:bg-rose-955/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-455 font-sans text-xs leading-relaxed">
-                      <div className="absolute top-[-6px] left-6 w-3 h-3 bg-rose-50 border-t border-l border-rose-100 dark:bg-[#281116] dark:border-rose-900/30 transform rotate-45" />
+                    <div className="relative p-4 rounded-2xl bg-rose-50 border border-rose-100 dark:bg-rose-950/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 font-sans text-xs leading-relaxed">
+                      <div className="absolute top-[-6px] left-6 w-3 h-3 bg-rose-50 border-t border-l border-rose-100 dark:bg-rose-950 dark:border-rose-900/30 transform rotate-45" />
                       "{narration}"
                     </div>
 
                     <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676]">
-                      <span className="h-2 w-2 rounded-full bg-emerald-555 bg-emerald-500 animate-pulse" />
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 bg-emerald-500 animate-pulse" />
                       <span>GitAuto Agent Alpha</span>
                     </div>
                   </div>
@@ -1630,7 +1630,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         </div>
 
                         {repo.readme_snippet && (
-                          <p className="text-xs font-sans text-[#767676] dark:text-zinc-450 line-clamp-3 leading-relaxed">
+                          <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed">
                             {cleanSnippet(repo.readme_snippet).split('\n').filter(line => line.trim() !== '')[0] || 'No readme description.'}
                           </p>
                         )}
@@ -1648,8 +1648,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                           </div>
                           
                           <div className="flex gap-1.5 font-mono text-[9px] font-bold shrink-0">
-                            {repo.starred && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-955/20 dark:text-amber-450">Starred</span>}
-                            {repo.followed && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-[#0058bb] border border-blue-200 dark:bg-blue-955/20 dark:text-blue-450">Followed</span>}
+                            {repo.starred && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400">Starred</span>}
+                            {repo.followed && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-[#0058bb] border border-blue-200 dark:bg-blue-950/20 dark:text-blue-400">Followed</span>}
                           </div>
                         </div>
 
@@ -1657,7 +1657,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                           {repo.starred ? (
                             <button 
                               onClick={() => handleUnstar(repo.owner, repo.name)}
-                              className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-955/10 text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
+                              className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
                             >
                               Unstar
                             </button>
@@ -1923,7 +1923,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           </div>
 
           <footer className="mt-auto border-t border-[#dadada] dark:border-[#2a2a2a] py-6 text-center text-[10px] font-mono text-[#767676] bg-white dark:bg-[#111111] transition-colors duration-200">
-            <p>FollowMe Dashboard — Verified evaluation runs logged in real time</p>
+            <p>FollowMe Dashboard â€” Verified evaluation runs logged in real time</p>
           </footer>
         </main>
       </div>
@@ -1993,7 +1993,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
                     <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
                       <div>
-                        <h4 className="font-bold text-[#0058bb] dark:text-blue-450">3. Log Cleanup</h4>
+                        <h4 className="font-bold text-[#0058bb] dark:text-blue-400">3. Log Cleanup</h4>
                         <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
                           Purges old logs history to save database storage, keeping the latest 200 logs.
                         </p>
@@ -2101,8 +2101,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     </button>
                   </div>
 
-                  <div className="p-4 bg-blue-50 dark:bg-blue-955/20 border border-blue-200 dark:border-blue-900/30 rounded-xl text-[#0058bb] dark:text-blue-450 font-sans">
-                    <p className="font-bold text-xs">⚠️ PURGING HISTORICAL ACTION LOGS</p>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-xl text-[#0058bb] dark:text-blue-400 font-sans">
+                    <p className="font-bold text-xs">âš ï¸ PURGING HISTORICAL ACTION LOGS</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
                       This action will delete all old worker logs except for the latest 200 entries. It will not alter repository evaluation scores or follower details.
                     </p>
@@ -2137,8 +2137,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     </button>
                   </div>
 
-                  <div className="p-4 bg-orange-50 dark:bg-orange-955/10 border border-orange-200 dark:border-orange-900/30 rounded-xl text-orange-600 dark:text-orange-400 font-sans">
-                    <p className="font-bold text-xs">⚠️ STALE PROFILE DATA REMOVAL</p>
+                  <div className="p-4 bg-orange-50 dark:bg-orange-950/10 border border-orange-200 dark:border-orange-900/30 rounded-xl text-orange-600 dark:text-orange-400 font-sans">
+                    <p className="font-bold text-xs">âš ï¸ STALE PROFILE DATA REMOVAL</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
                       Deletes profiles from the database that were evaluated and skipped, but never starred or followed. Freeing up unnecessary metadata storage.
                     </p>
@@ -2210,3 +2210,5 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     </div>
   );
 }
+
+
