@@ -8,6 +8,7 @@ Automated GitHub repo discovery, NVIDIA NIM LLM grading, and auto follow/star to
 ![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM-76B900?logo=nvidia&logoColor=white)
 ![Render](https://img.shields.io/badge/Worker-Render-46E3B7?logo=render&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Dashboard-Vercel-black?logo=vercel&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-Scheduler-2088FF?logo=github-actions&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## Dashboard
