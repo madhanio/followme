@@ -1575,19 +1575,113 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         
         {/* HAMBURGER TOP BAR FOR MOBILE */}
         <div className="h-14 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] md:hidden flex items-center justify-between px-4 z-30 shrink-0">
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 border border-[#dadada] dark:border-[#2a2a2a] bg-white dark:bg-[#111111] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-lg transition-all cursor-pointer"
+          >
+            {isSidebarOpen ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}
+          </button>
+
           <div 
             onClick={() => setActiveTab('home')}
-            className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90"
+            className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90 absolute left-1/2 -translate-x-1/2"
           >
             <div className="h-7 w-7 rounded-lg bg-[#e60023] flex items-center justify-center text-white font-bold text-sm font-jakarta">F</div>
             <span className="font-bold tracking-tight font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] text-sm">FollowMe</span>
           </div>
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 border border-[#dadada] dark:border-[#2a2a2a] bg-white dark:bg-[#111111] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-lg transition-all"
-          >
-            {isSidebarOpen ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}
-          </button>
+
+          <div className="relative" ref={profileMenuRef}>
+            <button
+              onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+              className="h-9 w-9 rounded-full border-2 border-red-500/60 p-0.5 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
+              title="Profile Menu"
+            >
+              <img
+                src="https://github.com/madhanio.png"
+                alt="Madhan"
+                className="h-full w-full rounded-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                }}
+              />
+            </button>
+
+            {isProfileMenuOpen && (
+              <div 
+                className="absolute right-0 mt-3 w-60 bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl shadow-2xl p-4 z-50 space-y-3 font-sans animate-in fade-in zoom-in-95"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
+                  <img
+                    src="https://github.com/madhanio.png"
+                    alt="Madhan Profile"
+                    className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                    }}
+                  />
+                  <div>
+                    <h4 className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">Madhan</h4>
+                    <span className="text-[10px] font-mono text-zinc-400">@madhanio</span>
+                  </div>
+                </div>
+
+                {/* Body options */}
+                <div className="space-y-1 font-geist text-xs">
+                  <button 
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setIsSettingsOpen(true);
+                      setTempSettings(savedSettings);
+                    }}
+                    className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-[#f3f3f3] dark:hover:bg-[#1c1c1f] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] cursor-pointer transition text-left font-bold"
+                  >
+                    <Settings className="h-4.5 w-4.5 text-zinc-450" />
+                    <span>Dashboard Settings</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setIsSecurityModalOpen(true);
+                      setCurrentSecKey('');
+                      setNewSecKey('');
+                      setConfirmSecKey('');
+                      setSecKeyError(null);
+                      setSecKeySuccess(null);
+                    }}
+                    className="w-full flex flex-row items-center space-x-2.5 px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-[#f3f3f3] dark:hover:bg-[#1c1c1f] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] cursor-pointer transition text-left font-bold"
+                  >
+                    <Lock className="h-4.5 w-4.5 text-zinc-450" />
+                    <span>Security & Access Key</span>
+                  </button>
+                  <button 
+                    onClick={toggleDarkMode}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-[#f3f3f3] dark:hover:bg-[#1c1c1f] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] cursor-pointer transition text-left font-bold"
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      {isDark ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-indigo-400" />}
+                      <span>Theme Mode</span>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Footer sign out */}
+                <div className="pt-2.5 border-t border-[#eeeeee] dark:border-[#2a2a2a] flex justify-end">
+                  <button 
+                    onClick={async () => {
+                      setIsProfileMenuOpen(false);
+                      document.cookie = "auth_key=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                      router.push('/login');
+                    }}
+                    className="px-4 py-1.5 bg-[#e60023] hover:bg-[#c0001b] text-white text-[10px] font-bold rounded-full transition cursor-pointer font-geist active:scale-95 shadow-xs"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* SIDE NAVIGATION */}
@@ -1661,9 +1755,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         <main className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
           
           {/* TOP APP BAR */}
-          <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-between px-6 shrink-0 z-20">
-            <div className="flex items-center space-x-4 flex-1 max-w-md">
-              {activeTab !== 'stats' && (
+          <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-center md:justify-between px-4 md:px-6 shrink-0 z-20">
+            <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden">
+              {activeTab !== 'stats' && activeTab !== 'home' && (
                 <div className="relative w-full">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <input 
@@ -1677,14 +1771,14 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               )}
             </div>
 
-            <div className="flex items-center space-x-2 font-geist relative">
+            <div className="flex items-center justify-center space-x-3 font-geist relative w-full md:w-auto flex-wrap">
               <button 
                 onClick={handleSync}
                 disabled={isSyncing || workerStatus?.isJobRunning}
-                className="min-h-[36px] px-3.5 flex items-center space-x-1.5 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
+                className="min-h-[36px] px-3.5 flex items-center space-x-1.5 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow active:scale-95"
                 title="Sync Repos"
               >
-                {isSyncing ? <RotateCw className="h-3.5 w-3.5 animate-spin text-[#e60023]" /> : <RotateCw className="h-3.5 w-3.5 text-[#e60023]" />}
+                {isSyncing ? <RotateCw className="h-3.5 w-3.5 animate-spin text-[#e60023] shrink-0" /> : <RotateCw className="h-3.5 w-3.5 text-[#e60023] shrink-0" />}
                 <span>Sync</span>
               </button>
 
@@ -1692,20 +1786,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               <button 
                 onClick={() => setIsCleanupOpen(true)}
                 disabled={workerStatus?.isJobRunning}
-                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
+                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow active:scale-95 shrink-0"
                 title="Cleanup Cache"
               >
-                <Trash2 className="h-4 w-4 text-blue-500" />
+                <Trash2 className="h-4 w-4 text-blue-500 shrink-0" />
               </button>
 
               {/* Icon-only Refresh Data */}
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing || isSyncing}
-                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
+                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow active:scale-95 shrink-0"
                 title="Refresh Data"
               >
-                <RotateCw className={`h-4 w-4 text-zinc-500 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RotateCw className={`h-4 w-4 text-zinc-500 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
 
               <button 
@@ -1713,12 +1807,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 disabled={isTriggering || workerStatus?.isJobRunning}
                 className="min-h-[36px] px-4 flex items-center space-x-1.5 bg-[#e60023] hover:bg-[#c0001b] disabled:bg-slate-350 text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-40"
               >
-                <Play className="h-3.5 w-3.5 fill-current" />
+                <Play className="h-3.5 w-3.5 fill-current shrink-0" />
                 <span>{isTriggering ? 'Running...' : 'Run Task'}</span>
               </button>
 
-              {/* Top-Right Profile Icon Avatar & Dropdown */}
-              <div className="relative ml-2" ref={profileMenuRef}>
+              {/* Top-Right Profile Icon Avatar & Dropdown - Hidden on Mobile */}
+              <div className="relative ml-2 md:block hidden" ref={profileMenuRef}>
 
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
@@ -3280,13 +3374,18 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       </div>
 
                       {/* Setup Guide */}
-                      <div className="p-3 bg-zinc-50 dark:bg-[#18181c] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl space-y-2 text-[10px] font-sans">
-                        <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] block">Webhook Setup Guide:</span>
-                        <ol className="list-decimal list-inside space-y-1 text-zinc-500 dark:text-zinc-400">
-                          <li>Host an API route that accepts <code className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 rounded">POST</code> requests.</li>
-                          <li>Verify incoming requests with the <code className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 rounded">X-FollowMe-Signature</code> header using your secret key.</li>
-                          <li>Receive payloads detailing agent execution steps, stars, follows, and performance charts.</li>
-                        </ol>
+                      <div className="p-3 bg-amber-50 dark:bg-[#1f1e18] border border-amber-250 dark:border-amber-900/40 rounded-xl space-y-2 text-[10px] font-sans">
+                        <span className="font-bold text-amber-850 dark:text-amber-400 block flex items-center gap-1">
+                          💡 Understanding Email Digests & Webhooks
+                        </span>
+                        <p className="text-zinc-650 dark:text-zinc-405 leading-normal">
+                          Because the FollowMe dashboard runs locally in your browser, it cannot send emails directly. To receive daily digests:
+                        </p>
+                        <ul className="list-disc list-inside space-y-1 text-zinc-500 dark:text-zinc-400 pl-1 leading-normal">
+                          <li>You must host a simple webhook receiver endpoint (e.g. on Vercel, Netlify, or your server).</li>
+                          <li>FollowMe automatically posts the execution payload to your configured URL below upon run completion.</li>
+                          <li>Your receiver endpoint must then call an email provider API (like Resend, SendGrid, or Mailgun) to dispatch the formatted summary to <span className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 rounded text-zinc-700 dark:text-zinc-300">{tempSettings.recipientEmail}</span>.</li>
+                        </ul>
                       </div>
 
                       {/* Webhook & Trigger Controls */}
