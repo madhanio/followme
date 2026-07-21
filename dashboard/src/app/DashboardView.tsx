@@ -80,7 +80,8 @@ import {
   Cpu,
   Mail,
   Palette,
-  Lock
+  Lock,
+  Send
 } from 'lucide-react';
 
 
@@ -506,7 +507,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       unfollowedProfiles: true,
       mutualFollows: true
     },
-    digestDeliveryTime: '09:00 AM'
+    digestDeliveryTime: '09:00 AM',
+    webhookUrl: 'https://api.followme.io/v1/webhook',
+    webhookSecret: 'fm_secret_key_prod_abc123'
   }), []);
 
   // Settings State: Saved Master vs Temp Draft
@@ -523,12 +526,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const [secKeySuccess, setSecKeySuccess] = useState<string | null>(null);
   const [isSecKeySubmitting, setIsSecKeySubmitting] = useState(false);
 
+  // Webhook integration & trigger states
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [webhookTestStatus, setWebhookTestStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [isTriggeringAgent, setIsTriggeringAgent] = useState(false);
+  const [agentTriggerStatus, setAgentTriggerStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+
   // UI Overlay States
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTabTransitioning, setIsTabTransitioning] = useState(false);
+  const [visibleProfilesCount, setVisibleProfilesCount] = useState(24);
+  const [visibleReposCount, setVisibleReposCount] = useState(24);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -541,6 +552,52 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  const handleTestWebhook = async () => {
+    setIsTestingWebhook(true);
+    setWebhookTestStatus(null);
+    try {
+      const response = await fetch('/api/test-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: tempSettings.webhookUrl,
+          secret: tempSettings.webhookSecret,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setWebhookTestStatus({ success: true, message: 'Webhook test ping dispatched successfully! Status: 200 OK' });
+      } else {
+        setWebhookTestStatus({ success: false, message: data.message || 'Webhook ping failed. Please verify the endpoint URL.' });
+      }
+    } catch (err: any) {
+      setWebhookTestStatus({ success: false, message: 'Network error: ' + (err.message || 'Failed to reach backend proxy.') });
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
+
+  const handleTriggerAgent = async () => {
+    setIsTriggeringAgent(true);
+    setAgentTriggerStatus(null);
+    try {
+      const response = await fetch('/api/trigger-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setAgentTriggerStatus({ success: true, message: 'GitAuto Agent execution triggered successfully!' });
+      } else {
+        setAgentTriggerStatus({ success: false, message: data.message || 'Failed to trigger agent workflow.' });
+      }
+    } catch (err: any) {
+      setAgentTriggerStatus({ success: false, message: 'Network error: ' + (err.message || 'Failed to initiate agent process.') });
+    } finally {
+      setIsTriggeringAgent(false);
+    }
+  };
 
   // Mouse Drag state for top repos carousel
   const repoCarouselRef = useRef<HTMLDivElement>(null);
@@ -1436,19 +1493,25 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
 
   const statusDistribution = useMemo(() => {
+    const acc = savedSettings.accentColor || '#e60023';
     return [
-      { name: 'Followed', value: stats.followed, color: '#cc0000' },
-      { name: 'Mutuals', value: stats.mutuals, color: '#e60023' },
-      { name: 'Unfollowed', value: stats.unfollowed, color: '#ff6b6b' },
-      { name: 'Skipped', value: stats.skipped, color: '#ffb3b3' },
-      { name: 'Starred', value: stats.starred, color: '#990012' }
+      { name: 'Followed', value: stats.followed, color: `color-mix(in srgb, ${acc} 80%, black)` },
+      { name: 'Mutuals', value: stats.mutuals, color: acc },
+      { name: 'Unfollowed', value: stats.unfollowed, color: `color-mix(in srgb, ${acc} 50%, white)` },
+      { name: 'Skipped', value: stats.skipped, color: `color-mix(in srgb, ${acc} 25%, white)` },
+      { name: 'Starred', value: stats.starred, color: `color-mix(in srgb, ${acc} 60%, black)` }
     ].filter(item => item.value > 0);
-  }, [stats]);
+  }, [stats, savedSettings.accentColor]);
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#f9f9f9] text-[#1a1c1c] dark:bg-[#0d0d0d] dark:text-[#f0f0f0] font-sans transition-colors duration-200 selection:bg-zinc-200 dark:selection:bg-zinc-800 antialiased">
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&family=Geist:wght@100..900&family=Inter:ital,wght@0,100..900;1,100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+        
+        :root {
+          --accent-color: ${savedSettings.accentColor || '#e60023'};
+          --accent-hover: ${savedSettings.accentColor === '#8b5cf6' ? '#7c3aed' : savedSettings.accentColor === '#10b981' ? '#059669' : savedSettings.accentColor === '#18181b' ? '#09090b' : '#c0001b'};
+        }
         
         .font-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
         .font-geist { font-family: 'Geist', sans-serif; }
@@ -1482,7 +1545,31 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           break-inside: avoid;
           margin-bottom: 1.5rem;
         }
-      `}</style>
+
+        /* Accent overrides "everywhere - no mercy" */
+        .text-\\[\\#e60023\\] { color: var(--accent-color) !important; }
+        .bg-\\[\\#e60023\\] { background-color: var(--accent-color) !important; }
+        .border-\\[\\#e60023\\] { border-color: var(--accent-color) !important; }
+        .hover\\:bg-\\[\\#c0001b\\]:hover { background-color: var(--accent-hover) !important; }
+        .text-red-500 { color: var(--accent-color) !important; }
+        .text-red-600 { color: var(--accent-color) !important; }
+        .bg-red-500 { background-color: var(--accent-color) !important; }
+        .bg-red-650 { background-color: var(--accent-color) !important; }
+        .bg-red-600 { background-color: var(--accent-color) !important; }
+        .border-red-500 { border-color: var(--accent-color) !important; }
+        .border-red-600 { border-color: var(--accent-color) !important; }
+        .text-rose-700 { color: var(--accent-color) !important; }
+        .bg-rose-50 { background-color: color-mix(in srgb, var(--accent-color) 8%, transparent) !important; }
+        .bg-red-500\\/10 { background-color: color-mix(in srgb, var(--accent-color) 10%, transparent) !important; }
+        .border-red-500\\/20 { border-color: color-mix(in srgb, var(--accent-color) 20%, transparent) !important; }
+        .border-\\[\\#e60023\\]\\/30 { border-color: color-mix(in srgb, var(--accent-color) 30%, transparent) !important; }
+        .focus\\:border-\\[\\#e60023\\]:focus { border-color: var(--accent-color) !important; }
+        .focus\\:ring-\\[\\#e60023\\]:focus { --tw-ring-color: var(--accent-color) !important; }
+        ::selection {
+          background-color: var(--accent-color) !important;
+          color: white !important;
+        }
+      ` }} />
 
       <div className="flex flex-1 flex-col md:flex-row relative">
         
@@ -2113,129 +2200,152 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
                 </div>
               )}
-
               {/* 1. PROFILES TAB */}
-              {activeTab === 'profiles' && (
-                <div className="masonry-grid">
-                  {isRefreshing ? (
-                    [1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
-                  ) : filteredProfiles.length === 0 ? (
-                    <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl text-center text-xs font-mono text-[#767676] space-y-3">
-                      <Lottie animationData={mainCharacter} loop={true} className="w-32 h-32 opacity-80" />
-                      <p>No profiles found matching search query/filters.</p>
-                    </div>
-                  ) : (
-                    filteredProfiles.map(profile => (
-                      <div key={profile.owner} className="masonry-item">
-                        <ProfileCard
-                          profile={profile}
-                          onFollow={handleFollowUser}
-                          onUnfollow={handleUnfollowUser}
-                          onDelete={handleDeleteProfile}
-                          isActionLoading={isActionLoading}
-                          setActiveTab={setActiveTab}
-                          setSearchTerm={setSearchTerm}
-                        />
+              {!isTabTransitioning && activeTab === 'profiles' && (
+                <div className="space-y-6">
+                  <div className="masonry-grid">
+                    {isRefreshing ? (
+                      [1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
+                    ) : filteredProfiles.length === 0 ? (
+                      <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl text-center text-xs font-mono text-[#767676] space-y-3">
+                        <Lottie animationData={mainCharacter} loop={true} className="w-32 h-32 opacity-80" />
+                        <p>No profiles found matching search query/filters.</p>
                       </div>
-                    ))
+                    ) : (
+                      filteredProfiles.slice(0, visibleProfilesCount).map(profile => (
+                        <div key={profile.owner} className="masonry-item">
+                          <ProfileCard
+                            profile={profile}
+                            onFollow={handleFollowUser}
+                            onUnfollow={handleUnfollowUser}
+                            onDelete={handleDeleteProfile}
+                            isActionLoading={isActionLoading}
+                            setActiveTab={setActiveTab}
+                            setSearchTerm={setSearchTerm}
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {filteredProfiles.length > visibleProfilesCount && (
+                    <div className="flex justify-center pt-4">
+                      <button
+                        onClick={() => setVisibleProfilesCount(prev => prev + 24)}
+                        className="px-6 py-2.5 bg-white dark:bg-[#111111] hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-[#dadada] dark:border-[#2a2a2a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full transition-all cursor-pointer shadow-xs active:scale-95"
+                      >
+                        Load More Profiles
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
 
               {/* 2. REPOS TAB */}
-              {activeTab === 'repos' && (
-                <div className="masonry-grid">
-                  {isRefreshing ? (
-                    [1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
-                  ) : filteredRepos.length === 0 ? (
-                    <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl text-center text-xs font-mono text-[#767676] space-y-3">
-                      <Lottie animationData={mainCharacter} loop={true} className="w-32 h-32 opacity-80" />
-                      <p>No repositories found matching search query/filters.</p>
-                    </div>
-                  ) : (
-                    filteredRepos.map(repo => (
-                      <div 
-                        key={repo.id}
-                        className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-xl p-6 transition-all duration-350 flex flex-col justify-between space-y-4"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3.5 min-w-0">
-                            <img 
-                              src={`https://github.com/${repo.owner}.png`} 
-                              alt={repo.owner} 
-                              className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] object-cover bg-zinc-50 dark:bg-zinc-900"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = `https://unavatar.io/github/${repo.owner}`;
-                              }}
-                            />
-                            <div className="truncate">
-                              <span className="text-[10px] font-bold text-[#767676] font-geist block leading-none mb-1">@{repo.owner}</span>
-                              <h3 className="text-xl font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate">{repo.name}</h3>
+              {!isTabTransitioning && activeTab === 'repos' && (
+                <div className="space-y-6">
+                  <div className="masonry-grid">
+                    {isRefreshing ? (
+                      [1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
+                    ) : filteredRepos.length === 0 ? (
+                      <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl text-center text-xs font-mono text-[#767676] space-y-3">
+                        <Lottie animationData={mainCharacter} loop={true} className="w-32 h-32 opacity-80" />
+                        <p>No repositories found matching search query/filters.</p>
+                      </div>
+                    ) : (
+                      filteredRepos.slice(0, visibleReposCount).map(repo => (
+                        <div 
+                          key={repo.id}
+                          className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-xl p-6 transition-all duration-350 flex flex-col justify-between space-y-4"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-3.5 min-w-0">
+                              <img 
+                                src={`https://github.com/${repo.owner}.png`} 
+                                alt={repo.owner} 
+                                className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] object-cover bg-zinc-50 dark:bg-zinc-900"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = `https://unavatar.io/github/${repo.owner}`;
+                                }}
+                              />
+                              <div className="truncate">
+                                <span className="text-[10px] font-bold text-[#767676] font-geist block leading-none mb-1">@{repo.owner}</span>
+                                <h3 className="text-xl font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate">{repo.name}</h3>
+                              </div>
                             </div>
-                          </div>
-                          <span className={getGradeColor(repo.grade)}>
-                            {repo.grade.toFixed(1)}/10
-                          </span>
-                        </div>
-
-                        {repo.readme_snippet && (
-                          <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed">
-                            {cleanSnippet(repo.readme_snippet) || 'No readme description.'}
-                          </p>
-                        )}
-
-                        <div className="flex items-center justify-between pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a] text-xs">
-                          <div className="flex items-center space-x-3 font-mono text-[10px] text-[#767676]">
-                            <span className="flex items-center gap-1.5">
-                              <span className="h-2.5 w-2.5 rounded-full bg-[#e60023]" />
-                              {repo.language || 'Unknown'}
-                            </span>
-                            <span className="flex items-center gap-1 font-semibold text-amber-500">
-                              <Star className="h-3 w-3 fill-current" />
-                              {repo.stars}
+                            <span className={getGradeColor(repo.grade)}>
+                              {repo.grade.toFixed(1)}/10
                             </span>
                           </div>
-                          
-                          <div className="flex gap-1.5 font-mono text-[9px] font-bold shrink-0">
-                            {repo.starred && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400">Starred</span>}
-                            {repo.followed && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-[#0058bb] border border-blue-200 dark:bg-blue-950/20 dark:text-blue-400">Followed</span>}
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 pt-2">
-                          {repo.starred ? (
-                            <button 
-                              onClick={() => handleUnstar(repo.owner, repo.name)}
-                              className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
-                            >
-                              Unstar
-                            </button>
-                          ) : (
-                            <button 
-                              onClick={() => handleStar(repo.owner, repo.name)}
-                              className="flex-1 min-h-[34px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
-                            >
-                              Star
-                            </button>
-                          )}
 
                           {repo.readme_snippet && (
-                            <button 
-                              onClick={() => setSelectedRepo(repo)}
-                              className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
-                            >
-                              Readme
-                            </button>
+                            <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed">
+                              {cleanSnippet(repo.readme_snippet) || 'No readme description.'}
+                            </p>
                           )}
+
+                          <div className="flex items-center justify-between pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a] text-xs">
+                            <div className="flex items-center space-x-3 font-mono text-[10px] text-[#767676]">
+                              <span className="flex items-center gap-1.5">
+                                <span className="h-2.5 w-2.5 rounded-full bg-[#e60023]" />
+                                {repo.language || 'Unknown'}
+                              </span>
+                              <span className="flex items-center gap-1 font-semibold text-amber-500">
+                                <Star className="h-3 w-3 fill-current" />
+                                {repo.stars}
+                              </span>
+                            </div>
+                            
+                            <div className="flex gap-1.5 font-mono text-[9px] font-bold shrink-0">
+                              {repo.starred && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400">Starred</span>}
+                              {repo.followed && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-[#0058bb] border border-blue-200 dark:bg-blue-950/20 dark:text-blue-400">Followed</span>}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                            {repo.starred ? (
+                              <button 
+                                onClick={() => handleUnstar(repo.owner, repo.name)}
+                                className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
+                              >
+                                Unstar
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => handleStar(repo.owner, repo.name)}
+                                className="flex-1 min-h-[34px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
+                              >
+                                Star
+                              </button>
+                            )}
+
+                            {repo.readme_snippet && (
+                              <button 
+                                onClick={() => setSelectedRepo(repo)}
+                                className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
+                              >
+                                Readme
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      ))
+                    )}
+                  </div>
+                  {filteredRepos.length > visibleReposCount && (
+                    <div className="flex justify-center pt-4">
+                      <button
+                        onClick={() => setVisibleReposCount(prev => prev + 24)}
+                        className="px-6 py-2.5 bg-white dark:bg-[#111111] hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-[#dadada] dark:border-[#2a2a2a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full transition-all cursor-pointer shadow-xs active:scale-95"
+                      >
+                        Load More Repositories
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
 
               {/* 3. LOGS TAB */}
-              {activeTab === 'logs' && (
+              {!isTabTransitioning && activeTab === 'logs' && (
                 <div className="space-y-4">
                   {/* Type Filter pills */}
                   <div className="flex flex-wrap gap-2">
@@ -2392,7 +2502,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 </div>
               )}
 
-              {activeTab === 'stats' && mounted && (
+              {!isTabTransitioning && activeTab === 'stats' && mounted && (
                 <div className="space-y-8 animate-startup-card">
                   {/* Date toggle & Data Export toolbar */}
                   <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between flex-wrap gap-4 aura-shadow">
@@ -2478,9 +2588,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
                             <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
                             <Legend wrapperStyle={{ fontFamily: 'Geist', fontSize: 11 }} />
-                            <Line type="monotone" dataKey="follows" stroke="#e60023" name="Follows" strokeWidth={2.5} dot={{ r: 3 }} />
-                            <Line type="monotone" dataKey="unfollows" stroke="#ff6b6b" name="Unfollows" strokeWidth={2.5} dot={{ r: 3 }} />
-                            <Line type="monotone" dataKey="evaluations" stroke="#cc0000" name="Evaluations" strokeWidth={2} strokeDasharray="5 5" />
+                            <Line type="monotone" dataKey="follows" stroke={savedSettings.accentColor || '#e60023'} name="Follows" strokeWidth={2.5} dot={{ r: 3 }} />
+                            <Line type="monotone" dataKey="unfollows" stroke={`color-mix(in srgb, ${savedSettings.accentColor || '#e60023'} 50%, white)`} name="Unfollows" strokeWidth={2.5} dot={{ r: 3 }} />
+                            <Line type="monotone" dataKey="evaluations" stroke={`color-mix(in srgb, ${savedSettings.accentColor || '#e60023'} 80%, black)`} name="Evaluations" strokeWidth={2} strokeDasharray="5 5" />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
@@ -2550,8 +2660,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                           <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
                           <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
                           <Legend wrapperStyle={{ fontFamily: 'Geist', fontSize: 11 }} />
-                          <Bar dataKey="follows" fill="#e60023" name="Follow Actions" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="unfollows" fill="#ff6b6b" name="Unfollow Actions" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="follows" fill={savedSettings.accentColor || '#e60023'} name="Follow Actions" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="unfollows" fill={`color-mix(in srgb, ${savedSettings.accentColor || '#e60023'} 50%, white)`} name="Unfollow Actions" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -3145,12 +3255,101 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         />
                       </div>
 
-                      <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-600 dark:text-amber-400 font-mono text-[10px] space-y-1">
-                        <span className="font-bold block">⚠️ Webhook Setup Required</span>
-                        <p className="text-zinc-400 text-[10px] font-sans">
-                          No active webhook endpoint detected. Configure an SMTP server or webhook integration to dispatch digest emails.
-                        </p>
+                      <div className="border-t border-[#eeeeee] dark:border-[#2a2a2a] pt-3 space-y-3">
+                        <div>
+                          <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Webhook Endpoint URL</label>
+                          <input
+                            type="text"
+                            value={tempSettings.webhookUrl || ''}
+                            onChange={(e) => setTempSettings({ ...tempSettings, webhookUrl: e.target.value })}
+                            className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                            placeholder="e.g. https://api.yoursite.com/webhook"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Webhook Secret Key</label>
+                          <input
+                            type="password"
+                            value={tempSettings.webhookSecret || ''}
+                            onChange={(e) => setTempSettings({ ...tempSettings, webhookSecret: e.target.value })}
+                            className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                            placeholder="••••••••••••••••"
+                          />
+                        </div>
                       </div>
+
+                      {/* Setup Guide */}
+                      <div className="p-3 bg-zinc-50 dark:bg-[#18181c] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl space-y-2 text-[10px] font-sans">
+                        <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] block">Webhook Setup Guide:</span>
+                        <ol className="list-decimal list-inside space-y-1 text-zinc-500 dark:text-zinc-400">
+                          <li>Host an API route that accepts <code className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 rounded">POST</code> requests.</li>
+                          <li>Verify incoming requests with the <code className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 rounded">X-FollowMe-Signature</code> header using your secret key.</li>
+                          <li>Receive payloads detailing agent execution steps, stars, follows, and performance charts.</li>
+                        </ol>
+                      </div>
+
+                      {/* Webhook & Trigger Controls */}
+                      <div className="flex gap-2.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleTestWebhook}
+                          disabled={isTestingWebhook}
+                          className="flex-1 py-2 border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] text-[10px] font-bold rounded-xl transition cursor-pointer font-geist flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                        >
+                          {isTestingWebhook ? (
+                            <>
+                              <span className="h-3 w-3 border-2 border-zinc-400 border-t-zinc-850 rounded-full animate-spin" />
+                              <span>Testing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-3 w-3 text-blue-500" />
+                              <span>Test Webhook</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleTriggerAgent}
+                          disabled={isTriggeringAgent}
+                          className="flex-1 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-[10px] font-bold rounded-xl transition cursor-pointer font-geist flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                        >
+                          {isTriggeringAgent ? (
+                            <>
+                              <span className="h-3 w-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              <span>Triggering...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-3 w-3 text-white fill-current" />
+                              <span>Run Agent Now</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Status banners */}
+                      {webhookTestStatus && (
+                        <div className={`p-2.5 rounded-xl border text-[10px] font-mono font-medium animate-in slide-in-from-top-2 ${
+                          webhookTestStatus.success 
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-455'
+                        }`}>
+                          {webhookTestStatus.message}
+                        </div>
+                      )}
+
+                      {agentTriggerStatus && (
+                        <div className={`p-2.5 rounded-xl border text-[10px] font-mono font-medium animate-in slide-in-from-top-2 ${
+                          agentTriggerStatus.success 
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-455'
+                        }`}>
+                          {agentTriggerStatus.message}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
