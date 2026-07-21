@@ -25,18 +25,21 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
+        // Keep isLoading active during client router navigation so spinner remains visible
+        setPassword('');
         router.push('/');
         router.refresh();
       } else {
         const data = await res.json();
         setError(data.error || 'Invalid credentials');
+        setIsLoading(false);
       }
     } catch (err: any) {
       setError('Connection failed. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
+
 
   return (
     <main className="min-h-screen bg-[#060608] text-white flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">

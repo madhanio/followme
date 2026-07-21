@@ -76,8 +76,13 @@ import {
   Key,
   Download,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Cpu,
+  Mail,
+  Palette,
+  Lock
 } from 'lucide-react';
+
 
 
 
@@ -481,31 +486,50 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'ALL'>('7D');
 
 
-  // UI state overlays & skeleton transitions
+  // Master Settings Default Values
+  const defaultSettings = useMemo(() => ({
+    cronFrequency: '6',
+    maxProfilesPerRun: 50,
+    activeWorkingHours: '09:00 - 22:00',
+    dailyFollowLimit: 30,
+    unfollowGracePeriod: 7,
+    autoUnfollowNonMutuals: true,
+    excludeOrgAccounts: true,
+    llmModel: 'Gemini 2.5 Flash',
+    systemPrompt: 'Focus heavily on README quality, code architecture, commit frequency, and active open-source contribution patterns.',
+    accentColor: '#e60023',
+    enableEmailDigest: false,
+    recipientEmail: 'madhan@example.com',
+    digestSummary: {
+      runSummary: true,
+      followedProfiles: true,
+      unfollowedProfiles: true,
+      mutualFollows: true
+    },
+    digestDeliveryTime: '09:00 AM'
+  }), []);
+
+  // Settings State: Saved Master vs Temp Draft
+  const [savedSettings, setSavedSettings] = useState(defaultSettings);
+  const [tempSettings, setTempSettings] = useState(defaultSettings);
+  const [settingsTab, setSettingsTab] = useState<'automation' | 'safety' | 'ai' | 'notifications'>('automation');
+
+  // Security Key Modal States
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [currentSecKey, setCurrentSecKey] = useState('');
+  const [newSecKey, setNewSecKey] = useState('');
+  const [confirmSecKey, setConfirmSecKey] = useState('');
+  const [secKeyError, setSecKeyError] = useState<string | null>(null);
+  const [secKeySuccess, setSecKeySuccess] = useState<string | null>(null);
+  const [isSecKeySubmitting, setIsSecKeySubmitting] = useState(false);
+
+  // UI Overlay States
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTabTransitioning, setIsTabTransitioning] = useState(false);
 
-  // Settings form states
-  const [evalMinStars, setEvalMinStars] = useState(10);
-  const [evalMinGrade, setEvalMinGrade] = useState(8.0);
-  const [evalLanguages, setEvalLanguages] = useState('TypeScript, Python, Rust, Go');
-  const [newSecurityKey, setNewSecurityKey] = useState('');
-  const [keySaveMsg, setKeySaveMsg] = useState<string | null>(null);
-
-  // Automation & Schedule Control states
-  const [cronFrequency, setCronFrequency] = useState('6');
-  const [maxProfilesPerRun, setMaxProfilesPerRun] = useState(50);
-  const [activeWorkingHours, setActiveWorkingHours] = useState('09:00 - 22:00');
-
-  // Follow / Unfollow Safety Limits states
-  const [dailyFollowLimit, setDailyFollowLimit] = useState(30);
-  const [unfollowGracePeriod, setUnfollowGracePeriod] = useState(7);
-  const [autoUnfollowNonMutuals, setAutoUnfollowNonMutuals] = useState(true);
-
-
-  // Profile Menu click outside listener
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -1092,12 +1116,51 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     document.body.removeChild(link);
   };
 
-  const handleSaveSecurityKey = () => {
-    if (!newSecurityKey.trim()) return;
-    setKeySaveMsg('Security key updated successfully.');
-    setTimeout(() => setKeySaveMsg(null), 3000);
-    setNewSecurityKey('');
+  const handleUpdateSecurityKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSecKeyError(null);
+    setSecKeySuccess(null);
+
+    if (!currentSecKey || !newSecKey || !confirmSecKey) {
+      setSecKeyError('Please fill in all security key fields.');
+      return;
+    }
+    if (newSecKey !== confirmSecKey) {
+      setSecKeyError('New security key and confirmation do not match.');
+      return;
+    }
+    if (newSecKey.length < 4) {
+      setSecKeyError('New security key must be at least 4 characters long.');
+      return;
+    }
+
+    setIsSecKeySubmitting(true);
+    try {
+      const res = await fetch('/api/auth/update-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentKey: currentSecKey, newKey: newSecKey })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSecKeySuccess('Security Key updated successfully!');
+        setCurrentSecKey('');
+        setNewSecKey('');
+        setConfirmSecKey('');
+        setTimeout(() => {
+          setSecKeySuccess(null);
+          setIsSecurityModalOpen(false);
+        }, 1500);
+      } else {
+        setSecKeyError(data.error || 'Current key verification failed.');
+      }
+    } catch (err: any) {
+      setSecKeyError('Failed to update security key. Check connection.');
+    } finally {
+      setIsSecKeySubmitting(false);
+    }
   };
+
 
 
   const handleRefresh = async () => {
@@ -1626,11 +1689,28 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         onClick={() => {
                           setIsProfileMenuOpen(false);
                           setIsSettingsOpen(true);
+                          setTempSettings(savedSettings);
                         }}
                         className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1e1e24] transition-all cursor-pointer"
                       >
                         <Settings className="h-4 w-4 text-blue-500" />
                         <span>Settings</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsSecurityModalOpen(true);
+                          setCurrentSecKey('');
+                          setNewSecKey('');
+                          setConfirmSecKey('');
+                          setSecKeyError(null);
+                          setSecKeySuccess(null);
+                        }}
+                        className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1e1e24] transition-all cursor-pointer"
+                      >
+                        <Lock className="h-4 w-4 text-emerald-500" />
+                        <span>Security Key</span>
                       </button>
 
                       <button
@@ -1651,6 +1731,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         <XCircle className="h-4 w-4" />
                         <span>Logout</span>
                       </button>
+
                     </div>
                   </div>
                 )}
@@ -2313,25 +2394,54 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
               {activeTab === 'stats' && mounted && (
                 <div className="space-y-8 animate-startup-card">
-                  {/* Date toggle */}
+                  {/* Date toggle & Data Export toolbar */}
                   <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between flex-wrap gap-4 aura-shadow">
-                    <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Plot Historical Ranges:</span>
-                    <div className="flex bg-[#eeeeee] dark:bg-[#1a1a1a] p-1 rounded-full text-xs font-bold font-geist">
-                      {(['TODAY', '7D', '30D', 'ALL'] as const).map(range => (
-                        <button 
-                          key={range}
-                          onClick={() => setTimeRange(range)}
-                          className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${
-                            timeRange === range 
-                              ? 'bg-[#e60023] text-white font-bold shadow-xs' 
-                              : 'text-[#767676] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
-                          }`}
-                        >
-                          {range === 'TODAY' ? 'Today' : range}
-                        </button>
-                      ))}
+                    <div className="flex items-center space-x-3 flex-wrap gap-2">
+                      <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Plot Historical Ranges:</span>
+                      <div className="flex bg-[#eeeeee] dark:bg-[#1a1a1a] p-1 rounded-full text-xs font-bold font-geist">
+                        {(['TODAY', '7D', '30D', 'ALL'] as const).map(range => (
+                          <button 
+                            key={range}
+                            onClick={() => setTimeRange(range)}
+                            className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${
+                              timeRange === range 
+                                ? 'bg-[#e60023] text-white font-bold shadow-xs' 
+                                : 'text-[#767676] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
+                            }`}
+                          >
+                            {range === 'TODAY' ? 'Today' : range}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Data Export & Backup Actions */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleExportCSV}
+                        className="px-3.5 py-1.5 border border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#1a1a1a] hover:bg-zinc-200 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full text-xs font-bold font-geist transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        title="Export CSV Report"
+                      >
+                        <Download className="h-3.5 w-3.5 text-[#e60023]" />
+                        <span>Export CSV</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allProfiles, null, 2));
+                          const dlAnchorElem = document.createElement('a');
+                          dlAnchorElem.setAttribute("href", jsonStr);
+                          dlAnchorElem.setAttribute("download", `followme_backup_${new Date().toISOString().split('T')[0]}.json`);
+                          dlAnchorElem.click();
+                        }}
+                        className="px-3.5 py-1.5 border border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#1a1a1a] hover:bg-zinc-200 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full text-xs font-bold font-geist transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        title="Export JSON Backup"
+                      >
+                        <Download className="h-3.5 w-3.5 text-blue-500" />
+                        <span>Export JSON</span>
+                      </button>
                     </div>
                   </div>
+
 
                   {/* 4-Stat Summary Row */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2739,10 +2849,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         </div>
       )}
 
-      {/* Settings Modal Overlay */}
+      {/* Settings Modal Overlay (Tabbed & Categorized) */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/80 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-lg rounded-3xl p-6 flex flex-col shadow-2xl space-y-5">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in"
+          onClick={() => {
+            setTempSettings(savedSettings);
+            setIsSettingsOpen(false);
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-xl rounded-3xl p-6 flex flex-col shadow-2xl space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className="h-9 w-9 rounded-xl bg-[#e60023]/10 border border-[#e60023]/30 flex items-center justify-center text-[#e60023]">
@@ -2750,217 +2870,431 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 </div>
                 <div>
                   <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">Dashboard Settings</h3>
-                  <span className="text-[10px] font-mono text-zinc-400">System Preferences & Agent Rules</span>
+                  <span className="text-[10px] font-mono text-zinc-400">System Preferences & Agent Tuning</span>
                 </div>
               </div>
               <button
-                onClick={() => setIsSettingsOpen(false)}
+                onClick={() => {
+                  setTempSettings(savedSettings);
+                  setIsSettingsOpen(false);
+                }}
+                className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 cursor-pointer transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Category Navigation Pills */}
+            <div className="flex bg-[#f3f3f3] dark:bg-[#1a1a1e] p-1 rounded-2xl text-xs font-bold font-geist overflow-x-auto gap-1">
+              {[
+                { id: 'automation', label: 'Automation', icon: Clock },
+                { id: 'safety', label: 'Safety', icon: ShieldCheck },
+                { id: 'ai', label: 'AI Tuning', icon: Cpu },
+                { id: 'notifications', label: 'Notifications', icon: Mail }
+              ].map(cat => {
+                const Icon = cat.icon;
+                const isActive = settingsTab === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSettingsTab(cat.id as any)}
+                    className={`flex-1 min-w-[100px] flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl transition-all cursor-pointer ${
+                      isActive 
+                        ? 'bg-white dark:bg-[#2a2a30] text-[#e60023] font-bold shadow-xs' 
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Category Tab Content */}
+            <div className="space-y-4 font-sans text-xs max-h-[55vh] overflow-y-auto pr-1">
+              
+              {/* TAB 1: AUTOMATION */}
+              {settingsTab === 'automation' && (
+                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3 animate-in fade-in">
+                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                    <Clock className="h-3.5 w-3.5 text-[#e60023]" /> Automation & Schedule Controls
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Execution Frequency</label>
+                        <select
+                          value={tempSettings.cronFrequency}
+                          onChange={(e) => setTempSettings({ ...tempSettings, cronFrequency: e.target.value })}
+                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                        >
+                          <option value="2">Every 2 Hours</option>
+                          <option value="4">Every 4 Hours</option>
+                          <option value="6">Every 6 Hours</option>
+                          <option value="12">Every 12 Hours</option>
+                          <option value="24">Every 24 Hours</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Max Profiles / Run</label>
+                        <input
+                          type="number"
+                          value={tempSettings.maxProfilesPerRun}
+                          onChange={(e) => setTempSettings({ ...tempSettings, maxProfilesPerRun: Number(e.target.value) })}
+                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Active Operating Window</label>
+                      <input
+                        type="text"
+                        value={tempSettings.activeWorkingHours}
+                        onChange={(e) => setTempSettings({ ...tempSettings, activeWorkingHours: e.target.value })}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                        placeholder="e.g. 09:00 - 22:00"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: SAFETY */}
+              {settingsTab === 'safety' && (
+                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3 animate-in fade-in">
+                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                    <ShieldCheck className="h-3.5 w-3.5 text-[#e60023]" /> Safety & Filtering Limits
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Daily Follow Cap</label>
+                        <input
+                          type="number"
+                          value={tempSettings.dailyFollowLimit}
+                          onChange={(e) => setTempSettings({ ...tempSettings, dailyFollowLimit: Number(e.target.value) })}
+                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Grace Period (Days)</label>
+                        <input
+                          type="number"
+                          value={tempSettings.unfollowGracePeriod}
+                          onChange={(e) => setTempSettings({ ...tempSettings, unfollowGracePeriod: Number(e.target.value) })}
+                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 pt-1 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+                      <label className="flex items-center space-x-2 cursor-pointer py-1">
+                        <input
+                          type="checkbox"
+                          checked={tempSettings.autoUnfollowNonMutuals}
+                          onChange={(e) => setTempSettings({ ...tempSettings, autoUnfollowNonMutuals: e.target.checked })}
+                          className="rounded border-[#dadada] dark:border-[#2a2a2a] text-[#e60023] focus:ring-[#e60023]"
+                        />
+                        <span className="text-xs font-medium text-[#1a1c1c] dark:text-[#f0f0f0]">
+                          Auto-unfollow non-mutual profiles after grace period
+                        </span>
+                      </label>
+
+                      <label className="flex items-center space-x-2 cursor-pointer py-1">
+                        <input
+                          type="checkbox"
+                          checked={tempSettings.excludeOrgAccounts}
+                          onChange={(e) => setTempSettings({ ...tempSettings, excludeOrgAccounts: e.target.checked })}
+                          className="rounded border-[#dadada] dark:border-[#2a2a2a] text-[#e60023] focus:ring-[#e60023]"
+                        />
+                        <span className="text-xs font-medium text-[#1a1c1c] dark:text-[#f0f0f0]">
+                          Exclude Organization & Company Accounts (Target individual devs only)
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: AI TUNING */}
+              {settingsTab === 'ai' && (
+                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3 animate-in fade-in">
+                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                    <Cpu className="h-3.5 w-3.5 text-[#e60023]" /> AI Model & Evaluation Prompt
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">LLM Model Selector</label>
+                      <select
+                        value={tempSettings.llmModel}
+                        onChange={(e) => setTempSettings({ ...tempSettings, llmModel: e.target.value })}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      >
+                        <option value="Gemini 2.5 Flash">Gemini 2.5 Flash (Ultra Fast & Efficient)</option>
+                        <option value="Gemini 1.5 Pro">Gemini 1.5 Pro (Deep Code Reasoning)</option>
+                        <option value="GPT-4o">GPT-4o (High Context Precision)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Custom System Prompt Overlay</label>
+                      <textarea
+                        rows={3}
+                        value={tempSettings.systemPrompt}
+                        onChange={(e) => setTempSettings({ ...tempSettings, systemPrompt: e.target.value })}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-3 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023] leading-relaxed resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1.5 flex items-center gap-1">
+                        <Palette className="h-3 w-3" /> Dashboard Accent Color Theme
+                      </label>
+                      <div className="flex gap-2">
+                        {[
+                          { name: 'Crimson Red', hex: '#e60023' },
+                          { name: 'Electric Violet', hex: '#8b5cf6' },
+                          { name: 'Emerald Green', hex: '#10b981' },
+                          { name: 'Dark Obsidian', hex: '#18181b' }
+                        ].map(c => (
+                          <button
+                            key={c.hex}
+                            onClick={() => setTempSettings({ ...tempSettings, accentColor: c.hex })}
+                            className={`flex-1 py-1.5 rounded-xl border text-[10px] font-mono font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                              tempSettings.accentColor === c.hex
+                                ? 'border-[#e60023] ring-1 ring-[#e60023] bg-zinc-100 dark:bg-zinc-800'
+                                : 'border-[#dadada] dark:border-[#2a2a2a]'
+                            }`}
+                          >
+                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.hex }} />
+                            <span>{c.name.split(' ')[0]}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: NOTIFICATIONS */}
+              {settingsTab === 'notifications' && (
+                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3 animate-in fade-in">
+                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                    <Mail className="h-3.5 w-3.5 text-[#e60023]" /> Email Digest & Webhook Alerts
+                  </h4>
+                  
+                  <label className="flex items-center space-x-2 cursor-pointer pb-2 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
+                    <input
+                      type="checkbox"
+                      checked={tempSettings.enableEmailDigest}
+                      onChange={(e) => setTempSettings({ ...tempSettings, enableEmailDigest: e.target.checked })}
+                      className="rounded border-[#dadada] dark:border-[#2a2a2a] text-[#e60023] focus:ring-[#e60023]"
+                    />
+                    <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">
+                      Enable Daily Automated Email Digest
+                    </span>
+                  </label>
+
+                  {tempSettings.enableEmailDigest && (
+                    <div className="space-y-3 pt-1 animate-in fade-in">
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Recipient Email Address</label>
+                        <input
+                          type="email"
+                          value={tempSettings.recipientEmail}
+                          onChange={(e) => setTempSettings({ ...tempSettings, recipientEmail: e.target.value })}
+                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                          placeholder="e.g. user@example.com"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1.5">Digest Content Specifications</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'runSummary', label: 'Run Summary' },
+                            { id: 'followedProfiles', label: 'Followed Profiles' },
+                            { id: 'unfollowedProfiles', label: 'Unfollowed Profiles' },
+                            { id: 'mutualFollows', label: 'Mutual Follow-backs' }
+                          ].map(opt => (
+                            <label key={opt.id} className="flex items-center space-x-2 cursor-pointer bg-white dark:bg-[#111111] p-2 rounded-xl border border-[#dadada] dark:border-[#2a2a2a]">
+                              <input
+                                type="checkbox"
+                                checked={(tempSettings.digestSummary as any)[opt.id]}
+                                onChange={(e) => setTempSettings({
+                                  ...tempSettings,
+                                  digestSummary: { ...tempSettings.digestSummary, [opt.id]: e.target.checked }
+                                })}
+                                className="rounded text-[#e60023] focus:ring-[#e60023]"
+                              />
+                              <span className="text-[11px] font-mono">{opt.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Delivery Time</label>
+                        <input
+                          type="text"
+                          value={tempSettings.digestDeliveryTime}
+                          onChange={(e) => setTempSettings({ ...tempSettings, digestDeliveryTime: e.target.value })}
+                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                          placeholder="e.g. 09:00 AM"
+                        />
+                      </div>
+
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-600 dark:text-amber-400 font-mono text-[10px] space-y-1">
+                        <span className="font-bold block">⚠️ Webhook Setup Required</span>
+                        <p className="text-zinc-400 text-[10px] font-sans">
+                          No active webhook endpoint detected. Configure an SMTP server or webhook integration to dispatch digest emails.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="pt-2 flex items-center justify-between border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+              <button
+                type="button"
+                onClick={() => setTempSettings(defaultSettings)}
+                className="px-4 py-2 border border-[#dadada] dark:border-[#2a2a2a] bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-bold rounded-full transition cursor-pointer font-geist"
+              >
+                Restore Defaults
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempSettings(savedSettings);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="px-4 py-2 border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-bold rounded-full transition cursor-pointer font-geist"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSavedSettings(tempSettings);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm"
+                >
+                  Save Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated Security Key Modal Overlay */}
+      {isSecurityModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in"
+          onClick={() => setIsSecurityModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-md rounded-3xl p-6 flex flex-col shadow-2xl space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="h-9 w-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500">
+                  <Lock className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">Security & Access Key</h3>
+                  <span className="text-[10px] font-mono text-zinc-400">Update Gateway Access Passcode</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSecurityModalOpen(false)}
                 className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-4 font-sans text-xs max-h-[65vh] overflow-y-auto pr-1">
-              {/* 1. Automation & Schedule Control */}
-              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3">
-                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                  <Clock className="h-3.5 w-3.5 text-[#e60023]" /> Automation & Schedule Control
-                </h4>
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Execution Frequency</label>
-                      <select
-                        value={cronFrequency}
-                        onChange={(e) => setCronFrequency(e.target.value)}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      >
-                        <option value="2">Every 2 Hours</option>
-                        <option value="4">Every 4 Hours</option>
-                        <option value="6">Every 6 Hours</option>
-                        <option value="12">Every 12 Hours</option>
-                        <option value="24">Every 24 Hours</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Max Profiles / Run</label>
-                      <input
-                        type="number"
-                        value={maxProfilesPerRun}
-                        onChange={(e) => setMaxProfilesPerRun(Number(e.target.value))}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Active Operating Window</label>
-                    <input
-                      type="text"
-                      value={activeWorkingHours}
-                      onChange={(e) => setActiveWorkingHours(e.target.value)}
-                      className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      placeholder="e.g. 09:00 - 22:00"
-                    />
-                  </div>
-                </div>
+            <form onSubmit={handleUpdateSecurityKey} className="space-y-4 font-sans text-xs">
+              <div>
+                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Current Security Key</label>
+                <input
+                  type="password"
+                  value={currentSecKey}
+                  onChange={(e) => setCurrentSecKey(e.target.value)}
+                  placeholder="Enter current passcode..."
+                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-emerald-500"
+                  required
+                />
               </div>
 
-              {/* 2. Follow / Unfollow Safety Limits */}
-              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3">
-                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#e60023]" /> Follow / Unfollow Safety Limits
-                </h4>
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Daily Follow Cap</label>
-                      <input
-                        type="number"
-                        value={dailyFollowLimit}
-                        onChange={(e) => setDailyFollowLimit(Number(e.target.value))}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Grace Period (Days)</label>
-                      <input
-                        type="number"
-                        value={unfollowGracePeriod}
-                        onChange={(e) => setUnfollowGracePeriod(Number(e.target.value))}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      />
-                    </div>
-                  </div>
-                  <label className="flex items-center space-x-2 pt-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={autoUnfollowNonMutuals}
-                      onChange={(e) => setAutoUnfollowNonMutuals(e.target.checked)}
-                      className="rounded border-[#dadada] dark:border-[#2a2a2a] text-[#e60023] focus:ring-[#e60023]"
-                    />
-                    <span className="text-[11px] font-medium text-[#1a1c1c] dark:text-[#f0f0f0] font-sans">
-                      Auto-unfollow non-mutual profiles after grace period expires
-                    </span>
-                  </label>
-                </div>
+              <div>
+                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">New Security Key</label>
+                <input
+                  type="password"
+                  value={newSecKey}
+                  onChange={(e) => setNewSecKey(e.target.value)}
+                  placeholder="Enter new passcode (min. 4 chars)..."
+                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-emerald-500"
+                  required
+                />
               </div>
 
-              {/* 3. Custom Evaluation Rules */}
-              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3">
-                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                  <Sliders className="h-3.5 w-3.5 text-[#e60023]" /> Custom Evaluation Rules
-                </h4>
-                <div className="space-y-2.5">
-                  <div>
-                    <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Target Language Priorities</label>
-                    <input
-                      type="text"
-                      value={evalLanguages}
-                      onChange={(e) => setEvalLanguages(e.target.value)}
-                      className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      placeholder="e.g. TypeScript, Python, Rust"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Min. Repo Stars</label>
-                      <input
-                        type="number"
-                        value={evalMinStars}
-                        onChange={(e) => setEvalMinStars(Number(e.target.value))}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Min. Score Grade (0-10)</label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        max="10"
-                        value={evalMinGrade}
-                        onChange={(e) => setEvalMinGrade(Number(e.target.value))}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      />
-                    </div>
-                  </div>
-                </div>
+              <div>
+                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Confirm New Security Key</label>
+                <input
+                  type="password"
+                  value={confirmSecKey}
+                  onChange={(e) => setConfirmSecKey(e.target.value)}
+                  placeholder="Confirm new passcode..."
+                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-emerald-500"
+                  required
+                />
               </div>
 
-
-              {/* 2. Change Password / Security Key */}
-              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-2.5">
-                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                  <Key className="h-3.5 w-3.5 text-[#e60023]" /> Security & Access Key
-                </h4>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-mono font-bold text-zinc-500 block">Change Dashboard Passcode</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      value={newSecurityKey}
-                      onChange={(e) => setNewSecurityKey(e.target.value)}
-                      placeholder="Enter new security key..."
-                      className="flex-1 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                    />
-                    <button
-                      onClick={handleSaveSecurityKey}
-                      className="px-4 py-1.5 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-xl transition cursor-pointer font-geist shrink-0"
-                    >
-                      Update Key
-                    </button>
-                  </div>
-                  {keySaveMsg && (
-                    <span className="text-[10px] font-mono text-emerald-500 block font-bold animate-pulse">{keySaveMsg}</span>
-                  )}
+              {secKeyError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 font-mono text-[11px] animate-shake">
+                  ⚠️ {secKeyError}
                 </div>
-              </div>
+              )}
 
-              {/* 3. Data Export & Backups */}
-              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-2.5">
-                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                  <Download className="h-3.5 w-3.5 text-[#e60023]" /> Data Export & Backup
-                </h4>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleExportCSV}
-                    className="flex-1 py-2 px-3 border border-[#dadada] dark:border-[#2a2a2a] bg-white dark:bg-[#111111] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-xl text-xs font-bold font-geist transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="h-3.5 w-3.5 text-[#e60023]" />
-                    Export CSV Report
-                  </button>
-                  <button
-                    onClick={() => {
-                      const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allProfiles, null, 2));
-                      const dlAnchorElem = document.createElement('a');
-                      dlAnchorElem.setAttribute("href", jsonStr);
-                      dlAnchorElem.setAttribute("download", `followme_backup_${new Date().toISOString().split('T')[0]}.json`);
-                      dlAnchorElem.click();
-                    }}
-                    className="flex-1 py-2 px-3 border border-[#dadada] dark:border-[#2a2a2a] bg-white dark:bg-[#111111] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-xl text-xs font-bold font-geist transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="h-3.5 w-3.5 text-blue-500" />
-                    Export JSON Backup
-                  </button>
+              {secKeySuccess && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-500 font-mono text-[11px] font-bold animate-pulse">
+                  ✓ {secKeySuccess}
                 </div>
-              </div>
-            </div>
+              )}
 
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setIsSettingsOpen(false)}
-                className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist"
-              >
-                Save Settings
-              </button>
-            </div>
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSecurityModalOpen(false)}
+                  className="px-4 py-2 border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-bold rounded-full transition cursor-pointer font-geist"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSecKeySubmitting}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm disabled:opacity-50"
+                >
+                  {isSecKeySubmitting ? 'Updating...' : 'Update Security Key'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
     </div>
   );
 }
+
 
 
 
