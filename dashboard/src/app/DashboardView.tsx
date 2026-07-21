@@ -469,14 +469,77 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   // Interactive filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'unstarred' | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>('home');
-  const [timeRange, setTimeRange] = useState<'7D' | '30D' | 'ALL'>('7D');
+  const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'ALL'>('7D');
+
+
+  // UI state overlays & skeleton transitions
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isTabTransitioning, setIsTabTransitioning] = useState(false);
+
+  // Mouse Drag state for top repos carousel
+  const repoCarouselRef = useRef<HTMLDivElement>(null);
+  const [isDraggingRepo, setIsDraggingRepo] = useState(false);
+  const [startXRepo, setStartXRepo] = useState(0);
+  const [scrollLeftRepo, setScrollLeftRepo] = useState(0);
+
+  // Mouse Drag state for nav bar
+  const navContainerRef = useRef<HTMLDivElement>(null);
+  const [isDraggingNav, setIsDraggingNav] = useState(false);
+  const [startXNav, setStartXNav] = useState(0);
+  const [scrollLeftNav, setScrollLeftNav] = useState(0);
+
+  const handleTabChange = (newTab: 'home' | 'profiles' | 'repos' | 'logs' | 'stats') => {
+    if (newTab === activeTab) return;
+    setIsTabTransitioning(true);
+    setActiveTab(newTab);
+    setActiveFilter(null);
+    setTimeout(() => {
+      setIsTabTransitioning(false);
+    }, 150);
+  };
+
+  const handleRepoMouseDown = (e: React.MouseEvent) => {
+    if (!repoCarouselRef.current) return;
+    setIsDraggingRepo(true);
+    setStartXRepo(e.pageX - repoCarouselRef.current.offsetLeft);
+    setScrollLeftRepo(repoCarouselRef.current.scrollLeft);
+  };
+  const handleRepoMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRepo || !repoCarouselRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - repoCarouselRef.current.offsetLeft;
+    const walk = (x - startXRepo) * 1.5;
+    repoCarouselRef.current.scrollLeft = scrollLeftRepo - walk;
+  };
+  const handleRepoMouseUpOrLeave = () => {
+    setIsDraggingRepo(false);
+  };
+
+  const handleNavMouseDown = (e: React.MouseEvent) => {
+    if (!navContainerRef.current) return;
+    setIsDraggingNav(true);
+    setStartXNav(e.pageX - navContainerRef.current.offsetLeft);
+    setScrollLeftNav(navContainerRef.current.scrollLeft);
+  };
+  const handleNavMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingNav || !navContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - navContainerRef.current.offsetLeft;
+    const walk = (x - startXNav) * 1.5;
+    navContainerRef.current.scrollLeft = scrollLeftNav - walk;
+  };
+  const handleNavMouseUpOrLeave = () => {
+    setIsDraggingNav(false);
+  };
 
   const [logTypeFilter, setLogTypeFilter] = useState<'ALL' | 'SUCCESS' | 'ERROR' | 'WARN' | 'INFO'>('ALL');
   const [relativeTick, setRelativeTick] = useState(0);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const [hoveredDonut, setHoveredDonut] = useState<{ name: string; value: number } | null>(null);
+
 
   // Auto-update relative times every 60 seconds
   useEffect(() => {
@@ -785,37 +848,17 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   }, [repos]);
 
   const last3Insights = useMemo(() => {
-    const insights: string[] = [];
-    const runs = runSummary.slice(0, 3);
-    
-    runs.forEach((run) => {
-      let dt = new Date(run.ran_at || Date.now());
-      let timeAgoStr = "some time ago";
-      const minutesAgo = Math.floor((Date.now() - dt.getTime()) / 60000);
-      if (minutesAgo < 60) {
-        timeAgoStr = `${minutesAgo}m ago`;
-      } else {
-        const hoursAgo = Math.floor(minutesAgo / 60);
-        timeAgoStr = `${hoursAgo}h ago`;
-      }
+    const latestRun = runSummary[0];
+    const lastRunFollowed = latestRun?.profiles_followed || 0;
+    const lastRunUnfollowed = latestRun?.profiles_unfollowed || 0;
 
-      let evaluatedCount = run.profiles_evaluated || 0;
-      let followedCount = run.profiles_followed || 0;
-      let unfollowedCount = run.profiles_unfollowed || 0;
-      
-      // Fallbacks
-      if (evaluatedCount === 0) evaluatedCount = followedCount + unfollowedCount + 5;
-      if (followedCount === 0) followedCount = 3;
-      if (unfollowedCount === 0) unfollowedCount = 2;
+    const msg1 = `Evaluated ${stats.total} total developer profiles, with ${stats.followed} high-graded developers targeted and followed.`;
+    const msg2 = `In the last run, followed ${lastRunFollowed} new developers and unfollowed ${lastRunUnfollowed} inactive profiles.`;
+    const msg3 = `System health status is ${workerStatus?.isJobRunning ? 'Active (Running Job)' : 'Healthy & Operational'}. Next run scheduled ${getFutureRelativeTime(workerStatus?.nextRun)}.`;
 
-      insights.push(`Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.total} graded profiles.`);
-    });
+    return [msg1, msg2, msg3];
+  }, [runSummary, stats.total, stats.followed, workerStatus]);
 
-    if (insights.length === 0) {
-      insights.push(narration);
-    }
-    return insights;
-  }, [runSummary, stats, narration]);
 
   // Auto-rotate Top Profile Spotlight every 4 seconds
   useEffect(() => {
@@ -880,7 +923,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         if (activeFilter === 'starred') {
           return repo.starred;
         }
+        if (activeFilter === 'unstarred') {
+          return !repo.starred;
+        }
         return true;
+
       })
       .sort((a, b) => new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime());
   }, [repos, searchTerm, activeFilter]);
@@ -979,6 +1026,14 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+    } catch (e) {}
+    router.push('/login');
+    router.refresh();
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -995,6 +1050,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       setIsRefreshing(false);
     }
   };
+
 
   const handleTrigger = async () => {
     setIsTriggering(true);
@@ -1122,13 +1178,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     return 'bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30';
   };
 
-  // Process historical data for Recharts based on timeRange (7D / 30D / ALL)
+  // Process historical data for Recharts based on timeRange (TODAY / 7D / 30D / ALL)
   const chartData = useMemo(() => {
     const dailyMap = new Map<string, { date: string; dateObj: Date; follows: number; unfollows: number; evaluations: number; totalGrade: number; gradeCount: number }>();
 
     const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     let cutoffDate = new Date();
-    if (timeRange === '7D') {
+    if (timeRange === 'TODAY') {
+      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (timeRange === '7D') {
       cutoffDate.setDate(now.getDate() - 7);
     } else if (timeRange === '30D') {
       cutoffDate.setDate(now.getDate() - 30);
@@ -1136,7 +1195,10 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       cutoffDate = new Date(0);
     }
 
-    if (timeRange !== 'ALL') {
+    if (timeRange === 'TODAY') {
+      const label = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      dailyMap.set(todayStr, { date: label, dateObj: now, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
+    } else if (timeRange !== 'ALL') {
       const daysToInclude = timeRange === '7D' ? 7 : 30;
       for (let i = daysToInclude - 1; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
@@ -1150,18 +1212,18 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       if (!run.ran_at) return;
       const runDateObj = new Date(run.ran_at);
       const runDateStr = run.ran_at.split('T')[0];
-      const isBackfill = run.run_type === 'backfill';
+      
+      if (timeRange === 'TODAY' && runDateStr !== todayStr) return;
+      if (timeRange !== 'TODAY' && timeRange !== 'ALL' && runDateObj.getTime() < cutoffDate.getTime()) return;
 
-      if (isBackfill || runDateObj.getTime() >= cutoffDate.getTime() || timeRange === 'ALL') {
-        if (!dailyMap.has(runDateStr)) {
-          const label = runDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          dailyMap.set(runDateStr, { date: label, dateObj: runDateObj, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
-        }
-        const dayData = dailyMap.get(runDateStr)!;
-        dayData.follows += (run.profiles_followed || 0);
-        dayData.unfollows += (run.profiles_unfollowed || 0);
-        dayData.evaluations += (run.profiles_evaluated || 0);
+      if (!dailyMap.has(runDateStr)) {
+        const label = runDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        dailyMap.set(runDateStr, { date: label, dateObj: runDateObj, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
       }
+      const dayData = dailyMap.get(runDateStr)!;
+      dayData.follows += (run.profiles_followed || 0);
+      dayData.unfollows += (run.profiles_unfollowed || 0);
+      dayData.evaluations += (run.profiles_evaluated || 0);
     });
 
     repos.forEach(repo => {
@@ -1201,6 +1263,29 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
     return finalResult;
   }, [runSummary, repos, timeRange]);
+
+  // Compute filtered totals for the Metrics tab cards based on current timeRange
+  const filteredSummary = useMemo(() => {
+    let evaluated = 0;
+    let followed = 0;
+    let unfollowed = 0;
+    let mutuals = 0;
+    chartData.forEach(item => {
+      evaluated += item.evaluations;
+      followed += item.follows;
+      unfollowed += item.unfollows;
+    });
+    // For mutuals, aggregate from runSummary matching chart dates
+    const chartKeys = new Set(chartData.map(c => c.key));
+    runSummary.forEach(r => {
+      if (r.ran_at && chartKeys.has(r.ran_at.split('T')[0])) {
+        mutuals += (r.mutuals_found || 0);
+      }
+    });
+    if (mutuals === 0 && stats.mutuals > 0) mutuals = stats.mutuals;
+    return { evaluated, followed, unfollowed, mutuals };
+  }, [chartData, runSummary, stats.mutuals]);
+
 
   const statusDistribution = useMemo(() => {
     return [
@@ -1291,10 +1376,10 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             <nav className="space-y-1 font-geist">
               {[
                 { tab: 'home', label: 'Explore', count: null, icon: Compass },
-                { tab: 'profiles', label: 'Developer Profiles', count: filteredProfiles.length, icon: Layers },
-                { tab: 'repos', label: 'Repository Pins', count: filteredRepos.length, icon: Star },
-                { tab: 'logs', label: 'Activity Logs', count: logs.length, icon: Terminal },
-                { tab: 'stats', label: 'Evaluation Metrics', count: null, icon: TrendingUp }
+                { tab: 'profiles', label: 'Profiles', count: filteredProfiles.length, icon: Layers },
+                { tab: 'repos', label: 'Repos', count: filteredRepos.length, icon: Star },
+                { tab: 'logs', label: 'Logs', count: logs.length, icon: Terminal },
+                { tab: 'stats', label: 'Metrics', count: null, icon: TrendingUp }
               ].map(item => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.tab;
@@ -1302,8 +1387,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   <button 
                     key={item.tab}
                     onClick={() => {
-                      setActiveTab(item.tab as any);
-                      setActiveFilter(null);
+                      handleTabChange(item.tab as any);
                       setIsSidebarOpen(false);
                     }}
                     className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
@@ -1325,6 +1409,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 );
               })}
             </nav>
+
           </div>
 
           {/* Sidebar Footer */}
@@ -1403,45 +1488,136 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               )}
             </div>
 
-            <div className="flex items-center space-x-2 font-geist">
+            <div className="flex items-center space-x-2 font-geist relative">
               <button 
                 onClick={handleSync}
                 disabled={isSyncing || workerStatus?.isJobRunning}
-                className="min-h-[36px] px-4 flex items-center space-x-2 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
+                className="min-h-[36px] px-3.5 flex items-center space-x-1.5 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
+                title="Sync Repos"
               >
                 {isSyncing ? <RotateCw className="h-3.5 w-3.5 animate-spin text-[#e60023]" /> : <RotateCw className="h-3.5 w-3.5 text-[#e60023]" />}
-                <span>Sync Repos</span>
+                <span>Sync</span>
               </button>
 
+              {/* Icon-only Cleanup Cache */}
               <button 
                 onClick={() => setIsCleanupOpen(true)}
                 disabled={workerStatus?.isJobRunning}
-                className="min-h-[36px] px-4 flex items-center space-x-2 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
+                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
+                title="Cleanup Cache"
               >
-                <Settings className="h-3.5 w-3.5 text-blue-500" />
-                <span>Cleanup Cache</span>
+                <Trash2 className="h-4 w-4 text-blue-500" />
               </button>
 
+              {/* Icon-only Refresh Data */}
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing || isSyncing}
-                className="min-h-[36px] px-4 flex items-center space-x-2 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
-                title="Refresh Cache"
+                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow"
+                title="Refresh Data"
               >
-                <RotateCw className={`h-3.5 w-3.5 text-zinc-500 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span>Refresh Data</span>
+                <RotateCw className={`h-4 w-4 text-zinc-500 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
 
               <button 
                 onClick={handleTrigger}
                 disabled={isTriggering || workerStatus?.isJobRunning}
-                className="min-h-[36px] px-5 flex items-center space-x-2 bg-[#e60023] hover:bg-[#c0001b] disabled:bg-slate-350 text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-40"
+                className="min-h-[36px] px-4 flex items-center space-x-1.5 bg-[#e60023] hover:bg-[#c0001b] disabled:bg-slate-350 text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-40"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
                 <span>{isTriggering ? 'Running...' : 'Run Task'}</span>
               </button>
+
+              {/* Top-Right Profile Icon Avatar & Dropdown */}
+              <div className="relative ml-2">
+                <button
+                  onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                  className="h-9 w-9 rounded-full border-2 border-red-500/60 p-0.5 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
+                  title="Profile Menu"
+                >
+                  <img
+                    src="https://github.com/madhanio.png"
+                    alt="Madhan"
+                    className="h-full w-full rounded-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                    }}
+                  />
+                </button>
+
+                {/* Profile Popup Dropdown */}
+                {isProfileMenuOpen && (
+                  <div 
+                    className="absolute right-0 mt-3 w-64 bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl shadow-2xl p-4 z-50 space-y-3 font-sans animate-in fade-in zoom-in-95"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
+                      <img
+                        src="https://github.com/madhanio.png"
+                        alt="Madhan Profile"
+                        className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">Madhan</h4>
+                        <span className="text-[10px] font-mono text-zinc-400 block truncate">@madhanio</span>
+                      </div>
+                    </div>
+
+                    {/* Agent Worker Status */}
+                    <div className="bg-[#f8f9fa] dark:bg-[#1a1a1e] rounded-xl p-2.5 text-[10px] font-mono space-y-1">
+                      <div className="flex items-center justify-between font-bold text-zinc-500">
+                        <span>Worker Status</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${workerStatus?.isJobRunning ? 'bg-amber-500/20 text-amber-500 animate-pulse' : 'bg-emerald-500/20 text-emerald-500'}`}>
+                          {workerStatus?.isJobRunning ? 'RUNNING' : 'ACTIVE'}
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-zinc-400 truncate">
+                        Schedule: Every 6 hours • Worker Online
+                      </div>
+                    </div>
+
+                    {/* Menu Actions */}
+                    <div className="space-y-1 text-xs font-medium pt-1">
+                      <button
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsSettingsOpen(true);
+                        }}
+                        className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1e1e24] transition-all cursor-pointer"
+                      >
+                        <Settings className="h-4 w-4 text-blue-500" />
+                        <span>Settings</span>
+                      </button>
+
+                      <button
+                        onClick={toggleDarkMode}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1e1e24] transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          {isDark ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-indigo-400" />}
+                          <span>Mode: {isDark ? 'Dark' : 'Light'}</span>
+                        </div>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">Toggle</span>
+                      </button>
+
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer font-bold"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </header>
+
 
           {/* MAIN PAGE BODY */}
           <div className="flex-1 p-6 space-y-6 overflow-y-auto">
@@ -1464,26 +1640,89 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
             {/* TAB CONTENT GRID CONTAINER */}
             <div className="space-y-6">
-              
-              {/* TAB OPTIONS */}
-              <div className="pb-4 border-b border-[#dadada] dark:border-[#2a2a2a]">
-                <h2 className="text-lg font-bold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
-                  {activeTab === 'home' && "System Overview"}
-                  {activeTab === 'profiles' && "Developer Profiles"}
-                  {activeTab === 'repos' && "Repository Graded Pins"}
-                  {activeTab === 'logs' && "System Log Output"}
-                  {activeTab === 'stats' && "Historical Metrics & Statistics"}
-                </h2>
+                            {/* TAB OPTIONS HEADER */}
+              <div className="pb-4 border-b border-[#dadada] dark:border-[#2a2a2a] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-extrabold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
+                    {activeTab === 'home' && "Welcome back, Madhan!"}
+                    {activeTab === 'profiles' && "Developer Profiles"}
+                    {activeTab === 'repos' && "Repository Pins"}
+                    {activeTab === 'logs' && "Activity Logs"}
+                    {activeTab === 'stats' && "Evaluation Metrics"}
+                  </h2>
+                  <p className="text-xs text-zinc-500 font-mono mt-0.5">
+                    {activeTab === 'home' && "AI Automated Follow & Graded Repositories Control Center"}
+                    {activeTab === 'profiles' && "Evaluated developers & status classifications"}
+                    {activeTab === 'repos' && "Discovered and graded software repositories"}
+                    {activeTab === 'logs' && "Real-time execution log console"}
+                    {activeTab === 'stats' && "Historical analytics and performance stats"}
+                  </p>
+                </div>
+
+                {/* Filter Pills for Profiles Tab */}
+                {activeTab === 'profiles' && (
+                  <div className="flex flex-wrap items-center gap-2 font-geist">
+                    {[
+                      { id: null, label: 'All' },
+                      { id: 'followed', label: 'Followed' },
+                      { id: 'unfollowed', label: 'Unfollowed' },
+                      { id: 'mutual', label: 'Mutuals' }
+                    ].map(pill => {
+                      const isSelected = activeFilter === pill.id;
+                      return (
+                        <button
+                          key={pill.label}
+                          onClick={() => setActiveFilter(pill.id as any)}
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                            isSelected
+                              ? 'bg-[#e60023] text-white border-[#e60023] shadow-sm'
+                              : 'bg-transparent text-[#767676] border-[#dadada] dark:border-[#2a2a2a] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
+                          }`}
+                        >
+                          {pill.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Filter Pills for Repos Tab */}
+                {activeTab === 'repos' && (
+                  <div className="flex flex-wrap items-center gap-2 font-geist">
+                    {[
+                      { id: null, label: 'All' },
+                      { id: 'starred', label: 'Starred' },
+                      { id: 'unstarred', label: 'Unstarred' }
+                    ].map(pill => {
+                      const isSelected = activeFilter === pill.id || (pill.id === 'unstarred' && activeFilter === 'unstarred');
+                      return (
+                        <button
+                          key={pill.label}
+                          onClick={() => setActiveFilter(pill.id as any)}
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                            isSelected
+                              ? 'bg-[#e60023] text-white border-[#e60023] shadow-sm'
+                              : 'bg-transparent text-[#767676] border-[#dadada] dark:border-[#2a2a2a] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
+                          }`}
+                        >
+                          {pill.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* ACTIVE FILTER DISMISS PILL */}
-              {activeFilter && activeTab !== 'stats' && (
-                <div className="flex items-center space-x-2 font-mono text-[10px]">
-                  <span className="text-[#767676]">Active filter:</span>
-                  <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#e60023]/10 border border-[#e60023]/20 text-[#e60023] rounded-full font-bold">
-                    <span className="capitalize">{activeFilter}</span>
-                    <button onClick={() => setActiveFilter(null)} className="font-extrabold hover:text-white cursor-pointer leading-none">ÃƒÆ’Ã¢â‚¬â€</button>
-                  </span>
+              {/* Tab Switching Skeleton Transition Loader */}
+              {isTabTransitioning && (
+                <div className="space-y-6 animate-pulse py-4">
+                  <div className="h-6 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-1/3" />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="h-44 bg-zinc-200 dark:bg-zinc-800 rounded-3xl" />
+                    <div className="h-44 bg-zinc-200 dark:bg-zinc-800 rounded-3xl" />
+                    <div className="h-44 bg-zinc-200 dark:bg-zinc-800 rounded-3xl" />
+                  </div>
+                  <div className="h-60 bg-zinc-200 dark:bg-zinc-800 rounded-3xl" />
                 </div>
               )}
 
@@ -1600,11 +1839,18 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         <span className="text-[9px] font-mono text-zinc-400 select-none">Swipe &larr;</span>
                       </div>
                       
-                      <div className="flex overflow-x-auto space-x-4 pb-2 scrollbar-none [scrollbar-width:none] [&-::-webkit-scrollbar]:hidden snap-x snap-mandatory">
+                      <div 
+                        ref={repoCarouselRef}
+                        onMouseDown={handleRepoMouseDown}
+                        onMouseMove={handleRepoMouseMove}
+                        onMouseUp={handleRepoMouseUpOrLeave}
+                        onMouseLeave={handleRepoMouseUpOrLeave}
+                        className="flex overflow-x-auto space-x-4 pb-2 scrollbar-none [scrollbar-width:none] [&-::-webkit-scrollbar]:hidden snap-x snap-mandatory select-none cursor-grab active:cursor-grabbing"
+                      >
                         {top3Repos.map((repo: Repo) => (
                           <div 
                             key={repo.id}
-                            onClick={() => setActiveTab('repos')}
+                            onClick={() => handleTabChange('repos')}
                             className="flex-shrink-0 w-[270px] snap-center bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[24px] p-4 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[160px]"
                           >
                             <div className="flex items-start justify-between">
@@ -1640,7 +1886,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
                   {/* Card 3: Recent Logs Card */}
                   <div 
-                    onClick={() => setActiveTab('logs')}
+                    onClick={() => handleTabChange('logs')}
                     className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
                   >
                     <div className="flex items-center justify-between px-1">
@@ -1675,7 +1921,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          setActiveTab('logs');
+                          handleTabChange('logs');
                         }}
                         className="w-full min-h-[38px] bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 flex items-center justify-center space-x-1.5"
                       >
@@ -1683,9 +1929,17 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       </button>
                     </div>
                   </div>
-                  {/* Card 4: Stats Snapshot Card -> 2x2 Stat Grid */}
-                  <div className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-default select-none">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Activity Snapshot</span>
+                  {/* Card 4: Stats Snapshot Card -> Clickable Redirect to Metrics Tab */}
+                  <div 
+                    onClick={() => handleTabChange('stats')}
+                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-[#e60023]/50 rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-pointer transition-all hover:shadow-lg select-none"
+                    title="Click to view full Evaluation Metrics"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Activity Snapshot</span>
+                      <ChevronRight className="h-4 w-4 text-[#e60023]" />
+                    </div>
+
                     
                     <div className="grid grid-cols-2 gap-3.5">
                       {/* GRADED */}
@@ -1894,7 +2148,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       </div>
 
                       {/* Terminal Body */}
-                      <div className="bg-[#09090b] text-zinc-300 font-mono text-xs p-5 overflow-y-auto h-[480px] space-y-3.5 rounded-b-2xl border border-zinc-800 border-t-0 select-text">
+                      <div className="bg-[#09090b] text-zinc-300 font-mono text-xs p-5 overflow-y-auto no-scrollbar h-[480px] space-y-3.5 rounded-b-2xl border border-zinc-800 border-t-0 select-text">
                         {isRefreshing ? (
                           [1, 2, 3].map(n => <div key={n} className="h-8 bg-zinc-900 rounded animate-pulse" />)
                         ) : (() => {
@@ -1978,30 +2232,34 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             </div>
                           </div>
 
-                          {runSummary[0] && (
-                            <div>
-                              <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] mb-3">Last Run Statistics</h4>
-                              <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
-                                <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                  <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0].profiles_evaluated}</span>
-                                  <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Evaluated</span>
-                                </div>
-                                <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                  <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0].profiles_followed}</span>
-                                  <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Followed</span>
-                                </div>
-                                <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                  <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0].profiles_unfollowed}</span>
-                                  <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Unfollowed</span>
-                                </div>
-                                <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                  <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0].mutuals_found}</span>
-                                  <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Mutuals</span>
-                                </div>
+                          <div>
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#e60023]">Last Run Statistics</h4>
+                              <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 text-[9px] font-mono font-bold">
+                                from last run
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
+                              <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
+                                <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0]?.profiles_evaluated || 0}</span>
+                                <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Evaluated</span>
+                              </div>
+                              <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
+                                <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0]?.profiles_followed || 0}</span>
+                                <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Followed</span>
+                              </div>
+                              <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
+                                <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0]?.profiles_unfollowed || 0}</span>
+                                <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Unfollowed</span>
+                              </div>
+                              <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
+                                <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0]?.mutuals_found || stats.mutuals}</span>
+                                <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Mutuals</span>
                               </div>
                             </div>
-                          )}
+                          </div>
                         </div>
+
 
                         <div className="mt-6 flex items-center justify-center bg-rose-50 dark:bg-rose-950/15 border border-rose-100 dark:border-rose-900/30 p-2.5 rounded-xl font-mono text-[9px] font-bold tracking-widest text-[#e60023] text-center select-none">
                           <span className="h-2 w-2 rounded-full bg-[#e60023] mr-2 animate-ping" />
@@ -2019,13 +2277,17 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between flex-wrap gap-4 aura-shadow">
                     <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Plot Historical Ranges:</span>
                     <div className="flex bg-[#eeeeee] dark:bg-[#1a1a1a] p-1 rounded-full text-xs font-bold font-geist">
-                      {(['7D', '30D', 'ALL'] as const).map(range => (
+                      {(['TODAY', '7D', '30D', 'ALL'] as const).map(range => (
                         <button 
                           key={range}
                           onClick={() => setTimeRange(range)}
-                          className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${timeRange === range ? 'bg-white dark:bg-[#2c2c2c] text-[#1a1c1c] dark:text-[#f0f0f0] font-bold' : 'text-[#767676] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'}`}
+                          className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${
+                            timeRange === range 
+                              ? 'bg-[#e60023] text-white font-bold shadow-xs' 
+                              : 'text-[#767676] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
+                          }`}
                         >
-                          {range}
+                          {range === 'TODAY' ? 'Today' : range}
                         </button>
                       ))}
                     </div>
@@ -2035,21 +2297,22 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Evaluated</span>
-                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{sumSummary.evaluated}</span>
+                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{filteredSummary.evaluated}</span>
                     </div>
                     <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Followed</span>
-                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{sumSummary.followed}</span>
+                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{filteredSummary.followed}</span>
                     </div>
                     <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Unfollowed</span>
-                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{sumSummary.unfollowed}</span>
+                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{filteredSummary.unfollowed}</span>
                     </div>
                     <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Mutuals Found</span>
-                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{sumSummary.mutuals}</span>
+                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{filteredSummary.mutuals}</span>
                     </div>
                   </div>
+
 
                   {/* Primary charts row */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -2435,9 +2698,67 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           </div>
         </div>
       )}
+
+      {/* Settings Modal Overlay */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/80 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-lg rounded-3xl p-6 flex flex-col shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="h-9 w-9 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-500">
+                  <Settings className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">Dashboard Settings</h3>
+                  <span className="text-[10px] font-mono text-zinc-400">FollowMe System Configuration</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 font-sans text-xs">
+              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-2">
+                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Worker Schedule & Environment</h4>
+                <div className="space-y-1 font-mono text-[11px] text-zinc-500">
+                  <div className="flex justify-between"><span>Worker Host:</span><span className="text-zinc-200">http://localhost:8000</span></div>
+                  <div className="flex justify-between"><span>Cron Frequency:</span><span className="text-zinc-200">Every 6 Hours</span></div>
+                  <div className="flex justify-between"><span>Target Evaluation Threshold:</span><span className="text-emerald-400 font-bold">&gt;= 8.0 Score</span></div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/20 space-y-2">
+                <h4 className="font-bold text-red-500 font-jakarta flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5" /> Proposed Future Settings
+                </h4>
+                <ul className="list-disc list-inside space-y-1 text-[11px] text-zinc-400 leading-relaxed font-sans">
+                  <li><strong>GitHub Access Token:</strong> Configure PAT & API rate limit monitoring.</li>
+                  <li><strong>Custom Evaluation Rules:</strong> Set language priorities & minimum star rules.</li>
+                  <li><strong>Alert Webhooks:</strong> Telegram/Slack notifications for high-scoring profile matches.</li>
+                  <li><strong>Data Export:</strong> One-click CSV/JSON backups of graded developers.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 
 
