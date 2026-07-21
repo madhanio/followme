@@ -2099,8 +2099,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         onClick={() => setActiveTab('profiles')}
                         className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[245px]"
                       >
-                        {/* Top Banner (two-tone design) */}
-                        <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a]" />
+                        {/* Top Header Row matching other cards */}
+                        <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-between px-5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta flex items-center gap-1.5 select-none">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
+                            Spotlight
+                          </span>
+                        </div>
 
                         {/* Content with offset */}
                         <div className="pt-14 px-5 pb-3 transition-all duration-500">
@@ -2115,10 +2120,6 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                                 }}
                               />
                               <div className="truncate pt-6">
-                                <span className="text-[9px] uppercase font-bold text-[#e60023] font-geist block leading-none mb-1 select-none flex items-center gap-1">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
-                                  Spotlight
-                                </span>
                                 <h3 className="text-sm font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">@{profile.owner}</h3>
                               </div>
                             </div>
