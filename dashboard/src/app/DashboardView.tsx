@@ -281,53 +281,53 @@ function ProfileCard({
 
   return (
     <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-[32px] transition-all duration-300 relative overflow-hidden flex flex-col justify-between min-h-[220px]">
-      {/* Top Banner (two-tone design) */}
-      <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a]" />
-      
-      {/* Card Content with pt-12 offset */}
-      <div className="pt-12 px-4 pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-3 mt-[-24px] z-10 relative">
-            <img 
-              src={`https://github.com/${profile.owner}.png`} 
-              alt={profile.owner} 
-              className="h-12 w-12 rounded-full border-2 border-white dark:border-[#111111] bg-zinc-100 dark:bg-[#1a1a1a] object-cover aura-shadow" 
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
+      {/* Top Header (Unified redesign - visual flow is perfect) */}
+      <div className="h-14 bg-slate-100 dark:bg-[#1c1c1e] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-between px-4 shrink-0 z-10">
+        <div className="flex items-center space-x-2.5 min-w-0">
+          <img 
+            src={`https://github.com/${profile.owner}.png`} 
+            alt={profile.owner} 
+            className="h-8 w-8 rounded-full border border-white dark:border-[#111111] bg-zinc-100 dark:bg-[#1a1a1a] object-cover aura-shadow shrink-0" 
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
+            }}
+          />
+          <div className="truncate">
+            <h3 className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate leading-none">
+              @{profile.owner}
+            </h3>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTab('repos');
+                setSearchTerm(profile.repos[0]?.name || '');
               }}
-            />
-            <div className="truncate pt-6">
-              <h3 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">
-                @{profile.owner}
-              </h3>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveTab('repos');
-                  setSearchTerm(profile.repos[0]?.name || '');
-                }}
-                className="text-[9px] font-mono text-zinc-400 hover:text-[#e60023] transition-colors mt-0.5 text-left block truncate max-w-[140px]"
-                title={`Graded on: ${profile.repos[0]?.name || 'Unknown'}`}
-              >
-                Graded on: {profile.repos[0]?.name || 'Unknown'}
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-1.5 shrink-0 pt-2 z-10 relative">
-            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold ${badgeClass}`}>
-              {badgeLabel}
-            </span>
-            <button
-              onClick={() => onDelete(profile.owner)}
-              disabled={isActionLoading}
-              className="p-1.5 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-950/35 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg transition-all cursor-pointer disabled:opacity-40"
-              title="Delete Profile from DB"
+              className="text-[8px] font-mono text-zinc-450 hover:text-[#e60023] transition-colors mt-1 text-left block truncate max-w-[120px] leading-none"
+              title={`Graded on: ${profile.repos[0]?.name || 'Unknown'}`}
             >
-              <Trash2 className="h-3 w-3" />
+              Graded on: {profile.repos[0]?.name || 'Unknown'}
             </button>
           </div>
         </div>
+        
+        <div className="flex items-center space-x-1.5 shrink-0">
+          <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold shrink-0 ${badgeClass}`}>
+            {badgeLabel}
+          </span>
+          <button
+            onClick={() => onDelete(profile.owner)}
+            disabled={isActionLoading}
+            className="p-1 bg-rose-50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-950/35 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg transition-all cursor-pointer disabled:opacity-40 shrink-0"
+            title="Delete Profile from DB"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      
+      {/* Card Content */}
+      <div className="p-4 flex-1 flex flex-col justify-between">
+        <div>
 
         {/* Compact numeric quality grade block */}
         <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-xl text-center my-3 relative overflow-hidden flex items-center justify-between">
@@ -351,6 +351,7 @@ function ProfileCard({
             Reason: {profile.followStatus.reason}
           </div>
         )}
+        </div>
       </div>
 
       <div className="flex space-x-2 px-4 pb-4 pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
@@ -1792,9 +1793,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         <main className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
           
           {/* TOP APP BAR */}
-          <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-center md:justify-between px-4 md:px-6 shrink-0 z-20">
+          <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-center md:justify-end px-4 md:px-6 shrink-0 z-20 gap-4">
             {activeTab !== 'stats' && activeTab !== 'home' && (
-              <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden">
+              <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden mr-auto">
                 <div className="relative w-full">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <input 
@@ -2099,37 +2100,38 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         onClick={() => setActiveTab('profiles')}
                         className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[245px]"
                       >
-                        {/* Top Header Row matching other cards */}
-                        <div className="h-12 bg-slate-100 dark:bg-[#1c1c1e] w-full absolute top-0 left-0 border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-between px-5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta flex items-center gap-1.5 select-none">
-                            <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
-                            Spotlight
-                          </span>
-                        </div>
-
-                        {/* Content with offset */}
-                        <div className="pt-14 px-5 pb-3 transition-all duration-500">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center space-x-3.5 mt-[-26px] z-10 relative">
-                              <img 
-                                src={`https://github.com/${profile.owner}.png`} 
-                                alt={profile.owner} 
-                                className="h-12 w-12 rounded-full border-2 border-white dark:border-[#111111] object-cover bg-zinc-50 dark:bg-zinc-900 aura-shadow"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
-                                }}
-                              />
-                              <div className="truncate pt-6">
-                                <h3 className="text-sm font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">@{profile.owner}</h3>
+                        {/* Redesigned Spotlight Top Header Row (Unified Layout) */}
+                        <div className="h-14 bg-slate-100 dark:bg-[#1c1c1e] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-between px-4 shrink-0">
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <img 
+                              src={`https://github.com/${profile.owner}.png`} 
+                              alt={profile.owner} 
+                              className="h-8 w-8 rounded-full border border-white dark:border-[#111111] bg-zinc-100 dark:bg-[#1a1a1a] object-cover aura-shadow shrink-0" 
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
+                              }}
+                            />
+                            <div className="truncate">
+                              <div className="flex items-center gap-1 leading-none mb-1">
+                                <span className="h-1 w-1 rounded-full bg-[#e60023] animate-pulse" />
+                                <span className="text-[8px] uppercase font-bold text-[#e60023] font-jakarta tracking-wider">Spotlight</span>
                               </div>
-                            </div>
-
-                            <div className="flex items-center space-x-1.5 shrink-0 pt-2 z-10 relative">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold ${badgeClass}`}>
-                                {badgeLabel}
-                              </span>
+                              <h3 className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate leading-none">
+                                @{profile.owner}
+                              </h3>
                             </div>
                           </div>
+
+                          <div className="flex items-center space-x-1.5 shrink-0">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold shrink-0 ${badgeClass}`}>
+                              {badgeLabel}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Card Content */}
+                        <div className="p-4 flex-1 flex flex-col justify-between">
+                          <div>
 
                           {/* Visual center grade block */}
                           <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-lg text-center my-3 relative overflow-hidden flex items-center justify-between">
@@ -2142,6 +2144,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                               {cleanSnippet(profile.repos[0].readme_snippet)}
                             </p>
                           )}
+                        </div>
                         </div>
 
                         <div className="flex items-center justify-between px-5 pb-4 pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
