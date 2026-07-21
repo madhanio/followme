@@ -74,8 +74,11 @@ import {
   Compass,
   Sliders,
   Key,
-  Download
+  Download,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
+
 
 
 const githubStatsCache = new Map<string, { followers: number; following: number }>();
@@ -490,6 +493,17 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const [evalLanguages, setEvalLanguages] = useState('TypeScript, Python, Rust, Go');
   const [newSecurityKey, setNewSecurityKey] = useState('');
   const [keySaveMsg, setKeySaveMsg] = useState<string | null>(null);
+
+  // Automation & Schedule Control states
+  const [cronFrequency, setCronFrequency] = useState('6');
+  const [maxProfilesPerRun, setMaxProfilesPerRun] = useState(50);
+  const [activeWorkingHours, setActiveWorkingHours] = useState('09:00 - 22:00');
+
+  // Follow / Unfollow Safety Limits states
+  const [dailyFollowLimit, setDailyFollowLimit] = useState(30);
+  const [unfollowGracePeriod, setUnfollowGracePeriod] = useState(7);
+  const [autoUnfollowNonMutuals, setAutoUnfollowNonMutuals] = useState(true);
+
 
   // Profile Menu click outside listener
   useEffect(() => {
@@ -2748,7 +2762,91 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             </div>
 
             <div className="space-y-4 font-sans text-xs max-h-[65vh] overflow-y-auto pr-1">
-              {/* 1. Custom Evaluation Rules */}
+              {/* 1. Automation & Schedule Control */}
+              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3">
+                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                  <Clock className="h-3.5 w-3.5 text-[#e60023]" /> Automation & Schedule Control
+                </h4>
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Execution Frequency</label>
+                      <select
+                        value={cronFrequency}
+                        onChange={(e) => setCronFrequency(e.target.value)}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      >
+                        <option value="2">Every 2 Hours</option>
+                        <option value="4">Every 4 Hours</option>
+                        <option value="6">Every 6 Hours</option>
+                        <option value="12">Every 12 Hours</option>
+                        <option value="24">Every 24 Hours</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Max Profiles / Run</label>
+                      <input
+                        type="number"
+                        value={maxProfilesPerRun}
+                        onChange={(e) => setMaxProfilesPerRun(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Active Operating Window</label>
+                    <input
+                      type="text"
+                      value={activeWorkingHours}
+                      onChange={(e) => setActiveWorkingHours(e.target.value)}
+                      className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      placeholder="e.g. 09:00 - 22:00"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Follow / Unfollow Safety Limits */}
+              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3">
+                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#e60023]" /> Follow / Unfollow Safety Limits
+                </h4>
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Daily Follow Cap</label>
+                      <input
+                        type="number"
+                        value={dailyFollowLimit}
+                        onChange={(e) => setDailyFollowLimit(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Grace Period (Days)</label>
+                      <input
+                        type="number"
+                        value={unfollowGracePeriod}
+                        onChange={(e) => setUnfollowGracePeriod(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center space-x-2 pt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoUnfollowNonMutuals}
+                      onChange={(e) => setAutoUnfollowNonMutuals(e.target.checked)}
+                      className="rounded border-[#dadada] dark:border-[#2a2a2a] text-[#e60023] focus:ring-[#e60023]"
+                    />
+                    <span className="text-[11px] font-medium text-[#1a1c1c] dark:text-[#f0f0f0] font-sans">
+                      Auto-unfollow non-mutual profiles after grace period expires
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 3. Custom Evaluation Rules */}
               <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3">
                 <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
                   <Sliders className="h-3.5 w-3.5 text-[#e60023]" /> Custom Evaluation Rules
@@ -2789,6 +2887,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   </div>
                 </div>
               </div>
+
 
               {/* 2. Change Password / Security Key */}
               <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-2.5">
