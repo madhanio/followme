@@ -462,8 +462,27 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   useEffect(() => {
     setMounted(true);
-    const darkActive = document.documentElement.classList.contains('dark');
-    setIsDark(darkActive);
+    const storedTheme = localStorage.getItem('theme');
+    if (storedTheme) {
+      const nextDark = storedTheme === 'dark';
+      setIsDark(nextDark);
+      if (nextDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } else {
+      const darkActive = document.documentElement.classList.contains('dark');
+      setIsDark(darkActive);
+    }
+
+    const saved = localStorage.getItem('savedSettings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setSavedSettings(parsed);
+      } catch (e) {}
+    }
   }, []);
 
   const toggleDarkMode = () => {
@@ -1790,7 +1809,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         )}
 
         {/* MAIN WORKSPACE */}
-        <main className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+        <main className={`flex-1 flex flex-col min-w-0 h-screen ${
+          isSettingsOpen || isSecurityModalOpen || isCleanupOpen || isSidebarOpen || exportPreview 
+            ? 'overflow-hidden' 
+            : 'overflow-y-auto'
+        }`}>
           
           {/* TOP APP BAR */}
           <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-center md:justify-end px-4 md:px-6 shrink-0 z-20 gap-4">
@@ -3522,6 +3545,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   type="button"
                   onClick={() => {
                     setSavedSettings(tempSettings);
+                    localStorage.setItem('savedSettings', JSON.stringify(tempSettings));
                     setIsSettingsOpen(false);
                   }}
                   className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm"

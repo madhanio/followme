@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, ShieldAlert, LogIn, KeyRound } from 'lucide-react';
 
@@ -8,7 +8,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [accentColor, setAccentColor] = useState('#e60023');
   const router = useRouter();
+
+  useEffect(() => {
+    const saved = localStorage.getItem('savedSettings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.accentColor) {
+          setAccentColor(parsed.accentColor);
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +54,23 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#f8f9fa] text-[#1a1c1c] flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
+      <style dangerouslySetInnerHTML={{ __html: `
+        :root {
+          --accent-color: ${accentColor};
+          --accent-hover: ${accentColor === '#8b5cf6' ? '#7c3aed' : accentColor === '#10b981' ? '#059669' : accentColor === '#18181b' ? '#09090b' : '#c0001b'};
+        }
+        .bg-red-650 { background-color: var(--accent-color) !important; }
+        .bg-red-600 { background-color: var(--accent-color) !important; }
+        .hover\\:bg-red-500:hover { background-color: var(--accent-hover) !important; }
+        .text-red-650 { color: var(--accent-color) !important; }
+        .text-red-600 { color: var(--accent-color) !important; }
+        .bg-red-500\\/10 { background-color: color-mix(in srgb, var(--accent-color) 10%, transparent) !important; }
+        .border-red-500\\/20 { border-color: color-mix(in srgb, var(--accent-color) 20%, transparent) !important; }
+        .focus\\:border-red-500:focus { border-color: var(--accent-color) !important; }
+        .focus\\:ring-red-500:focus { --tw-ring-color: var(--accent-color) !important; }
+        .from-red-100 { --tw-gradient-from: color-mix(in srgb, var(--accent-color) 15%, transparent) !important; }
+        .border-red-200 { border-color: color-mix(in srgb, var(--accent-color) 30%, transparent) !important; }
+      ` }} />
       {/* Red & Soft Ambient Glows */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-red-500/5 blur-[140px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-red-500/5 blur-[120px] pointer-events-none" />
