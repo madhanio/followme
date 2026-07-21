@@ -532,10 +532,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const [isTriggeringAgent, setIsTriggeringAgent] = useState(false);
   const [agentTriggerStatus, setAgentTriggerStatus] = useState<{ success?: boolean; message?: string } | null>(null);
 
-  // UI Overlay States
+  // UI Overlay & Shuffle/Export States
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+  const [exportPreview, setExportPreview] = useState<{ filename: string; mimeType: string; content: string } | null>(null);
 
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const mobileProfileMenuRef = useRef<HTMLDivElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTabTransitioning, setIsTabTransitioning] = useState(false);
   const [visibleProfilesCount, setVisibleProfilesCount] = useState(24);
@@ -543,7 +546,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+      const inDesktop = profileMenuRef.current && profileMenuRef.current.contains(event.target as Node);
+      const inMobile = mobileProfileMenuRef.current && mobileProfileMenuRef.current.contains(event.target as Node);
+      if (!inDesktop && !inMobile) {
         setIsProfileMenuOpen(false);
       }
     };
@@ -622,6 +627,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     }, 150);
   };
 
+  useEffect(() => {
+    if (activeTab === 'home') {
+      setShuffleSeed(prev => prev + 1);
+    }
+  }, [activeTab]);
+
   const handleRepoMouseDown = (e: React.MouseEvent) => {
     if (!repoCarouselRef.current) return;
     setIsDraggingRepo(true);
@@ -672,12 +683,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   // Auto-scroll terminal to bottom on tab load or new logs
   useEffect(() => {
-    if (activeTab === 'logs') {
+    if (activeTab === 'logs' && !isTabTransitioning) {
       setTimeout(() => {
         terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 50);
+      }, 100);
     }
-  }, [activeTab, logs, logTypeFilter]);
+  }, [activeTab, logs, logTypeFilter, isTabTransitioning]);
 
   const getRelativeTime = (pastDateStr: string | null | undefined) => {
     if (!pastDateStr) return 'never';
@@ -960,25 +971,46 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     return `Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.total} graded profiles. Next run ${nextRunTimeStr}.`;
   }, [runSummary, logs, workerStatus, stats]);
 
+  const lastRunTask = useMemo(() => {
+    return runSummary.find(r => r.run_type !== 'sync_following' && r.run_type !== 'cleanup') || null;
+  }, [runSummary]);
+
+  const lastRunTaskFormattedTime = useMemo(() => {
+    if (!lastRunTask) return 'Never';
+    return new Date(lastRunTask.ran_at).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  }, [lastRunTask]);
+
   const top5Profiles = useMemo(() => {
-    return [...allProfiles].sort((a, b) => b.avgGrade - a.avgGrade).slice(0, 5);
-  }, [allProfiles]);
+    if (allProfiles.length === 0) return [];
+    // Randomize profiles
+    const shuffled = [...allProfiles].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 5);
+  }, [allProfiles, shuffleSeed]);
 
   const top3Repos = useMemo(() => {
-    return [...repos].sort((a, b) => b.grade - a.grade || b.stars - a.stars).slice(0, 3);
-  }, [repos]);
+    if (repos.length === 0) return [];
+    // Randomize repos (take up to 8 so scroll works beautifully)
+    const shuffled = [...repos].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 8);
+  }, [repos, shuffleSeed]);
 
   const last3Insights = useMemo(() => {
-    const latestRun = runSummary[0];
-    const lastRunFollowed = latestRun?.profiles_followed || 0;
-    const lastRunUnfollowed = latestRun?.profiles_unfollowed || 0;
+    const lastRunFollowed = lastRunTask?.profiles_followed || 0;
+    const lastRunUnfollowed = lastRunTask?.profiles_unfollowed || 0;
 
     const msg1 = `Evaluated ${stats.total} total developer profiles, with ${stats.followed} high-graded developers targeted and followed.`;
     const msg2 = `In the last run, followed ${lastRunFollowed} new developers and unfollowed ${lastRunUnfollowed} inactive profiles.`;
     const msg3 = `System health status is ${workerStatus?.isJobRunning ? 'Active (Running Job)' : 'Healthy & Operational'}. Next run scheduled ${getFutureRelativeTime(workerStatus?.nextRun)}.`;
 
     return [msg1, msg2, msg3];
-  }, [runSummary, stats.total, stats.followed, workerStatus]);
+  }, [lastRunTask, stats.total, stats.followed, workerStatus]);
 
 
   // Auto-rotate Top Profile Spotlight every 4 seconds
@@ -1089,6 +1121,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   const handleCleanupRun = async () => {
     setIsCleaning(true);
+    setIsRefreshing(true);
     setCleanupStatus(null);
     try {
       const res = await triggerCleanup();
@@ -1106,11 +1139,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       setCleanupStatus({ success: false, message: err.message || 'Error occurred during cleanup trigger' });
     } finally {
       setIsCleaning(false);
+      setIsRefreshing(false);
     }
   };
 
   const handleLogCleanupRun = async () => {
     setIsCleaning(true);
+    setIsRefreshing(true);
     try {
       const res = await triggerLogCleanup();
       if (res.success) {
@@ -1124,11 +1159,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       alert(`Failed to clean logs: ${err.message || err}`);
     } finally {
       setIsCleaning(false);
+      setIsRefreshing(false);
     }
   };
 
   const handleClearStaleRun = async () => {
     setIsCleaning(true);
+    setIsRefreshing(true);
     try {
       const res = await triggerClearStale();
       if (res.success) {
@@ -1144,6 +1181,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       alert(`Failed to clear stale profiles: ${err.message || err}`);
     } finally {
       setIsCleaning(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -1163,14 +1201,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       p.avgGrade.toFixed(1),
       `"${p.followStatus.followed ? (p.followStatus.follow_back ? 'Mutual' : 'Followed') : (p.followStatus.unfollowed ? 'Unfollowed' : 'Pending')}"`
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `followme_profiles_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    setExportPreview({
+      filename: `followme_profiles_${new Date().toISOString().split('T')[0]}.csv`,
+      mimeType: 'text/csv;charset=utf-8',
+      content: csvContent
+    });
   };
 
   const handleUpdateSecurityKey = async (e: React.FormEvent) => {
@@ -1230,6 +1266,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       const summaryRes = await supabase.from('run_summary').select('*').order('ran_at', { ascending: false });
       if (summaryRes.data) setRunSummary(summaryRes.data);
       await fetchStatus();
+      setShuffleSeed(prev => prev + 1);
     } catch (err) {
       console.error('Error refreshing data:', err);
     } finally {
@@ -1590,7 +1627,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             <span className="font-bold tracking-tight font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] text-sm">FollowMe</span>
           </div>
 
-          <div className="relative" ref={profileMenuRef}>
+          <div className="relative" ref={mobileProfileMenuRef}>
             <button
               onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
               className="h-9 w-9 rounded-full border-2 border-red-500/60 p-0.5 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
@@ -1756,8 +1793,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           
           {/* TOP APP BAR */}
           <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-center md:justify-between px-4 md:px-6 shrink-0 z-20">
-            <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden">
-              {activeTab !== 'stats' && activeTab !== 'home' && (
+            {activeTab !== 'stats' && activeTab !== 'home' && (
+              <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden">
                 <div className="relative w-full">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <input 
@@ -1768,8 +1805,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     className="w-full bg-[#f3f3f3] dark:bg-[#1a1a1a] border-none rounded-full py-2 pl-10 pr-4 text-xs text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-slate-450 focus:outline-none focus:ring-1 focus:ring-[#e60023] transition-all font-sans"
                   />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-center space-x-3 font-geist relative w-full md:w-auto flex-wrap">
               <button 
@@ -2016,7 +2053,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               </div>
 
               {/* Tab Switching Skeleton Transition Loader */}
-              {isTabTransitioning && (
+              {(isTabTransitioning || isRefreshing) && (
                 <div className="space-y-6 animate-pulse py-4">
                   <div className="h-6 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-1/3" />
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -2029,7 +2066,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               )}
 
               {/* 0. HOMEPAGE TAB */}
-              {activeTab === 'home' && (
+              {!isTabTransitioning && !isRefreshing && activeTab === 'home' && (
                 <div className="masonry-grid">
                                {/* Card 1: Top Profile Card -> Rotating Spotlight */}
                   {top5Profiles.length > 0 && (() => {
@@ -2147,13 +2184,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         onMouseMove={handleRepoMouseMove}
                         onMouseUp={handleRepoMouseUpOrLeave}
                         onMouseLeave={handleRepoMouseUpOrLeave}
-                        className="flex overflow-x-auto space-x-4 pb-2 scrollbar-none [scrollbar-width:none] [&-::-webkit-scrollbar]:hidden snap-x snap-mandatory select-none cursor-grab active:cursor-grabbing"
+                        className="flex overflow-x-auto space-x-4 pb-2 scrollbar-none [scrollbar-width:none] [&-::-webkit-scrollbar]:hidden select-none cursor-grab active:cursor-grabbing scroll-smooth"
                       >
                         {top3Repos.map((repo: Repo) => (
                           <div 
                             key={repo.id}
                             onClick={() => handleTabChange('repos')}
-                            className="flex-shrink-0 w-[270px] snap-center bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[24px] p-4 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[160px]"
+                            className="flex-shrink-0 w-[270px] bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[24px] p-4 hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col justify-between min-h-[160px]"
                           >
                             <div className="flex items-start justify-between">
                               <div className="min-w-0 pr-2">
@@ -2276,7 +2313,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       </div>
                       <span className="text-[9px] font-mono text-zinc-400 flex items-center gap-1.5 select-none">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
-                        Just now
+                        {lastRunTaskFormattedTime}
                       </span>
                     </div>
 
@@ -2295,7 +2332,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 </div>
               )}
               {/* 1. PROFILES TAB */}
-              {!isTabTransitioning && activeTab === 'profiles' && (
+              {!isTabTransitioning && !isRefreshing && activeTab === 'profiles' && (
                 <div className="space-y-6">
                   <div className="masonry-grid">
                     {isRefreshing ? (
@@ -2335,7 +2372,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               )}
 
               {/* 2. REPOS TAB */}
-              {!isTabTransitioning && activeTab === 'repos' && (
+              {!isTabTransitioning && !isRefreshing && activeTab === 'repos' && (
                 <div className="space-y-6">
                   <div className="masonry-grid">
                     {isRefreshing ? (
@@ -2439,7 +2476,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               )}
 
               {/* 3. LOGS TAB */}
-              {!isTabTransitioning && activeTab === 'logs' && (
+              {!isTabTransitioning && !isRefreshing && activeTab === 'logs' && (
                 <div className="space-y-4">
                   {/* Type Filter pills */}
                   <div className="flex flex-wrap gap-2">
@@ -2546,7 +2583,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             <div className="flex items-center justify-between py-2 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
                               <span className="font-medium text-[#767676]">Last Execution</span>
                               <span className="font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-mono">
-                                {getRelativeTime(runSummary[0]?.ran_at)}
+                                {lastRunTask ? getRelativeTime(lastRunTask.ran_at) : 'Never'}
                               </span>
                             </div>
                             <div className="flex items-center justify-between py-2 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
@@ -2566,19 +2603,19 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
                               <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0]?.profiles_evaluated || 0}</span>
+                                <span className="text-base font-bold text-[#e60023] block leading-none">{lastRunTask?.profiles_evaluated || 0}</span>
                                 <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Evaluated</span>
                               </div>
                               <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0]?.profiles_followed || 0}</span>
+                                <span className="text-base font-bold text-[#e60023] block leading-none">{lastRunTask?.profiles_followed || 0}</span>
                                 <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Followed</span>
                               </div>
                               <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0]?.profiles_unfollowed || 0}</span>
+                                <span className="text-base font-bold text-[#e60023] block leading-none">{lastRunTask?.profiles_unfollowed || 0}</span>
                                 <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Unfollowed</span>
                               </div>
                               <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                <span className="text-base font-bold text-[#e60023] block leading-none">{runSummary[0]?.mutuals_found || stats.mutuals}</span>
+                                <span className="text-base font-bold text-[#e60023] block leading-none">{lastRunTask?.mutuals_found || 0}</span>
                                 <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Mutuals</span>
                               </div>
                             </div>
@@ -2596,7 +2633,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 </div>
               )}
 
-              {!isTabTransitioning && activeTab === 'stats' && mounted && (
+              {!isTabTransitioning && !isRefreshing && activeTab === 'stats' && mounted && (
                 <div className="space-y-8 animate-startup-card">
                   {/* Date toggle & Data Export toolbar */}
                   <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between flex-wrap gap-4 aura-shadow">
@@ -2629,13 +2666,14 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         <Download className="h-3.5 w-3.5 text-[#e60023]" />
                         <span>Export CSV</span>
                       </button>
-                      <button
+                       <button
                         onClick={() => {
-                          const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allProfiles, null, 2));
-                          const dlAnchorElem = document.createElement('a');
-                          dlAnchorElem.setAttribute("href", jsonStr);
-                          dlAnchorElem.setAttribute("download", `followme_backup_${new Date().toISOString().split('T')[0]}.json`);
-                          dlAnchorElem.click();
+                          const jsonContent = JSON.stringify(allProfiles, null, 2);
+                          setExportPreview({
+                            filename: `followme_backup_${new Date().toISOString().split('T')[0]}.json`,
+                            mimeType: 'application/json;charset=utf-8',
+                            content: jsonContent
+                          });
                         }}
                         className="px-3.5 py-1.5 border border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#1a1a1a] hover:bg-zinc-200 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full text-xs font-bold font-geist transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                         title="Export JSON Backup"
@@ -3586,6 +3624,63 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Data Export Preview Modal Overlay */}
+      {exportPreview && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/85 backdrop-blur-md animate-in fade-in"
+          onClick={() => setExportPreview(null)}
+        >
+          <div 
+            className="bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-xl rounded-3xl p-6 flex flex-col shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
+              <div>
+                <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">Data Export Preview</h3>
+                <span className="text-[10px] font-mono text-zinc-400">File: {exportPreview.filename}</span>
+              </div>
+              <button
+                onClick={() => setExportPreview(null)}
+                className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 cursor-pointer transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono font-bold text-zinc-500 block">Raw Export Payload Preview:</span>
+              <pre className="w-full bg-[#f8f9fa] dark:bg-[#09090b] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-4 text-[10px] font-mono text-[#1a1c1c] dark:text-[#f0f0f0] overflow-auto h-[240px] leading-relaxed no-scrollbar">
+                {exportPreview.content}
+              </pre>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+              <button
+                onClick={() => setExportPreview(null)}
+                className="px-4 py-2 border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-bold rounded-full transition cursor-pointer font-geist"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const encodedUri = "data:" + exportPreview.mimeType + "," + encodeURIComponent(exportPreview.content);
+                  const link = document.createElement('a');
+                  link.setAttribute('href', encodedUri);
+                  link.setAttribute('download', exportPreview.filename);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setExportPreview(null);
+                }}
+                className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm"
+              >
+                Download File
+              </button>
+            </div>
           </div>
         </div>
       )}
