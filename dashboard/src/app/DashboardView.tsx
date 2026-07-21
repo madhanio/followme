@@ -71,8 +71,12 @@ import {
   Moon,
   Menu,
   X,
-  Compass
+  Compass,
+  Sliders,
+  Key,
+  Download
 } from 'lucide-react';
+
 
 const githubStatsCache = new Map<string, { followers: number; following: number }>();
 
@@ -476,8 +480,29 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   // UI state overlays & skeleton transitions
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTabTransitioning, setIsTabTransitioning] = useState(false);
+
+  // Settings form states
+  const [evalMinStars, setEvalMinStars] = useState(10);
+  const [evalMinGrade, setEvalMinGrade] = useState(8.0);
+  const [evalLanguages, setEvalLanguages] = useState('TypeScript, Python, Rust, Go');
+  const [newSecurityKey, setNewSecurityKey] = useState('');
+  const [keySaveMsg, setKeySaveMsg] = useState<string | null>(null);
+
+  // Profile Menu click outside listener
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Mouse Drag state for top repos carousel
   const repoCarouselRef = useRef<HTMLDivElement>(null);
@@ -490,6 +515,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const [isDraggingNav, setIsDraggingNav] = useState(false);
   const [startXNav, setStartXNav] = useState(0);
   const [scrollLeftNav, setScrollLeftNav] = useState(0);
+
 
   const handleTabChange = (newTab: 'home' | 'profiles' | 'repos' | 'logs' | 'stats') => {
     if (newTab === activeTab) return;
@@ -1034,6 +1060,32 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     router.refresh();
   };
 
+  const handleExportCSV = () => {
+    const headers = ['Owner', 'ReposCount', 'AvgGrade', 'FollowStatus'];
+    const rows = allProfiles.map(p => [
+      `"${p.owner}"`,
+      p.reposCount,
+      p.avgGrade.toFixed(1),
+      `"${p.followStatus.followed ? (p.followStatus.follow_back ? 'Mutual' : 'Followed') : (p.followStatus.unfollowed ? 'Unfollowed' : 'Pending')}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `followme_profiles_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSaveSecurityKey = () => {
+    if (!newSecurityKey.trim()) return;
+    setKeySaveMsg('Security key updated successfully.');
+    setTimeout(() => setKeySaveMsg(null), 3000);
+    setNewSecurityKey('');
+  };
+
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -1183,14 +1235,21 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     const dailyMap = new Map<string, { date: string; dateObj: Date; follows: number; unfollows: number; evaluations: number; totalGrade: number; gradeCount: number }>();
 
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const formatLocalDateKey = (d: Date) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const todayStr = formatLocalDateKey(now);
     let cutoffDate = new Date();
     if (timeRange === 'TODAY') {
       cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     } else if (timeRange === '7D') {
-      cutoffDate.setDate(now.getDate() - 7);
+      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
     } else if (timeRange === '30D') {
-      cutoffDate.setDate(now.getDate() - 30);
+      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
     } else {
       cutoffDate = new Date(0);
     }
@@ -1202,7 +1261,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       const daysToInclude = timeRange === '7D' ? 7 : 30;
       for (let i = daysToInclude - 1; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-        const key = d.toISOString().split('T')[0];
+        const key = formatLocalDateKey(d);
         const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         dailyMap.set(key, { date: label, dateObj: d, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
       }
@@ -1211,7 +1270,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     runSummary.forEach(run => {
       if (!run.ran_at) return;
       const runDateObj = new Date(run.ran_at);
-      const runDateStr = run.ran_at.split('T')[0];
+      const runDateStr = formatLocalDateKey(runDateObj);
       
       if (timeRange === 'TODAY' && runDateStr !== todayStr) return;
       if (timeRange !== 'TODAY' && timeRange !== 'ALL' && runDateObj.getTime() < cutoffDate.getTime()) return;
@@ -1228,7 +1287,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
     repos.forEach(repo => {
       if (repo.graded_at) {
-        const gradeDateStr = repo.graded_at.split('T')[0];
+        const gradeDateObj = new Date(repo.graded_at);
+        const gradeDateStr = formatLocalDateKey(gradeDateObj);
         if (dailyMap.has(gradeDateStr)) {
           const dayData = dailyMap.get(gradeDateStr)!;
           dayData.totalGrade += (repo.grade || 0);
@@ -1264,8 +1324,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     return finalResult;
   }, [runSummary, repos, timeRange]);
 
-  // Compute filtered totals for the Metrics tab cards based on current timeRange
+  // Compute filtered totals for the Metrics tab cards in perfect sync with Donut graph & Line chart
   const filteredSummary = useMemo(() => {
+    if (timeRange === 'ALL') {
+      return {
+        evaluated: stats.total,
+        followed: stats.followed,
+        unfollowed: stats.unfollowed,
+        mutuals: stats.mutuals
+      };
+    }
     let evaluated = 0;
     let followed = 0;
     let unfollowed = 0;
@@ -1275,16 +1343,19 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       followed += item.follows;
       unfollowed += item.unfollows;
     });
-    // For mutuals, aggregate from runSummary matching chart dates
     const chartKeys = new Set(chartData.map(c => c.key));
     runSummary.forEach(r => {
-      if (r.ran_at && chartKeys.has(r.ran_at.split('T')[0])) {
-        mutuals += (r.mutuals_found || 0);
+      if (r.ran_at) {
+        const localKey = `${new Date(r.ran_at).getFullYear()}-${String(new Date(r.ran_at).getMonth()+1).padStart(2,'0')}-${String(new Date(r.ran_at).getDate()).padStart(2,'0')}`;
+        if (chartKeys.has(localKey)) {
+          mutuals += (r.mutuals_found || 0);
+        }
       }
     });
     if (mutuals === 0 && stats.mutuals > 0) mutuals = stats.mutuals;
     return { evaluated, followed, unfollowed, mutuals };
-  }, [chartData, runSummary, stats.mutuals]);
+  }, [chartData, runSummary, stats, timeRange]);
+
 
 
   const statusDistribution = useMemo(() => {
@@ -1411,54 +1482,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             </nav>
 
           </div>
-
-          {/* Sidebar Footer */}
-          <div className="space-y-4 pt-6 border-t border-[#dadada] dark:border-[#2a2a2a]">
-            {workerStatus && (
-              <div className="bg-[#f3f3f3] dark:bg-[#1a1a1a] rounded-xl p-3.5 text-[10px] font-mono leading-relaxed relative overflow-hidden text-[#767676]">
-                <div className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] flex items-center space-x-1.5 mb-1.5 font-jakarta">
-                  <Activity className="h-3.5 w-3.5 text-[#e60023]" />
-                  <span>Agent Worker Status</span>
-                </div>
-                <div className="space-y-0.5">
-                  <div className="flex justify-between">
-                    <span>Job State:</span>
-                    <span className={`font-bold ${workerStatus.isJobRunning ? 'text-amber-500 animate-pulse' : 'text-emerald-500'}`}>
-                      {workerStatus.isJobRunning ? 'RUNNING' : 'IDLE'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Last Run:</span>
-                    <span>
-                      {(() => {
-                        const lastSuccessLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message?.includes('finished'));
-                        const lastRunTime = workerStatus?.lastRun || (lastSuccessLog ? lastSuccessLog.timestamp : null);
-                        if (!lastRunTime) return 'Never';
-                        const date = new Date(lastRunTime);
-                        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                      })()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between px-2 text-xs text-[#767676]">
-              <span className="flex items-center gap-1.5 font-medium font-geist">
-                <span className={`h-2.5 w-2.5 rounded-full ${workerStatus?.isJobRunning ? 'bg-amber-400' : 'bg-emerald-500'} animate-pulse`} />
-                System Ready
-              </span>
-              
-              <button 
-                onClick={toggleDarkMode}
-                className="h-8 w-8 flex items-center justify-center border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all"
-                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-              >
-                {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
         </aside>
+
 
         {/* BACKDROP FOR MOBILE */}
         {isSidebarOpen && (
@@ -1529,7 +1554,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               </button>
 
               {/* Top-Right Profile Icon Avatar & Dropdown */}
-              <div className="relative ml-2">
+              <div className="relative ml-2" ref={profileMenuRef}>
+
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                   className="h-9 w-9 rounded-full border-2 border-red-500/60 p-0.5 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
@@ -2705,12 +2731,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           <div className="bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-lg rounded-3xl p-6 flex flex-col shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
               <div className="flex items-center space-x-2.5">
-                <div className="h-9 w-9 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-500">
+                <div className="h-9 w-9 rounded-xl bg-[#e60023]/10 border border-[#e60023]/30 flex items-center justify-center text-[#e60023]">
                   <Settings className="h-5 w-5" />
                 </div>
                 <div>
                   <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">Dashboard Settings</h3>
-                  <span className="text-[10px] font-mono text-zinc-400">FollowMe System Configuration</span>
+                  <span className="text-[10px] font-mono text-zinc-400">System Preferences & Agent Rules</span>
                 </div>
               </div>
               <button
@@ -2721,26 +2747,104 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               </button>
             </div>
 
-            <div className="space-y-4 font-sans text-xs">
-              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-2">
-                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Worker Schedule & Environment</h4>
-                <div className="space-y-1 font-mono text-[11px] text-zinc-500">
-                  <div className="flex justify-between"><span>Worker Host:</span><span className="text-zinc-200">http://localhost:8000</span></div>
-                  <div className="flex justify-between"><span>Cron Frequency:</span><span className="text-zinc-200">Every 6 Hours</span></div>
-                  <div className="flex justify-between"><span>Target Evaluation Threshold:</span><span className="text-emerald-400 font-bold">&gt;= 8.0 Score</span></div>
+            <div className="space-y-4 font-sans text-xs max-h-[65vh] overflow-y-auto pr-1">
+              {/* 1. Custom Evaluation Rules */}
+              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3">
+                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                  <Sliders className="h-3.5 w-3.5 text-[#e60023]" /> Custom Evaluation Rules
+                </h4>
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Target Language Priorities</label>
+                    <input
+                      type="text"
+                      value={evalLanguages}
+                      onChange={(e) => setEvalLanguages(e.target.value)}
+                      className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      placeholder="e.g. TypeScript, Python, Rust"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Min. Repo Stars</label>
+                      <input
+                        type="number"
+                        value={evalMinStars}
+                        onChange={(e) => setEvalMinStars(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Min. Score Grade (0-10)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="10"
+                        value={evalMinGrade}
+                        onChange={(e) => setEvalMinGrade(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/20 space-y-2">
-                <h4 className="font-bold text-red-500 font-jakarta flex items-center gap-1.5">
-                  <Zap className="h-3.5 w-3.5" /> Proposed Future Settings
+              {/* 2. Change Password / Security Key */}
+              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-2.5">
+                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                  <Key className="h-3.5 w-3.5 text-[#e60023]" /> Security & Access Key
                 </h4>
-                <ul className="list-disc list-inside space-y-1 text-[11px] text-zinc-400 leading-relaxed font-sans">
-                  <li><strong>GitHub Access Token:</strong> Configure PAT & API rate limit monitoring.</li>
-                  <li><strong>Custom Evaluation Rules:</strong> Set language priorities & minimum star rules.</li>
-                  <li><strong>Alert Webhooks:</strong> Telegram/Slack notifications for high-scoring profile matches.</li>
-                  <li><strong>Data Export:</strong> One-click CSV/JSON backups of graded developers.</li>
-                </ul>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono font-bold text-zinc-500 block">Change Dashboard Passcode</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={newSecurityKey}
+                      onChange={(e) => setNewSecurityKey(e.target.value)}
+                      placeholder="Enter new security key..."
+                      className="flex-1 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-1.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                    />
+                    <button
+                      onClick={handleSaveSecurityKey}
+                      className="px-4 py-1.5 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-xl transition cursor-pointer font-geist shrink-0"
+                    >
+                      Update Key
+                    </button>
+                  </div>
+                  {keySaveMsg && (
+                    <span className="text-[10px] font-mono text-emerald-500 block font-bold animate-pulse">{keySaveMsg}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Data Export & Backups */}
+              <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-2.5">
+                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                  <Download className="h-3.5 w-3.5 text-[#e60023]" /> Data Export & Backup
+                </h4>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleExportCSV}
+                    className="flex-1 py-2 px-3 border border-[#dadada] dark:border-[#2a2a2a] bg-white dark:bg-[#111111] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-xl text-xs font-bold font-geist transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5 text-[#e60023]" />
+                    Export CSV Report
+                  </button>
+                  <button
+                    onClick={() => {
+                      const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allProfiles, null, 2));
+                      const dlAnchorElem = document.createElement('a');
+                      dlAnchorElem.setAttribute("href", jsonStr);
+                      dlAnchorElem.setAttribute("download", `followme_backup_${new Date().toISOString().split('T')[0]}.json`);
+                      dlAnchorElem.click();
+                    }}
+                    className="flex-1 py-2 px-3 border border-[#dadada] dark:border-[#2a2a2a] bg-white dark:bg-[#111111] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-xl text-xs font-bold font-geist transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5 text-blue-500" />
+                    Export JSON Backup
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2749,7 +2853,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 onClick={() => setIsSettingsOpen(false)}
                 className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist"
               >
-                Done
+                Save Settings
               </button>
             </div>
           </div>
@@ -2758,6 +2862,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     </div>
   );
 }
+
 
 
 
