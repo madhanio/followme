@@ -16,7 +16,6 @@ import {
   triggerLogCleanup, 
   triggerClearStale, 
   triggerDeleteProfile, 
-  triggerSyncMutuals, 
   triggerSyncFollowing 
 } from './actions';
 
@@ -578,6 +577,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     };
   }, []);
 
+
+
   const handleTestWebhook = async () => {
     setIsTestingWebhook(true);
     setWebhookTestStatus(null);
@@ -735,6 +736,19 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   // Cleanup Assistant states
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
+
+  // Prevent background scrolling when any modal overlay is active
+  useEffect(() => {
+    const isAnyModalOpen = isSettingsOpen || isSecurityModalOpen || isCleanupOpen || isSidebarOpen || Boolean(exportPreview);
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isSettingsOpen, isSecurityModalOpen, isCleanupOpen, isSidebarOpen, exportPreview]);
   const [cleanupOption, setCleanupOption] = useState<'list' | 'logs' | 'stale' | null>(null);
   const [totalLogsCount, setTotalLogsCount] = useState<number>(0);
   const staleProfilesCount = useMemo(() => {
@@ -1123,7 +1137,6 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     try {
       const res = await triggerSyncFollowing();
       if (res.success) {
-        await triggerSyncMutuals();
         const reposRes = await supabase.from('repos').select('*');
         if (reposRes.data) setRepos(reposRes.data);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
@@ -1710,16 +1723,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     className="w-full flex flex-row items-center space-x-2.5 px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-[#f3f3f3] dark:hover:bg-[#1c1c1f] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] cursor-pointer transition text-left font-bold"
                   >
                     <Lock className="h-4.5 w-4.5 text-zinc-450" />
-                    <span>Security & Access Key</span>
-                  </button>
-                  <button 
-                    onClick={toggleDarkMode}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-[#f3f3f3] dark:hover:bg-[#1c1c1f] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] cursor-pointer transition text-left font-bold"
-                  >
-                    <div className="flex items-center space-x-2.5">
-                      {isDark ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-indigo-400" />}
-                      <span>Theme Mode</span>
-                    </div>
+                    <span>Password</span>
                   </button>
                 </div>
 
@@ -1761,11 +1765,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             {/* Menu Links */}
             <nav className="space-y-1 font-geist">
               {[
-                { tab: 'home', label: 'Explore', count: null, icon: Compass },
+                { tab: 'home', label: 'Home', count: null, icon: Compass },
                 { tab: 'profiles', label: 'Profiles', count: filteredProfiles.length, icon: Layers },
-                { tab: 'repos', label: 'Repos', count: filteredRepos.length, icon: Star },
+                { tab: 'repos', label: 'Repositories', count: filteredRepos.length, icon: Star },
                 { tab: 'logs', label: 'Logs', count: logs.length, icon: Terminal },
-                { tab: 'stats', label: 'Metrics', count: null, icon: TrendingUp }
+                { tab: 'stats', label: 'Stats', count: null, icon: TrendingUp }
               ].map(item => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.tab;
@@ -1817,8 +1821,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           
           {/* TOP APP BAR */}
           <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-center md:justify-end px-4 md:px-6 shrink-0 z-20 gap-4">
-            {activeTab !== 'stats' && activeTab !== 'home' && (
-              <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden mr-auto">
+            <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden mr-auto">
                 <div className="relative w-full">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <input 
@@ -1830,17 +1833,15 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   />
                 </div>
               </div>
-            )}
 
             <div className="flex items-center justify-center space-x-3 font-geist relative w-full md:w-auto flex-wrap">
+              {/* Theme Toggle Button */}
               <button 
-                onClick={handleSync}
-                disabled={isSyncing || workerStatus?.isJobRunning}
-                className="min-h-[36px] px-3.5 flex items-center space-x-1.5 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow active:scale-95"
-                title="Sync Repos"
+                onClick={toggleDarkMode}
+                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all aura-shadow active:scale-95 shrink-0"
+                title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
               >
-                {isSyncing ? <RotateCw className="h-3.5 w-3.5 animate-spin text-[#e60023] shrink-0" /> : <RotateCw className="h-3.5 w-3.5 text-[#e60023] shrink-0" />}
-                <span>Sync</span>
+                {isDark ? <Sun className="h-4 w-4 text-amber-400 shrink-0" /> : <Moon className="h-4 w-4 text-indigo-400 shrink-0" />}
               </button>
 
               {/* Icon-only Cleanup Cache */}
@@ -1951,20 +1952,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         }}
                         className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1e1e24] transition-all cursor-pointer"
                       >
-                        <Lock className="h-4 w-4 text-emerald-500" />
-                        <span>Security Key</span>
+                        <Lock className="h-4 w-4 text-[#e60023]" />
+                        <span>Password</span>
                       </button>
 
-                      <button
-                        onClick={toggleDarkMode}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1e1e24] transition-all cursor-pointer"
-                      >
-                        <div className="flex items-center space-x-2.5">
-                          {isDark ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-indigo-400" />}
-                          <span>Mode: {isDark ? 'Dark' : 'Light'}</span>
-                        </div>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">Toggle</span>
-                      </button>
+
 
                       <button
                         onClick={handleLogout}
@@ -2211,7 +2203,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         onMouseMove={handleRepoMouseMove}
                         onMouseUp={handleRepoMouseUpOrLeave}
                         onMouseLeave={handleRepoMouseUpOrLeave}
-                        className="flex overflow-x-auto space-x-4 pb-2 scrollbar-none [scrollbar-width:none] [&-::-webkit-scrollbar]:hidden select-none cursor-grab active:cursor-grabbing scroll-smooth"
+                        className="flex overflow-x-auto space-x-4 pb-2 no-scrollbar select-none cursor-grab active:cursor-grabbing scroll-smooth"
                       >
                         {top3Repos.map((repo: Repo) => (
                           <div 
@@ -3158,7 +3150,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               {[
                 { id: 'automation', label: 'Automation', icon: Clock },
                 { id: 'safety', label: 'Safety', icon: ShieldCheck },
-                { id: 'ai', label: 'AI Tuning', icon: Cpu },
+                { id: 'ai', label: 'AI Settings', icon: Cpu },
                 { id: 'notifications', label: 'Notifications', icon: Mail }
               ].map(cat => {
                 const Icon = cat.icon;
@@ -3314,33 +3306,6 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         onChange={(e) => setTempSettings({ ...tempSettings, systemPrompt: e.target.value })}
                         className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-3 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023] leading-relaxed resize-none"
                       />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1.5 flex items-center gap-1">
-                        <Palette className="h-3 w-3" /> Dashboard Accent Color Theme
-                      </label>
-                      <div className="flex gap-2">
-                        {[
-                          { name: 'Crimson Red', hex: '#e60023' },
-                          { name: 'Electric Violet', hex: '#8b5cf6' },
-                          { name: 'Emerald Green', hex: '#10b981' },
-                          { name: 'Dark Obsidian', hex: '#18181b' }
-                        ].map(c => (
-                          <button
-                            key={c.hex}
-                            onClick={() => setTempSettings({ ...tempSettings, accentColor: c.hex })}
-                            className={`flex-1 py-1.5 rounded-xl border text-[10px] font-mono font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                              tempSettings.accentColor === c.hex
-                                ? 'border-[#e60023] ring-1 ring-[#e60023] bg-zinc-100 dark:bg-zinc-800'
-                                : 'border-[#dadada] dark:border-[#2a2a2a]'
-                            }`}
-                          >
-                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.hex }} />
-                            <span>{c.name.split(' ')[0]}</span>
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -3570,12 +3535,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           >
             <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
               <div className="flex items-center space-x-2.5">
-                <div className="h-9 w-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500">
+                <div className="h-9 w-9 rounded-xl bg-[#e60023]/10 border border-[#e60023]/30 flex items-center justify-center text-[#e60023]">
                   <Lock className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">Security & Access Key</h3>
-                  <span className="text-[10px] font-mono text-zinc-400">Update Gateway Access Passcode</span>
+                  <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">Password & Security</h3>
+                  <span className="text-[10px] font-mono text-zinc-400">Update Dashboard Access Password</span>
                 </div>
               </div>
               <button
@@ -3588,37 +3553,37 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
             <form onSubmit={handleUpdateSecurityKey} className="space-y-4 font-sans text-xs">
               <div>
-                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Current Security Key</label>
+                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Current Password</label>
                 <input
                   type="password"
                   value={currentSecKey}
                   onChange={(e) => setCurrentSecKey(e.target.value)}
-                  placeholder="Enter current passcode..."
-                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-emerald-500"
+                  placeholder="Enter current password..."
+                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">New Security Key</label>
+                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">New Password</label>
                 <input
                   type="password"
                   value={newSecKey}
                   onChange={(e) => setNewSecKey(e.target.value)}
-                  placeholder="Enter new passcode (min. 4 chars)..."
-                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-emerald-500"
+                  placeholder="Enter new password (min. 4 chars)..."
+                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Confirm New Security Key</label>
+                <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Confirm New Password</label>
                 <input
                   type="password"
                   value={confirmSecKey}
                   onChange={(e) => setConfirmSecKey(e.target.value)}
-                  placeholder="Confirm new passcode..."
-                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-emerald-500"
+                  placeholder="Confirm new password..."
+                  className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
                   required
                 />
               </div>
@@ -3646,9 +3611,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 <button
                   type="submit"
                   disabled={isSecKeySubmitting}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm disabled:opacity-50"
+                  className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm disabled:opacity-50"
                 >
-                  {isSecKeySubmitting ? 'Updating...' : 'Update Security Key'}
+                  {isSecKeySubmitting ? 'Updating...' : 'Update Password'}
                 </button>
               </div>
             </form>

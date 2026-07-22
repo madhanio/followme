@@ -12,6 +12,13 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
     const saved = localStorage.getItem('savedSettings');
     if (saved) {
       try {
@@ -38,7 +45,6 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        setPassword('');
         router.push('/');
         router.refresh();
       } else {
@@ -53,7 +59,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f8f9fa] text-[#1a1c1c] flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
+    <main className="min-h-screen bg-[#f8f9fa] dark:bg-[#0a0a0c] text-[#1a1c1c] dark:text-[#f0f0f0] flex items-center justify-center p-4 relative overflow-hidden font-sans select-none transition-colors duration-300">
       <style dangerouslySetInnerHTML={{ __html: `
         :root {
           --accent-color: ${accentColor};
@@ -76,53 +82,53 @@ export default function LoginPage() {
       <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-red-500/5 blur-[120px] pointer-events-none" />
 
       {/* Masonry Background Decor Cards */}
-      <div className="absolute inset-0 opacity-15 pointer-events-none grid grid-cols-2 md:grid-cols-4 gap-4 p-8 overflow-hidden scale-105 rotate-1">
+      <div className="absolute inset-0 opacity-15 dark:opacity-10 pointer-events-none grid grid-cols-2 md:grid-cols-4 gap-4 p-8 overflow-hidden scale-105 rotate-1">
         <div className="space-y-4">
-          <div className="h-40 rounded-2xl bg-gradient-to-b from-red-100 to-zinc-100 border border-red-200" />
-          <div className="h-64 rounded-2xl bg-zinc-100/50 border border-zinc-200" />
-          <div className="h-48 rounded-2xl bg-zinc-100/70 border border-red-100" />
+          <div className="h-40 rounded-2xl bg-gradient-to-b from-red-100 dark:from-red-950/30 to-zinc-100 dark:to-zinc-900 border border-red-200 dark:border-red-900/30" />
+          <div className="h-64 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800" />
+          <div className="h-48 rounded-2xl bg-zinc-100/70 dark:bg-zinc-900/50 border border-red-100 dark:border-red-900/20" />
         </div>
         <div className="space-y-4 pt-12">
-          <div className="h-56 rounded-2xl bg-zinc-100/70 border border-zinc-200" />
-          <div className="h-44 rounded-2xl bg-gradient-to-b from-red-100 to-zinc-100 border border-red-200" />
-          <div className="h-52 rounded-2xl bg-zinc-100/50 border border-zinc-200" />
+          <div className="h-56 rounded-2xl bg-zinc-100/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800" />
+          <div className="h-44 rounded-2xl bg-gradient-to-b from-red-100 dark:from-red-950/30 to-zinc-100 dark:to-zinc-900 border border-red-200 dark:border-red-900/30" />
+          <div className="h-52 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800" />
         </div>
         <div className="space-y-4 hidden md:block">
-          <div className="h-48 rounded-2xl bg-gradient-to-b from-red-100 to-zinc-100 border border-red-200" />
-          <div className="h-52 rounded-2xl bg-zinc-100/70 border border-zinc-200" />
-          <div className="h-44 rounded-2xl bg-zinc-100/50 border border-red-100" />
+          <div className="h-48 rounded-2xl bg-gradient-to-b from-red-100 dark:from-red-950/30 to-zinc-100 dark:to-zinc-900 border border-red-200 dark:border-red-900/30" />
+          <div className="h-52 rounded-2xl bg-zinc-100/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800" />
+          <div className="h-44 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-red-100 dark:border-red-900/20" />
         </div>
         <div className="space-y-4 pt-8 hidden md:block">
-          <div className="h-60 rounded-2xl bg-zinc-100/50 border border-zinc-200" />
-          <div className="h-40 rounded-2xl bg-gradient-to-b from-red-100 to-zinc-100 border border-red-200" />
-          <div className="h-56 rounded-2xl bg-zinc-100/70 border border-zinc-200" />
+          <div className="h-60 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800" />
+          <div className="h-40 rounded-2xl bg-gradient-to-b from-red-100 dark:from-red-950/30 to-zinc-100 dark:to-zinc-900 border border-red-200 dark:border-red-900/30" />
+          <div className="h-56 rounded-2xl bg-zinc-100/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800" />
         </div>
       </div>
 
       {/* Main Access Control Card */}
-      <div className="w-full max-w-md bg-white border border-[#dadada] rounded-3xl p-8 shadow-xl shadow-zinc-200/50 relative z-10 transition-all">
+      <div className="w-full max-w-md bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-3xl p-8 shadow-xl shadow-zinc-200/50 dark:shadow-none relative z-10 transition-all">
         {/* Top Header Badge */}
         <div className="flex flex-col items-center mb-8 text-center">
           <div className="h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4 shadow-sm">
             <Lock className="h-7 w-7 text-red-600" />
           </div>
-          <h1 className="text-2xl font-black text-[#1a1c1c] tracking-tight font-jakarta">Access Control</h1>
-          <p className="text-xs text-zinc-500 mt-1 font-mono tracking-wide">
-            FollowMe Gateway • Enter Security Key
+          <h1 className="text-2xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] tracking-tight font-jakarta">Access Control</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-mono tracking-wide">
+            FollowMe Gateway • Enter Password
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-[11px] uppercase font-mono tracking-widest text-zinc-500 mb-2 flex items-center gap-1.5">
-              <KeyRound className="h-3.5 w-3.5 text-red-600" /> Security Key
+            <label className="block text-[11px] uppercase font-mono tracking-widest text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5 text-red-600" /> Password
             </label>
             <input
               type="password"
-              placeholder="Enter access key..."
+              placeholder="Enter password..."
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-zinc-50/50 border border-[#dadada] focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl py-3.5 px-4 text-sm text-[#1a1c1c] placeholder-zinc-400 outline-none transition-all font-mono"
+              className="w-full bg-zinc-50/50 dark:bg-[#18181c] border border-[#dadada] dark:border-[#2a2a2a] focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl py-3.5 px-4 text-sm text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-zinc-400 outline-none transition-all font-mono"
               disabled={isLoading}
               required
               autoFocus
