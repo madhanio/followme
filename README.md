@@ -37,6 +37,9 @@ Follow this guide to spin up your own instance of **FollowMe**.
 
 ### 1. Prerequisites & API Keys
 
+> [!TIP]
+> **Modular Architecture:** The choice of hosting, database, and framework here reflects my personal preference for fast deployment and low overhead (Supabase + Render + Vercel). However, the worker and dashboard are completely decoupled. Feel free to swap out the database (e.g., raw PostgreSQL, Firebase), background host (AWS, Railway, Fly.io), or frontend framework with your preferred tech stack!
+
 Before starting, gather the following credentials:
 
 * **GitHub Personal Access Token (PAT):** Create one in GitHub Settings -> Developer Settings -> Personal Access Tokens (Fine-grained or Classic). Needs `user:follow`, `public_repo`, and `read:user` permissions.
