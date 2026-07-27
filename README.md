@@ -23,11 +23,6 @@ Automated GitHub repo discovery, NVIDIA NIM LLM grading, and auto follow/star to
 4. **Data Sync**: Stores evaluation history, grades, actions, skip logs, and follow statuses in Supabase.
 5. **Periodic Cleanup**: A GitHub Actions workflow triggers every 6 hours, checking all auto-followed accounts. If they fail to follow back within 3 days, it automatically unfollows them to maintain healthy account statistics.
 
-## Targeting Guidelines
-Follows are filtered through active peer criteria:
-- **Primary Targeting**: `followers: 20–500`, `following > 20`, `followers/following: 0.5–2.0`, and `age > 6 months`.
-- **Celebrity Bypass (Skip Follow / Star Only)**: Triggered if `followers > 500` and `following < 10`.
-
 ## Architecture
 
 - **Worker:** Node.js + Express on Render, triggered on-demand via its /run endpoint
@@ -36,7 +31,77 @@ Grading Engine: NVIDIA NIM LLM Integration
 - **Storage Layer:** Supabase PostgreSQL database
 - **Web Console:** Next.js 15 UI with monochrome design dashboard on Vercel
 
-## Live Endpoints
+## Self-Hosting & Deployment Guide
 
-- **Dashboard**: https://followme-mads.vercel.app
-- **Worker status**: https://followme-gg6q.onrender.com/health
+Follow this guide to spin up your own instance of **FollowMe**.
+
+### 1. Prerequisites & API Keys
+
+Before starting, gather the following credentials:
+
+> [!NOTE]
+> Make sure your GitHub Personal Access Token has `user:follow`, `public_repo`, and `read:user` permissions.
+> [!WARNING]
+> Keep your `WORKER_SECRET_KEY` and `GITHUB_TOKEN` secure and never commit them directly to the repository.
+* **NVIDIA NIM API Key:** Get a free key at [build.nvidia.com](https://build.nvidia.com/).
+* **Supabase Project:** Create a free project at [supabase.com](https://supabase.com/).
+
+---
+
+### 2. Database Setup (Supabase)
+
+1. Open your **Supabase Dashboard** -> **SQL Editor**.
+2. Paste the contents of [`schema.sql`](./schema.sql) and run the script to initialize tables for evaluation history, follow tracking, and queue state.
+
+---
+
+### 3. Deploy the Background Worker (Render)
+
+1. Fork or clone this repository.
+2. Create a new **Web Service** on [Render](https://render.com/) pointing to your repository.
+3. Set the **Root Directory** to `worker` (or build from the root if deploying as a monorepo).
+4. Configure the following **Environment Variables**:
+
+```env
+PORT=3000
+GITHUB_TOKEN=your_github_personal_access_token
+NVIDIA_NIM_API_KEY=your_nvidia_nim_api_key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+5. Deploy the service and save your public service URL (e.g., https://your-worker.onrender.com).
+
+---
+
+### 4. Deploy the Web Dashboard (Vercel)
+1. Import your repository into [Vercel](https://vercel.com).
+2. Set the **Root Directory** to `dashboard`.
+3. Add the required **Environment Variables**:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+WORKER_ENDPOINT=https://your-worker.onrender.com
+```
+
+4. Click Deploy.
+
+---
+
+### 5. Automate with GitHub Actions
+To enable automated background execution:
+
+1. Go to **Settings** -> **Secrets and variables** -> **Actions**.
+2. Add the following **Repository Secrets**:
+   * `WORKER_URL`: Your deployed worker endpoint (e.g., `https://your-worker.onrender.com/run`)
+   * `WORKER_SECRET_KEY`: (Optional) Secret key if you secured your `/run` route.
+3. Enable the workflows under the **Actions** tab.
+
+## Live Links
+* **Dashboard Demo**: https://followme-mads.vercel.app
+
+* **Worker Health Check**: https://your-worker.onrender.com/health
+
+## License
+Distributed under the [MIT License](LICENSE)
