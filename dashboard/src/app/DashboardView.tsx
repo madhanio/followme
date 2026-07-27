@@ -461,19 +461,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   useEffect(() => {
     setMounted(true);
-    const storedTheme = localStorage.getItem('theme');
-    if (storedTheme) {
-      const nextDark = storedTheme === 'dark';
-      setIsDark(nextDark);
-      if (nextDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    } else {
-      const darkActive = document.documentElement.classList.contains('dark');
-      setIsDark(darkActive);
-    }
+    const darkActive = document.documentElement.classList.contains('dark');
+    setIsDark(darkActive);
 
     const saved = localStorage.getItem('savedSettings');
     if (saved) {
@@ -485,17 +474,17 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   }, []);
 
   const toggleDarkMode = () => {
-    console.log("toggleDarkMode clicked. Current isDark:", isDark);
-    const nextDark = !isDark;
+    const isCurrentlyDark = document.documentElement.classList.contains('dark');
+    const nextDark = !isCurrentlyDark;
     setIsDark(nextDark);
     if (nextDark) {
       document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
       localStorage.theme = 'dark';
-      console.log("Added dark class. documentElement class list:", document.documentElement.classList.toString());
     } else {
       document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
       localStorage.theme = 'light';
-      console.log("Removed dark class. documentElement class list:", document.documentElement.classList.toString());
     }
   };
 
@@ -2353,16 +2342,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               {/* 1. PROFILES TAB */}
               {!isTabTransitioning && !isRefreshing && activeTab === 'profiles' && (
                 <div className="space-y-6">
-                  <div className="masonry-grid">
-                    {isRefreshing ? (
-                      [1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
-                    ) : filteredProfiles.length === 0 ? (
-                      <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl text-center text-xs font-mono text-[#767676] space-y-3">
-                        <Lottie animationData={mainCharacter} loop={true} className="w-32 h-32 opacity-80" />
-                        <p>No profiles found matching search query/filters.</p>
+                  {isRefreshing ? (
+                    <div className="masonry-grid">
+                      {[1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)}
+                    </div>
+                  ) : filteredProfiles.length === 0 ? (
+                    <div className="w-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl text-center text-xs font-mono text-[#767676] space-y-4 aura-shadow my-2">
+                      <div className="w-28 h-28 flex items-center justify-center overflow-hidden shrink-0">
+                        <Lottie animationData={mainCharacter} loop={true} className="w-full h-full object-contain" />
                       </div>
-                    ) : (
-                      filteredProfiles.slice(0, visibleProfilesCount).map(profile => (
+                      <p className="font-semibold text-zinc-600 dark:text-zinc-400">No profiles found matching search query/filters.</p>
+                    </div>
+                  ) : (
+                    <div className="masonry-grid">
+                      {filteredProfiles.slice(0, visibleProfilesCount).map(profile => (
                         <div key={profile.owner} className="masonry-item">
                           <ProfileCard
                             profile={profile}
@@ -2374,9 +2367,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             setSearchTerm={setSearchTerm}
                           />
                         </div>
-                      ))
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                   {filteredProfiles.length > visibleProfilesCount && (
                     <div className="flex justify-center pt-4">
                       <button
@@ -2393,16 +2386,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               {/* 2. REPOS TAB */}
               {!isTabTransitioning && !isRefreshing && activeTab === 'repos' && (
                 <div className="space-y-6">
-                  <div className="masonry-grid">
-                    {isRefreshing ? (
-                      [1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)
-                    ) : filteredRepos.length === 0 ? (
-                      <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl text-center text-xs font-mono text-[#767676] space-y-3">
-                        <Lottie animationData={mainCharacter} loop={true} className="w-32 h-32 opacity-80" />
-                        <p>No repositories found matching search query/filters.</p>
+                  {isRefreshing ? (
+                    <div className="masonry-grid">
+                      {[1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)}
+                    </div>
+                  ) : filteredRepos.length === 0 ? (
+                    <div className="w-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl text-center text-xs font-mono text-[#767676] space-y-4 aura-shadow my-2">
+                      <div className="w-28 h-28 flex items-center justify-center overflow-hidden shrink-0">
+                        <Lottie animationData={mainCharacter} loop={true} className="w-full h-full object-contain" />
                       </div>
-                    ) : (
-                      filteredRepos.slice(0, visibleReposCount).map(repo => (
+                      <p className="font-semibold text-zinc-600 dark:text-zinc-400">No repositories found matching search query/filters.</p>
+                    </div>
+                  ) : (
+                    <div className="masonry-grid">
+                      {filteredRepos.slice(0, visibleReposCount).map(repo => (
                         <div 
                           key={repo.id}
                           className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-xl p-6 transition-all duration-350 flex flex-col justify-between space-y-4"
@@ -2478,9 +2475,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             )}
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                   {filteredRepos.length > visibleReposCount && (
                     <div className="flex justify-center pt-4">
                       <button

@@ -106,13 +106,45 @@ async function runAutomationJob() {
         continue;
       }
 
-      console.log(`Processing repo: ${repo.owner}/${repo.name}`);
+      console.log(`Processing candidate: ${repo.owner}/${repo.name}`);
 
-      // 2. Fetch README snippet
+      // 2. Pre-filter owner profile eligibility BEFORE AI grading
+      if (stats.followed >= MAX_ACTIONS_PER_RUN) {
+        console.log(`Follow limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping ${repo.owner}.`);
+        stats.skipped++;
+        continue;
+      }
+
+      // Check if owner already exists in repos table with follow_back = false and unfollowed = false
+      const { data: existingFollow } = await supabase
+        .from('repos')
+        .select('id')
+        .ilike('owner', repo.owner)
+        .eq('follow_back', false)
+        .eq('unfollowed', false)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingFollow) {
+        console.log(`Skipping profile ${repo.owner} — already followed (follow_back=false, unfollowed=false). Skipping AI grading.`);
+        stats.skipped++;
+        continue;
+      }
+
+      // Check owner profile targeting filters
+      const profileCheck = await checkOwnerProfile(repo.owner);
+      if (!profileCheck.shouldFollow) {
+        console.log(`Skipping profile ${repo.owner} — targeting filter failed: ${profileCheck.skipReason}. Skipping AI grading.`);
+        stats.skipped++;
+        await logAction('SKIP_FOLLOW', repo.id, 'SUCCESS', `Skipped ${repo.owner} before grading: ${profileCheck.skipReason}`);
+        continue;
+      }
+
+      // 3. Profile passed target filters — Now fetch README snippet & grade using NVIDIA NIM
+      console.log(`Owner ${repo.owner} passed targeting filters. Proceeding to fetch README and grade repo ${repo.owner}/${repo.name}...`);
       const readme = await fetchRepoReadme(repo.owner, repo.name);
       repo.readme_snippet = readme;
 
-      // 3. Grade using NVIDIA NIM
       const grading = await gradeRepository(repo);
       stats.graded++;
 
@@ -123,12 +155,9 @@ async function runAutomationJob() {
       let starResult: { success: boolean; message: string } | null = null;
       let followResult: { success: boolean; message: string } | null = null;
 
-      // 4. Auto star / follow if grade is above threshold
-      let followSkipped = false;
-      let followSkipReason: string | null = null;
-
+      // 4. Follow user & Star repo if grade meets threshold
       if (grading.grade >= GRADE_THRESHOLD) {
-        // Star if under the actions cap
+        // Star if under actions cap
         if (stats.starred < MAX_ACTIONS_PER_RUN) {
           console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring...`);
           const starSuccess = await starRepo(repo.owner, repo.name);
@@ -139,49 +168,17 @@ async function runAutomationJob() {
           } else {
             starResult = { success: false, message: `Failed to star repository ${repo.owner}/${repo.name}` };
           }
-        } else {
-          console.log(`Star limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping star for ${repo.owner}/${repo.name}.`);
         }
 
-        // Follow if under the actions cap
-        if (stats.followed < MAX_ACTIONS_PER_RUN) {
-          // Check if owner already exists in repos table with follow_back = false and unfollowed = false
-          const { data: existingFollow } = await supabase
-            .from('repos')
-            .select('id')
-            .ilike('owner', repo.owner)
-            .eq('follow_back', false)
-            .eq('unfollowed', false)
-            .limit(1)
-            .maybeSingle();
-
-          if (existingFollow) {
-            console.log(`Skipping follow for ${repo.owner} — already followed (follow_back=false, unfollowed=false)`);
-            followSkipped = true;
-            followSkipReason = 'already-followed-pending-followback';
-            stats.skipped++;
-          } else {
-            // Check owner profile before following
-            const profileCheck = await checkOwnerProfile(repo.owner);
-            if (profileCheck.shouldFollow) {
-              console.log(`Owner ${repo.owner} passed targeting filters. Following...`);
-              const followSuccess = await followUser(repo.owner);
-              if (followSuccess) {
-                followed = true;
-                stats.followed++;
-                followResult = { success: true, message: `Followed user ${repo.owner}` };
-              } else {
-                followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
-              }
-            } else {
-              followSkipped = true;
-              followSkipReason = profileCheck.skipReason;
-              stats.skipped++;
-              console.log(`Skipping follow for ${repo.owner} — reason: ${profileCheck.skipReason}`);
-            }
-          }
+        // Follow user (profile already passed check)
+        console.log(`Following user ${repo.owner}...`);
+        const followSuccess = await followUser(repo.owner);
+        if (followSuccess) {
+          followed = true;
+          stats.followed++;
+          followResult = { success: true, message: `Followed user ${repo.owner}` };
         } else {
-          console.log(`Follow limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping profile checks / follow for ${repo.owner}.`);
+          followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
         }
       }
 
@@ -201,19 +198,15 @@ async function runAutomationJob() {
           },
           followed,
           starred,
-          followSkipped,
-          followSkipReason
+          false,
+          null
         );
 
-        // 6. Log interactions after repo is successfully saved
         if (starResult) {
           await logAction('STAR', repo.id, starResult.success ? 'SUCCESS' : 'FAILED', starResult.message);
         }
         if (followResult) {
           await logAction('FOLLOW', repo.id, followResult.success ? 'SUCCESS' : 'FAILED', followResult.message);
-        }
-        if (followSkipped) {
-          await logAction('SKIP_FOLLOW', repo.id, 'SUCCESS', `Skipped follow for ${repo.owner}: ${followSkipReason}`);
         }
 
         await logAction(
@@ -223,10 +216,10 @@ async function runAutomationJob() {
           `Graded repo: ${repo.owner}/${repo.name}. Score: ${grading.grade}. Reason: ${grading.reason}`
         );
       } else {
-        console.log(`[Automation] Skipped database write for ${repo.owner}/${repo.name} - not followed and not starred. (Grade: ${grading.grade}, Reason: ${grading.reason})`);
+        console.log(`[Automation] Skipped database write for ${repo.owner}/${repo.name} - grade below threshold or action failed. (Grade: ${grading.grade}, Reason: ${grading.reason})`);
       }
 
-      // Sleep 1.5 seconds between repositories to be respectful to APIs and limit rates
+      // Sleep 1.5 seconds between repositories
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
 
