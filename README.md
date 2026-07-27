@@ -107,9 +107,9 @@ To enable automated background execution:
 3. Go to the **Actions** tab in your repository and enable the workflows. The scheduler will now trigger discovery automatically every 6 hours.
 
 ## Live Links
-* **Dashboard Demo**: [followme-mads.vercel.app](https://followme-mads.vercel.app)
+* **Dashboard Demo**: [Launch Live Dashboard ↗](https://followme-mads.vercel.app)
 
-* **Worker Health Check**: https://your-worker.onrender.com/health
+* **Worker Health Check**: [Live Health Check ↗](https://followme-gg6q.onrender.com/health)
 
 ## License
 Distributed under the [MIT License](LICENSE)
