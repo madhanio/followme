@@ -39,13 +39,17 @@ Follow this guide to spin up your own instance of **FollowMe**.
 
 Before starting, gather the following credentials:
 
+* **GitHub Personal Access Token (PAT):** Create one in GitHub Settings -> Developer Settings -> Personal Access Tokens (Fine-grained or Classic). Needs `user:follow`, `public_repo`, and `read:user` permissions.
+* **NVIDIA NIM API Key:** Get a free key at [build.nvidia.com](https://build.nvidia.com/).
+* **Supabase Keys:** Create a free project at [supabase.com](https://supabase.com/). Go to **Project Settings** -> **API** to copy your:
+  * `Project URL` (e.g., `https://your-project.supabase.co`)
+  * `anon` / `public` API Key
+
 > [!NOTE]
 > Make sure your GitHub Personal Access Token has `user:follow`, `public_repo`, and `read:user` permissions.
 
 > [!WARNING]
 > Keep your `WORKER_SECRET_KEY` and `GITHUB_TOKEN` secure and never commit them directly to the repository.
-* **NVIDIA NIM API Key:** Get a free key at [build.nvidia.com](https://build.nvidia.com/).
-* **Supabase Project:** Create a free project at [supabase.com](https://supabase.com/).
 
 ---
 
