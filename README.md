@@ -109,7 +109,7 @@ To enable automated background execution:
 ## Live Links
 * **Dashboard Demo**: [Launch Live Dashboard ↗](https://followme-mads.vercel.app)
 
-* **Worker Health Check**: [Live Health Check ↗](https://followme-gg6q.onrender.com/health)
+* **Worker Health Check**: [Live Health Check ↗](https://followme-gg6q.onrender.com/health) *(Note: May take ~30s if waking from sleep)*
 
 ## License
 Distributed under the [MIT License](LICENSE)
