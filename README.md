@@ -56,16 +56,18 @@ Before starting, gather the following credentials:
 ### 2. Database Setup (Supabase)
 
 1. Open your **Supabase Dashboard** -> **SQL Editor**.
-2. Paste the contents of [`schema.sql`](./schema.sql) and run the script to initialize tables for evaluation history, follow tracking, and queue state.
+2. Click **New Query**.
+3. Copy the contents of [`schema.sql`](./schema.sql) from this repository, paste it into the editor, and click **Run**.
+
+*(This initializes the required tables for evaluation history, follow tracking, and queue state).*
 
 ---
 
 ### 3. Deploy the Background Worker (Render)
 
-1. Fork or clone this repository.
-2. Create a new **Web Service** on [Render](https://render.com/) pointing to your repository.
-3. Set the **Root Directory** to `worker` (or build from the root if deploying as a monorepo).
-4. Configure the following **Environment Variables**:
+1. Create a new **Web Service** on [Render](https://render.com/) and connect your repository.
+2. Set the **Root Directory** to `worker`.
+3. Add the required **Environment Variables**:
 
 ```env
 PORT=3000
@@ -75,7 +77,7 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-5. Deploy the service and save your public service URL (e.g., https://your-worker.onrender.com).
+4. Click Deploy Web Service and copy your public service URL (e.g., https://your-worker.onrender.com).
 
 ---
 
@@ -95,16 +97,17 @@ WORKER_ENDPOINT=https://your-worker.onrender.com
 ---
 
 ### 5. Automate with GitHub Actions
+
 To enable automated background execution:
 
-1. Go to **Settings** -> **Secrets and variables** -> **Actions**.
+1. Go to your GitHub Repository -> **Settings** -> **Secrets and variables** -> **Actions**.
 2. Add the following **Repository Secrets**:
-   * `WORKER_URL`: Your deployed worker endpoint (e.g., `https://your-worker.onrender.com/run`)
-   * `WORKER_SECRET_KEY`: (Optional) Secret key if you secured your `/run` route.
-3. Enable the workflows under the **Actions** tab.
+   * `WORKER_URL`: Your deployed Render worker endpoint with `/run` appended (e.g., `https://your-worker.onrender.com/run`)
+   * `WORKER_SECRET_KEY`: *(Optional)* Secret key if you secured your `/run` route.
+3. Go to the **Actions** tab in your repository and enable the workflows. The scheduler will now trigger discovery automatically every 6 hours.
 
 ## Live Links
-* **Dashboard Demo**: https://followme-mads.vercel.app
+* **Dashboard Demo**: [followme-mads.vercel.app](https://followme-mads.vercel.app)
 
 * **Worker Health Check**: https://your-worker.onrender.com/health
 
