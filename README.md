@@ -33,10 +33,10 @@ Grading Engine: NVIDIA NIM LLM Integration
 
 ## Self-Hosting & Deployment Guide
 
-Follow this guide to spin up your own instance of **FollowMe**.
-
 > [!TIP]
 > **Modular Architecture:** The stack below (Supabase + Render + Vercel) reflects my personal setup for low overhead, but the worker and dashboard are decoupled. Feel free to swap in your preferred database, host, or framework!
+
+Follow this guide to spin up your own instance of **FollowMe**.
 
 ### 1. Prerequisites & API Keys
 
