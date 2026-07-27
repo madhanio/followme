@@ -1532,8 +1532,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               title="Profile Menu"
             >
               <img
-                src="https://github.com/madhanio.png"
-                alt="Madhan"
+                src="https://api.dicebear.com/7.x/identicon/svg?seed=Admin"
+                alt="Admin"
                 className="h-full w-full rounded-full object-cover"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = "https://github.com/github.png";
@@ -1549,16 +1549,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 {/* Header */}
                 <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
                   <img
-                    src="https://github.com/madhanio.png"
-                    alt="Madhan Profile"
+                    src="https://api.dicebear.com/7.x/identicon/svg?seed=Admin"
+                    alt="Admin Profile"
                     className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = "https://github.com/github.png";
                     }}
                   />
                   <div>
-                    <h4 className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">Madhan</h4>
-                    <span className="text-[10px] font-mono text-zinc-400">@madhanio</span>
+                    <h4 className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">Admin</h4>
+                    <span className="text-[10px] font-mono text-zinc-400">@admin</span>
                   </div>
                 </div>
 
