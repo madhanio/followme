@@ -41,6 +41,7 @@ Before starting, gather the following credentials:
 
 > [!NOTE]
 > Make sure your GitHub Personal Access Token has `user:follow`, `public_repo`, and `read:user` permissions.
+
 > [!WARNING]
 > Keep your `WORKER_SECRET_KEY` and `GITHUB_TOKEN` secure and never commit them directly to the repository.
 * **NVIDIA NIM API Key:** Get a free key at [build.nvidia.com](https://build.nvidia.com/).
