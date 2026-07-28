@@ -1656,11 +1656,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               title="Profile Menu"
             >
               <img
-                src="https://api.dicebear.com/7.x/identicon/svg?seed=Admin"
-                alt="Admin"
+                src="https://github.com/madhanio.png"
+                alt="madhan"
                 className="h-full w-full rounded-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                  (e.target as HTMLImageElement).src = "https://github.com/madhanio.png";
                 }}
               />
             </button>
@@ -1673,16 +1673,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 {/* Header */}
                 <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
                   <img
-                    src="https://api.dicebear.com/7.x/identicon/svg?seed=Admin"
-                    alt="Admin Profile"
+                    src="https://github.com/madhanio.png"
+                    alt="madhan Profile"
                     className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                      (e.target as HTMLImageElement).src = "https://github.com/madhanio.png";
                     }}
                   />
                   <div>
-                    <h4 className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">Admin</h4>
-                    <span className="text-[10px] font-mono text-zinc-400">@admin</span>
+                    <h4 className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">madhan</h4>
+                    <span className="text-[10px] font-mono text-zinc-400">@madhan</span>
                   </div>
                 </div>
 
@@ -1871,11 +1871,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   title="Profile Menu"
                 >
                   <img
-                    src="https://api.dicebear.com/7.x/identicon/svg?seed=Admin"
-                    alt="Admin"
+                    src="https://github.com/madhanio.png"
+                    alt="madhan"
                     className="h-full w-full rounded-full object-cover"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                      (e.target as HTMLImageElement).src = "https://github.com/madhanio.png";
                     }}
                   />
                 </button>
@@ -1889,16 +1889,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     {/* Header */}
                     <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
                       <img
-                        src="https://api.dicebear.com/7.x/identicon/svg?seed=Admin"
-                        alt="Admin Profile"
+                        src="https://github.com/madhanio.png"
+                        alt="madhan Profile"
                         className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                          (e.target as HTMLImageElement).src = "https://github.com/madhanio.png";
                         }}
                       />
                       <div className="min-w-0 flex-1">
-                        <h4 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">Admin</h4>
-                        <span className="text-[10px] font-mono text-zinc-400 block truncate">@admin</span>
+                        <h4 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">madhan</h4>
+                        <span className="text-[10px] font-mono text-zinc-400 block truncate">@madhan</span>
                       </div>
                     </div>
 
@@ -1988,7 +1988,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               <div className="pb-4 border-b border-[#dadada] dark:border-[#2a2a2a] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-extrabold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
-                    {activeTab === 'home' && "Welcome back, Admin!"}
+                    {activeTab === 'home' && "Welcome back, madhan!"}
                     {activeTab === 'profiles' && "Developer Profiles"}
                     {activeTab === 'repos' && "Repository Pins"}
                     {activeTab === 'logs' && "Activity Logs"}
