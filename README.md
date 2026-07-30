@@ -17,11 +17,11 @@ Automated GitHub repo discovery, NVIDIA NIM LLM grading, and auto follow/star to
 
 ## How It Works
 
-1. **Discovery**: Scheduled GitHub Actions workflow searches GitHub for active repositories created in the last 7 days matching targeted topic tags.
-2. **AI Evaluation**: Fetches the README snippet and submits it to **NVIDIA NIM** (`meta/llama-3.1-8b-instruct`), grading the repository from 1 to 10 with a focus on student learning effort, original prototypes, and community builders.
-3. **Smart Follow Filter**: Filters out "ego" developer accounts. Follows are executed only if the target user has a peer-profile signature (20-500 followers, following > 20, ratio 0.5-2.0, account age > 6 months). High-profile accounts are starred but skipped for follows.
-4. **Data Sync**: Stores evaluation history, grades, actions, skip logs, and follow statuses in Supabase.
-5. **Periodic Cleanup**: A GitHub Actions workflow triggers every 6 hours, checking all auto-followed accounts. If they fail to follow back within 3 days, it automatically unfollows them to maintain healthy account statistics.
+1. **Discover**: Scans GitHub every 6 hours for new repos created in the last 7 days.
+2. **AI Grade**: Evaluates READMEs using **NVIDIA NIM** (`meta/llama-3.1-8b-instruct`), scoring repos (1–10) based on student effort, originality, and community impact.
+3. **Smart Filter**: Targets peer developers (20–500 followers, balanced ratios, >6-month-old accounts). High-profile users are starred, not followed.
+4. **Sync**: Stores scores, actions, logs, and follow states in Supabase.
+5. **Auto-Cleanup**: Unfollows accounts after 3 days if they don't follow back to keep stats clean.
 
 ## Architecture
 
