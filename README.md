@@ -52,7 +52,7 @@ Before starting, gather the following credentials:
 > Make sure your GitHub Personal Access Token has `user:follow`, `public_repo`, and `read:user` permissions.
 
 > [!WARNING]
-> Keep your `WORKER_SECRET_KEY` and `GITHUB_TOKEN` secure and never commit them directly to the repository.
+> Keep your `SUPABASE_ANON_KEY` and `GITHUB_TOKEN` secure and never commit them directly to the repository.
 
 ---
 
