@@ -1,9 +1,12 @@
 import { supabase } from '@/lib/supabase';
 import DashboardView from './DashboardView';
+import { getUserProfile } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+  const userProfile = await getUserProfile();
+
   // Simplify fetch to select all rows with no filters or ordering
   const { data: repos, error: reposError } = await supabase
     .from('repos')
@@ -42,6 +45,7 @@ export default async function DashboardPage() {
       initialRepos={repos || []} 
       initialLogs={logs || []} 
       initialRunSummary={runSummary || []}
+      initialUserProfile={userProfile}
     />
   );
 }

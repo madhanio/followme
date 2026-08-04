@@ -1,9 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-key';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+async function fetchAuthenticatedUser() {
+  if (!process.env.GITHUB_TOKEN) return null;
+  try {
+    const res = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      login: data.login || 'User',
+      name: data.name || data.login || 'User',
+      avatar_url: data.avatar_url || `https://github.com/${data.login || 'ghost'}.png`,
+      email: data.email || ''
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function fetchAllFollowing(): Promise<Set<string>> {
   const following = new Set<string>();
@@ -24,8 +42,19 @@ async function fetchAllFollowing(): Promise<Set<string>> {
 }
 
 export async function POST() {
+  if (!supabaseUrl || !supabaseKey) {
+    return Response.json(
+      { error: 'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' },
+      { status: 500 }
+    );
+  }
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   try {
-    const actualFollowing = await fetchAllFollowing();
+    const [actualFollowing, userProfile] = await Promise.all([
+      fetchAllFollowing(),
+      fetchAuthenticatedUser()
+    ]);
     const { data: dbFollowed, error } = await supabase
       .from('repos')
       .select('id, owner')
@@ -44,7 +73,7 @@ export async function POST() {
         .in('id', toMarkUnfollowed.map((r) => r.id));
     }
 
-    return NextResponse.json({ synced: true, unfollowedCount: toMarkUnfollowed.length });
+    return NextResponse.json({ synced: true, unfollowedCount: toMarkUnfollowed.length, userProfile });
   } catch (err: any) {
     return NextResponse.json({ synced: false, error: err.message }, { status: 500 });
   }

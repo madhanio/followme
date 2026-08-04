@@ -3,9 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
+function getWorkerSecret(): string {
+  const workerSecret = process.env.WORKER_SECRET;
+  if (!workerSecret) throw new Error('WORKER_SECRET is not set. Set it in your environment variables.');
+  return workerSecret;
+}
+
 export async function triggerWorker() {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/run`, {
@@ -34,7 +40,7 @@ export async function triggerWorker() {
 
 export async function triggerCleanup() {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/cleanup`, {
@@ -62,7 +68,7 @@ export async function triggerCleanup() {
 
 export async function triggerLogCleanup() {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/cleanlogs`, {
@@ -90,7 +96,7 @@ export async function triggerLogCleanup() {
 
 export async function triggerStar(owner: string, repo: string) {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/star`, {
@@ -118,7 +124,7 @@ export async function triggerStar(owner: string, repo: string) {
 
 export async function triggerUnstar(owner: string, repo: string) {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/unstar`, {
@@ -146,7 +152,7 @@ export async function triggerUnstar(owner: string, repo: string) {
 
 export async function triggerUnfollow(username: string) {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/unfollow`, {
@@ -174,7 +180,7 @@ export async function triggerUnfollow(username: string) {
 
 export async function triggerFollow(username: string) {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/follow`, {
@@ -227,7 +233,7 @@ export async function getWorkerStatus() {
 
 export async function triggerClearStale() {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/clearstale`, {
@@ -255,7 +261,7 @@ export async function triggerClearStale() {
 
 export async function triggerDeleteProfile(username: string) {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/deleteprofile`, {
@@ -283,7 +289,7 @@ export async function triggerDeleteProfile(username: string) {
 
 export async function triggerSyncMutuals() {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
-  const secret = process.env.WORKER_SECRET || 'dev_secret';
+  const secret = getWorkerSecret();
 
   try {
     const res = await fetch(`${workerUrl}/sync-mutuals`, {
@@ -341,5 +347,28 @@ export async function triggerSyncFollowing() {
   } catch (err: any) {
     console.error('Error triggering sync-following:', err);
     return { success: false, error: err.message || 'Failed to run sync-following' };
+  }
+}
+
+export async function getUserProfile() {
+  if (!process.env.GITHUB_TOKEN) return null;
+  try {
+    const res = await fetch('https://api.github.com/user', {
+      headers: { 
+        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github+json'
+      },
+      next: { revalidate: 3600 }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      login: data.login || '',
+      name: data.name || data.login || '',
+      avatar_url: data.avatar_url || '',
+      email: data.email || ''
+    };
+  } catch (err) {
+    return null;
   }
 }

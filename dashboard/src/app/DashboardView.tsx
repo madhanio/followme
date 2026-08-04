@@ -426,19 +426,28 @@ interface RunSummary {
   run_type: string;
 }
 
+interface UserProfile {
+  login: string;
+  name: string;
+  avatar_url: string;
+  email: string;
+}
+
 interface DashboardViewProps {
   initialRepos: Repo[];
   initialLogs: Log[];
   initialRunSummary?: RunSummary[];
+  initialUserProfile?: UserProfile | null;
 }
 
-export default function DashboardView({ initialRepos, initialLogs, initialRunSummary = [] }: DashboardViewProps) {
+export default function DashboardView({ initialRepos, initialLogs, initialRunSummary = [], initialUserProfile = null }: DashboardViewProps) {
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
   const [repos, setRepos] = useState<Repo[]>(initialRepos);
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [runSummary, setRunSummary] = useState<RunSummary[]>(initialRunSummary);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(initialUserProfile);
   const [isDark, setIsDark] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [spotlightIndex, setSpotlightIndex] = useState(0);
@@ -508,7 +517,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     systemPrompt: 'Focus heavily on README quality, code architecture, commit frequency, and active open-source contribution patterns.',
     accentColor: '#e60023',
     enableEmailDigest: false,
-    recipientEmail: 'madhan@example.com',
+    recipientEmail: userProfile?.email || (userProfile?.login ? `${userProfile.login}@example.com` : 'user@example.com'),
     digestSummary: {
       runSummary: true,
       followedProfiles: true,
@@ -516,8 +525,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       mutualFollows: true
     },
     digestDeliveryTime: '09:00 AM',
-    webhookUrl: 'https://api.followme.io/v1/webhook',
-    webhookSecret: 'fm_secret_key_prod_abc123'
+    webhookUrl: process.env.NEXT_PUBLIC_DEFAULT_WEBHOOK_URL ?? '',
+    webhookSecret: crypto.randomUUID()
   }), []);
 
   // Settings State: Saved Master vs Temp Draft
@@ -1656,11 +1665,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               title="Profile Menu"
             >
               <img
-                src="https://github.com/madhanio.png"
-                alt="madhan"
+                src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
+                alt={userProfile?.name || userProfile?.login || "Profile"}
                 className="h-full w-full rounded-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://github.com/madhanio.png";
+                  (e.target as HTMLImageElement).src = "https://github.com/github.png";
                 }}
               />
             </button>
@@ -1673,16 +1682,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 {/* Header */}
                 <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
                   <img
-                    src="https://github.com/madhanio.png"
-                    alt="madhan Profile"
+                    src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
+                    alt={userProfile?.name || userProfile?.login || "Profile"}
                     className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://github.com/madhanio.png";
+                      (e.target as HTMLImageElement).src = "https://github.com/github.png";
                     }}
                   />
                   <div>
-                    <h4 className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">madhan</h4>
-                    <span className="text-[10px] font-mono text-zinc-400">@madhan</span>
+                    <h4 className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">{userProfile?.name || userProfile?.login || 'User'}</h4>
+                    <span className="text-[10px] font-mono text-zinc-400">@{userProfile?.login || 'user'}</span>
                   </div>
                 </div>
 
@@ -1871,11 +1880,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                   title="Profile Menu"
                 >
                   <img
-                    src="https://github.com/madhanio.png"
-                    alt="madhan"
+                    src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
+                    alt={userProfile?.name || userProfile?.login || "Profile"}
                     className="h-full w-full rounded-full object-cover"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://github.com/madhanio.png";
+                      (e.target as HTMLImageElement).src = "https://github.com/github.png";
                     }}
                   />
                 </button>
@@ -1889,16 +1898,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     {/* Header */}
                     <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
                       <img
-                        src="https://github.com/madhanio.png"
-                        alt="madhan Profile"
+                        src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
+                        alt={userProfile?.name || userProfile?.login || "Profile"}
                         className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://github.com/madhanio.png";
+                          (e.target as HTMLImageElement).src = "https://github.com/github.png";
                         }}
                       />
                       <div className="min-w-0 flex-1">
-                        <h4 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">madhan</h4>
-                        <span className="text-[10px] font-mono text-zinc-400 block truncate">@madhan</span>
+                        <h4 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">{userProfile?.name || userProfile?.login || 'User'}</h4>
+                        <span className="text-[10px] font-mono text-zinc-400 block truncate">@{userProfile?.login || 'user'}</span>
                       </div>
                     </div>
 
@@ -1988,7 +1997,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               <div className="pb-4 border-b border-[#dadada] dark:border-[#2a2a2a] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-extrabold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
-                    {activeTab === 'home' && "Welcome back, madhan!"}
+                    {activeTab === 'home' && `Welcome back, ${userProfile?.name?.split(' ')[0] || userProfile?.login || 'Developer'}!`}
                     {activeTab === 'profiles' && "Developer Profiles"}
                     {activeTab === 'repos' && "Repository Pins"}
                     {activeTab === 'logs' && "Activity Logs"}

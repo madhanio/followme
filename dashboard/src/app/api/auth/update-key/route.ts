@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const { currentKey, newKey } = await request.json();
-    const systemPassword = process.env.DASHBOARD_PASSWORD || 'madhan';
+    const systemPassword = process.env.DASHBOARD_PASSWORD || 'admin';
 
     if (currentKey !== systemPassword) {
       return NextResponse.json({ error: 'Current security key is incorrect.' }, { status: 401 });
