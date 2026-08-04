@@ -7,7 +7,6 @@ export function proxy(request: NextRequest) {
   // Exclude /login, /api/ (and other API routes), and static assets from protection
   if (
     pathname.startsWith('/login') ||
-    pathname.startsWith('/demo') ||
     pathname.startsWith('/api') ||
     pathname.includes('.') ||
     pathname.startsWith('/_next')
