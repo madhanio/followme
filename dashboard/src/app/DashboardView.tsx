@@ -510,14 +510,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const defaultSettings = useMemo(() => ({
     cronFrequency: '6',
     maxProfilesPerRun: 50,
-    activeWorkingHours: '09:00 - 22:00',
+    activeWorkingHours: '00:00 - 24:00',
     dailyFollowLimit: 30,
     unfollowGracePeriod: 7,
     autoUnfollowNonMutuals: true,
     excludeOrgAccounts: true,
     llmModel: 'Gemini 2.5 Flash',
     systemPrompt: 'Focus heavily on README quality, code architecture, commit frequency, and active open-source contribution patterns.',
-    accentColor: '#e60023',
     enableEmailDigest: false,
     recipientEmail: userProfile?.email || (userProfile?.login ? `${userProfile.login}@example.com` : 'user@example.com'),
     digestSummary: {
@@ -1569,7 +1568,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
 
   const statusDistribution = useMemo(() => {
-    const acc = savedSettings.accentColor || '#e60023';
+    const acc = '#e60023';
     return [
       { name: 'Followed', value: stats.followed, color: `color-mix(in srgb, ${acc} 80%, black)` },
       { name: 'Mutuals', value: stats.mutuals, color: acc },
@@ -1577,7 +1576,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       { name: 'Skipped', value: stats.skipped, color: `color-mix(in srgb, ${acc} 25%, white)` },
       { name: 'Starred', value: stats.starred, color: `color-mix(in srgb, ${acc} 60%, black)` }
     ].filter(item => item.value > 0);
-  }, [stats, savedSettings.accentColor]);
+  }, [stats]);
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#f9f9f9] text-[#1a1c1c] dark:bg-[#0d0d0d] dark:text-[#f0f0f0] font-sans transition-colors duration-200 selection:bg-zinc-200 dark:selection:bg-zinc-800 antialiased">
@@ -1585,8 +1584,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&family=Geist:wght@100..900&family=Inter:ital,wght@0,100..900;1,100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
         
         :root {
-          --accent-color: ${savedSettings.accentColor || '#e60023'};
-          --accent-hover: ${savedSettings.accentColor === '#8b5cf6' ? '#7c3aed' : savedSettings.accentColor === '#10b981' ? '#059669' : savedSettings.accentColor === '#18181b' ? '#09090b' : '#c0001b'};
+          --accent-color: #e60023;
+          --accent-hover: #c0001b;
         }
         
         .font-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -2753,9 +2752,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
                             <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
                             <Legend wrapperStyle={{ fontFamily: 'Geist', fontSize: 11 }} />
-                            <Line type="monotone" dataKey="follows" stroke={savedSettings.accentColor || '#e60023'} name="Follows" strokeWidth={2.5} dot={{ r: 3 }} />
-                            <Line type="monotone" dataKey="unfollows" stroke={`color-mix(in srgb, ${savedSettings.accentColor || '#e60023'} 50%, white)`} name="Unfollows" strokeWidth={2.5} dot={{ r: 3 }} />
-                            <Line type="monotone" dataKey="evaluations" stroke={`color-mix(in srgb, ${savedSettings.accentColor || '#e60023'} 80%, black)`} name="Evaluations" strokeWidth={2} strokeDasharray="5 5" />
+                            <Line type="monotone" dataKey="follows" stroke="#e60023" name="Follows" strokeWidth={2.5} dot={{ r: 3 }} />
+                            <Line type="monotone" dataKey="unfollows" stroke="color-mix(in srgb, #e60023 50%, white)" name="Unfollows" strokeWidth={2.5} dot={{ r: 3 }} />
+                            <Line type="monotone" dataKey="evaluations" stroke="color-mix(in srgb, #e60023 80%, black)" name="Evaluations" strokeWidth={2} strokeDasharray="5 5" />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
@@ -2825,8 +2824,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                           <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
                           <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
                           <Legend wrapperStyle={{ fontFamily: 'Geist', fontSize: 11 }} />
-                          <Bar dataKey="follows" fill={savedSettings.accentColor || '#e60023'} name="Follow Actions" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="unfollows" fill={`color-mix(in srgb, ${savedSettings.accentColor || '#e60023'} 50%, white)`} name="Unfollow Actions" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="follows" fill="#e60023" name="Follow Actions" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="unfollows" fill="color-mix(in srgb, #e60023 50%, white)" name="Unfollow Actions" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>

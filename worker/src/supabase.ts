@@ -131,7 +131,7 @@ export interface SystemRuntimeConfig {
 export const DEFAULT_RUNTIME_CONFIG: SystemRuntimeConfig = {
   maxProfilesPerRun: parseInt(process.env.MAX_PROFILES_PER_RUN || '50', 10),
   gradeThreshold: parseInt(process.env.GRADE_THRESHOLD || '7', 10),
-  activeWorkingHours: '09:00 - 22:00',
+  activeWorkingHours: '00:00 - 24:00',
   dailyFollowLimit: parseInt(process.env.DAILY_FOLLOW_LIMIT || '30', 10),
   unfollowGracePeriod: parseInt(process.env.UNFOLLOW_GRACE_PERIOD || '7', 10),
   autoUnfollowNonMutuals: true,

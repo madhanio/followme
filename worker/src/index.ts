@@ -92,7 +92,28 @@ async function runAutomationJob() {
   try {
     console.log('Starting FollowMe repository grading and automation job...');
     const config = await fetchSystemSettings();
-    console.log(`Loaded runtime settings: maxProfilesPerRun=${config.maxProfilesPerRun}, gradeThreshold=${config.gradeThreshold}`);
+    console.log(`Loaded runtime settings: maxProfilesPerRun=${config.maxProfilesPerRun}, gradeThreshold=${config.gradeThreshold}, activeWorkingHours=${config.activeWorkingHours}`);
+
+    // Enforce active working hours check if defined (format: "HH:MM - HH:MM")
+    if (config.activeWorkingHours && config.activeWorkingHours !== '00:00 - 24:00') {
+      const match = config.activeWorkingHours.match(/^(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})$/);
+      if (match) {
+        const now = new Date();
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+        const startMins = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+        const endMins = parseInt(match[3], 10) * 60 + parseInt(match[4], 10);
+        
+        const isInWindow = startMins <= endMins
+          ? (currentMins >= startMins && currentMins <= endMins)
+          : (currentMins >= startMins || currentMins <= endMins);
+
+        if (!isInWindow) {
+          console.log(`Outside operating window (${config.activeWorkingHours}). Current time is ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}. Skipping run.`);
+          await logAction('SYSTEM', null, 'SUCCESS', `Skipped run — outside active operating window (${config.activeWorkingHours})`);
+          return { status: 'skipped', reason: 'outside_working_hours' };
+        }
+      }
+    }
 
     await logAction('SYSTEM', null, 'SUCCESS', 'Automation job started');
 
