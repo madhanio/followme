@@ -55,9 +55,6 @@ Before starting, gather the following credentials:
   * `Project URL` (e.g., `https://your-project.supabase.co`)
   * `anon` / `public` API Key
 
-> [!NOTE]
-> Make sure your GitHub Personal Access Token has `user:follow`, `public_repo`, and `read:user` permissions.
-
 > [!WARNING]
 > Keep your `SUPABASE_ANON_KEY` and `GITHUB_TOKEN` secure and never commit them directly to the repository.
 
