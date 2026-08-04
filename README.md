@@ -40,7 +40,8 @@ Follow this guide to spin up your own instance of **FollowMe**.
 
 ## Before You Begin
  
-> [!NOTE] The `/demo` folder in this repository contains seed/mock data used for the reference deployment at [followme-demo.vercel.app](https://followme-demo.vercel.app). It is not required for your own instance — you can safely delete it before deploying.
+>[!NOTE]
+>The `/demo` folder in this repository contains seed/mock data used for the reference deployment at [followme-demo.vercel.app](https://followme-demo.vercel.app). It is not required for your own instance — you can safely delete it before deploying.
  
 ---
 
