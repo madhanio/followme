@@ -70,12 +70,14 @@ Before starting, gather the following credentials:
 
 1. Create a new **Web Service** on [Render](https://render.com/) and connect your repository.
 2. Set the **Root Directory** to `worker`.
-3. Add the required **Environment Variables**:
+3. Reference [`worker/.env.example`](./worker/.env.example) and add the required **Environment Variables**:
 
 ```env
-PORT=3000
+PORT=8000
+WORKER_SECRET=your_worker_secret
 GITHUB_TOKEN=your_github_personal_access_token
-NVIDIA_NIM_API_KEY=your_nvidia_nim_api_key
+GITHUB_USERNAME=your_github_username
+NVIDIA_API_KEY=your_nvidia_api_key
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
@@ -87,12 +89,15 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 ### 4. Deploy the Web Dashboard (Vercel)
 1. Import your repository into [Vercel](https://vercel.com).
 2. Set the **Root Directory** to `dashboard`.
-3. Add the required **Environment Variables**:
+3. Reference [`dashboard/.env.example`](./dashboard/.env.example) and add the required **Environment Variables**:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-WORKER_ENDPOINT=https://your-worker.onrender.com
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+NEXT_PUBLIC_WORKER_URL=https://your-worker.onrender.com
+WORKER_SECRET=your_worker_secret
+GITHUB_TOKEN=your_github_personal_access_token
 ```
 
 4. Click Deploy.
