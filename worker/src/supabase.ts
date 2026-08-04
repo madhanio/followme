@@ -113,3 +113,64 @@ export async function logAction(
     console.error(`Failed to log action [${action}]:`, err.message || err);
   }
 }
+
+export interface SystemRuntimeConfig {
+  maxProfilesPerRun: number;
+  gradeThreshold: number;
+  activeWorkingHours: string;
+  dailyFollowLimit: number;
+  unfollowGracePeriod: number;
+  autoUnfollowNonMutuals: boolean;
+  excludeOrgAccounts: boolean;
+  systemPrompt: string;
+  maxOwnerFollowers: number;
+  minOwnerFollowing: number;
+  maxOwnerAgeDays: number;
+}
+
+export const DEFAULT_RUNTIME_CONFIG: SystemRuntimeConfig = {
+  maxProfilesPerRun: parseInt(process.env.MAX_PROFILES_PER_RUN || '50', 10),
+  gradeThreshold: parseInt(process.env.GRADE_THRESHOLD || '7', 10),
+  activeWorkingHours: '09:00 - 22:00',
+  dailyFollowLimit: parseInt(process.env.DAILY_FOLLOW_LIMIT || '30', 10),
+  unfollowGracePeriod: parseInt(process.env.UNFOLLOW_GRACE_PERIOD || '7', 10),
+  autoUnfollowNonMutuals: true,
+  excludeOrgAccounts: true,
+  systemPrompt: 'Focus heavily on README quality, code architecture, commit frequency, and active open-source contribution patterns.',
+  maxOwnerFollowers: parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10),
+  minOwnerFollowing: parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10),
+  maxOwnerAgeDays: parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10),
+};
+
+export async function fetchSystemSettings(): Promise<SystemRuntimeConfig> {
+  try {
+    const { data, error } = await supabase.from('settings').select('key, value');
+    if (error || !data || data.length === 0) {
+      if (error) console.warn('Could not fetch settings from DB, using fallback defaults:', error.message);
+      return DEFAULT_RUNTIME_CONFIG;
+    }
+
+    const settingsMap: Record<string, any> = {};
+    for (const row of data) {
+      settingsMap[row.key] = row.value;
+    }
+
+    // Merge DB settings with defaults fallback
+    return {
+      maxProfilesPerRun: settingsMap.maxProfilesPerRun != null ? Number(settingsMap.maxProfilesPerRun) : DEFAULT_RUNTIME_CONFIG.maxProfilesPerRun,
+      gradeThreshold: settingsMap.gradeThreshold != null ? Number(settingsMap.gradeThreshold) : DEFAULT_RUNTIME_CONFIG.gradeThreshold,
+      activeWorkingHours: settingsMap.activeWorkingHours ?? DEFAULT_RUNTIME_CONFIG.activeWorkingHours,
+      dailyFollowLimit: settingsMap.dailyFollowLimit != null ? Number(settingsMap.dailyFollowLimit) : DEFAULT_RUNTIME_CONFIG.dailyFollowLimit,
+      unfollowGracePeriod: settingsMap.unfollowGracePeriod != null ? Number(settingsMap.unfollowGracePeriod) : DEFAULT_RUNTIME_CONFIG.unfollowGracePeriod,
+      autoUnfollowNonMutuals: settingsMap.autoUnfollowNonMutuals != null ? Boolean(settingsMap.autoUnfollowNonMutuals) : DEFAULT_RUNTIME_CONFIG.autoUnfollowNonMutuals,
+      excludeOrgAccounts: settingsMap.excludeOrgAccounts != null ? Boolean(settingsMap.excludeOrgAccounts) : DEFAULT_RUNTIME_CONFIG.excludeOrgAccounts,
+      systemPrompt: settingsMap.systemPrompt ?? DEFAULT_RUNTIME_CONFIG.systemPrompt,
+      maxOwnerFollowers: settingsMap.maxOwnerFollowers != null ? Number(settingsMap.maxOwnerFollowers) : DEFAULT_RUNTIME_CONFIG.maxOwnerFollowers,
+      minOwnerFollowing: settingsMap.minOwnerFollowing != null ? Number(settingsMap.minOwnerFollowing) : DEFAULT_RUNTIME_CONFIG.minOwnerFollowing,
+      maxOwnerAgeDays: settingsMap.maxOwnerAgeDays != null ? Number(settingsMap.maxOwnerAgeDays) : DEFAULT_RUNTIME_CONFIG.maxOwnerAgeDays,
+    };
+  } catch (err: any) {
+    console.warn('Failed to fetch settings from Supabase:', err.message || err);
+    return DEFAULT_RUNTIME_CONFIG;
+  }
+}

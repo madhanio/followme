@@ -16,7 +16,8 @@ import {
   triggerLogCleanup, 
   triggerClearStale, 
   triggerDeleteProfile, 
-  triggerSyncFollowing 
+  triggerSyncFollowing,
+  saveSystemSettings
 } from './actions';
 
 // Recharts components for Stats Tab
@@ -438,9 +439,10 @@ interface DashboardViewProps {
   initialLogs: Log[];
   initialRunSummary?: RunSummary[];
   initialUserProfile?: UserProfile | null;
+  initialSettings?: Record<string, any>;
 }
 
-export default function DashboardView({ initialRepos, initialLogs, initialRunSummary = [], initialUserProfile = null }: DashboardViewProps) {
+export default function DashboardView({ initialRepos, initialLogs, initialRunSummary = [], initialUserProfile = null, initialSettings }: DashboardViewProps) {
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
@@ -530,8 +532,14 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   }), []);
 
   // Settings State: Saved Master vs Temp Draft
-  const [savedSettings, setSavedSettings] = useState(defaultSettings);
-  const [tempSettings, setTempSettings] = useState(defaultSettings);
+  const [savedSettings, setSavedSettings] = useState(() => ({
+    ...defaultSettings,
+    ...(initialSettings || {})
+  }));
+  const [tempSettings, setTempSettings] = useState(() => ({
+    ...defaultSettings,
+    ...(initialSettings || {})
+  }));
   const [settingsTab, setSettingsTab] = useState<'automation' | 'safety' | 'ai' | 'notifications'>('automation');
 
   // Security Key Modal States
@@ -3514,10 +3522,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setSavedSettings(tempSettings);
                     localStorage.setItem('savedSettings', JSON.stringify(tempSettings));
                     setIsSettingsOpen(false);
+                    await saveSystemSettings(tempSettings);
                   }}
                   className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm"
                 >

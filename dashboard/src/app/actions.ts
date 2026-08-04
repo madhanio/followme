@@ -372,3 +372,51 @@ export async function getUserProfile() {
     return null;
   }
 }
+
+export async function saveSystemSettings(settings: Record<string, any>) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return { success: false, error: 'Supabase URL or Key not configured' };
+  }
+
+  const { createClient } = await import('@supabase/supabase-js');
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  try {
+    const rows = Object.entries(settings).map(([key, value]) => ({
+      key,
+      value,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase.from('settings').upsert(rows, { onConflict: 'key' });
+    if (error) throw error;
+    revalidatePath('/');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error saving settings to DB:', err);
+    return { success: false, error: err.message || 'Failed to save settings' };
+  }
+}
+
+export async function getSystemSettings(): Promise<Record<string, any> | null> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+
+  const { createClient } = await import('@supabase/supabase-js');
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  try {
+    const { data, error } = await supabase.from('settings').select('key, value');
+    if (error || !data) return null;
+    const settingsMap: Record<string, any> = {};
+    for (const row of data) {
+      settingsMap[row.key] = row.value;
+    }
+    return settingsMap;
+  } catch (err) {
+    return null;
+  }
+}

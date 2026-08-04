@@ -53,3 +53,12 @@ CREATE TABLE IF NOT EXISTS run_summary (
   run_type text DEFAULT 'evaluation'
 );
 
+-- Create settings table as single source of truth for runtime config
+CREATE TABLE IF NOT EXISTS settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  key text UNIQUE NOT NULL,
+  value jsonb NOT NULL,
+  updated_at timestamptz DEFAULT now()
+);
+
+

@@ -28,10 +28,13 @@ export interface OwnerProfileResult {
  *   Layer 1 (high-profile skip): followers > MAX_OWNER_FOLLOWERS AND following < MIN_OWNER_FOLLOWING
  *   Layer 2 (peer targeting): followers in 20-500 range, following > 20, ratio 0.5-2.0, account > 6 months old
  */
-export async function checkOwnerProfile(username: string): Promise<OwnerProfileResult> {
-  const MAX_OWNER_FOLLOWERS = parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10);
-  const MIN_OWNER_FOLLOWING = parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10);
-  const MAX_OWNER_AGE_DAYS = parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10);
+export async function checkOwnerProfile(
+  username: string, 
+  config?: { maxOwnerFollowers?: number; minOwnerFollowing?: number; maxOwnerAgeDays?: number }
+): Promise<OwnerProfileResult> {
+  const MAX_OWNER_FOLLOWERS = config?.maxOwnerFollowers ?? parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10);
+  const MIN_OWNER_FOLLOWING = config?.minOwnerFollowing ?? parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10);
+  const MAX_OWNER_AGE_DAYS = config?.maxOwnerAgeDays ?? parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10);
 
   try {
     const url = `https://api.github.com/users/${username}`;

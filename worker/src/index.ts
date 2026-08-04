@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo, getGitHubFollowing, getGitHubFollowers, getAuthenticatedUserStats } from './github';
 import { gradeRepository } from './nvidia';
-import { supabase, isRepoGraded, saveRepo, logAction } from './supabase';
+import { supabase, isRepoGraded, saveRepo, logAction, fetchSystemSettings } from './supabase';
 
 dotenv.config();
 
@@ -13,8 +13,6 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 8000;
 const WORKER_SECRET = process.env.WORKER_SECRET || 'dev_secret';
-const GRADE_THRESHOLD = parseInt(process.env.GRADE_THRESHOLD || '7', 10);
-const MAX_ACTIONS_PER_RUN = 30;
 
 const TOPICS = ['ai', 'machine-learning', 'llm', 'flutter', 'nodejs', 'python'];
 
@@ -93,6 +91,9 @@ async function runAutomationJob() {
 
   try {
     console.log('Starting FollowMe repository grading and automation job...');
+    const config = await fetchSystemSettings();
+    console.log(`Loaded runtime settings: maxProfilesPerRun=${config.maxProfilesPerRun}, gradeThreshold=${config.gradeThreshold}`);
+
     await logAction('SYSTEM', null, 'SUCCESS', 'Automation job started');
 
     const repos = await searchRecentRepos(TOPICS);
@@ -109,8 +110,8 @@ async function runAutomationJob() {
       console.log(`Processing candidate: ${repo.owner}/${repo.name}`);
 
       // 2. Pre-filter owner profile eligibility BEFORE AI grading
-      if (stats.followed >= MAX_ACTIONS_PER_RUN) {
-        console.log(`Follow limit of ${MAX_ACTIONS_PER_RUN} reached for this run. Skipping ${repo.owner}.`);
+      if (stats.followed >= config.maxProfilesPerRun) {
+        console.log(`Follow limit of ${config.maxProfilesPerRun} reached for this run. Skipping ${repo.owner}.`);
         stats.skipped++;
         continue;
       }
@@ -132,7 +133,7 @@ async function runAutomationJob() {
       }
 
       // Check owner profile targeting filters
-      const profileCheck = await checkOwnerProfile(repo.owner);
+      const profileCheck = await checkOwnerProfile(repo.owner, config);
       if (!profileCheck.shouldFollow) {
         console.log(`Skipping profile ${repo.owner} — targeting filter failed: ${profileCheck.skipReason}. Skipping AI grading.`);
         stats.skipped++;
@@ -145,7 +146,7 @@ async function runAutomationJob() {
       const readme = await fetchRepoReadme(repo.owner, repo.name);
       repo.readme_snippet = readme;
 
-      const grading = await gradeRepository(repo);
+      const grading = await gradeRepository(repo, config.systemPrompt);
       stats.graded++;
 
       console.log(`Repo: ${repo.owner}/${repo.name} | Grade: ${grading.grade} | Reason: ${grading.reason}`);
@@ -156,10 +157,10 @@ async function runAutomationJob() {
       let followResult: { success: boolean; message: string } | null = null;
 
       // 4. Follow user & Star repo if grade meets threshold
-      if (grading.grade >= GRADE_THRESHOLD) {
+      if (grading.grade >= config.gradeThreshold) {
         // Star if under actions cap
-        if (stats.starred < MAX_ACTIONS_PER_RUN) {
-          console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${GRADE_THRESHOLD}). Starring...`);
+        if (stats.starred < config.maxProfilesPerRun) {
+          console.log(`Repo ${repo.owner}/${repo.name} meets threshold (${grading.grade} >= ${config.gradeThreshold}). Starring...`);
           const starSuccess = await starRepo(repo.owner, repo.name);
           if (starSuccess) {
             starred = true;
@@ -1049,7 +1050,7 @@ app.post('/reconcile', async (req: Request, res: Response) => {
 // Start Server
 app.listen(PORT, () => {
   console.log(`Worker service is running on port ${PORT}`);
-  console.log(`Grade threshold set to: ${GRADE_THRESHOLD}`);
+  console.log('Worker runtime configuration initialized from Supabase / env defaults');
   
   // Run reconciliation once on deploy/startup
   reconcileFollowing().catch(err => {
