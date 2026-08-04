@@ -38,6 +38,12 @@ Grading Engine: NVIDIA NIM LLM Integration
 
 Follow this guide to spin up your own instance of **FollowMe**.
 
+## Before You Begin
+ 
+> [!NOTE] The `/demo` folder in this repository contains seed/mock data used for the reference deployment at [followme-demo.vercel.app](https://followme-demo.vercel.app). It is not required for your own instance — you can safely delete it before deploying.
+ 
+---
+
 ### 1. Prerequisites & API Keys
 
 Before starting, gather the following credentials:
@@ -108,16 +114,22 @@ GITHUB_TOKEN=your_github_personal_access_token
 
 To enable automated background execution:
 
-1. Go to your GitHub Repository -> **Settings** -> **Secrets and variables** -> **Actions**.
+1. Go to your GitHub Repository → **Settings** → **Secrets and variables** → **Actions**.
 2. Add the following **Repository Secrets**:
-   * `WORKER_URL`: Your deployed Render worker endpoint with `/run` appended (e.g., `https://your-worker.onrender.com/run`)
-   * `WORKER_SECRET_KEY`: *(Optional)* Secret key if you secured your `/run` route.
-3. Go to the **Actions** tab in your repository and enable the workflows. The scheduler will now trigger discovery automatically every 6 hours.
+   - `WORKER_URL`: Your deployed Render worker endpoint with `/run` appended (e.g., `https://your-worker.onrender.com/run`)
+   - `WORKER_SECRET`: The same secret key you set in your worker and dashboard environment variables.
+3. Go to the **Actions** tab in your repository and enable the workflows.
 
-## Live Links
-* **Dashboard Demo**: [Launch Demo Dashboard ↗](https://followme-demo.vercel.app)
+The scheduler will now trigger discovery automatically every 6 hours.
 
-* **Worker Health Check**: [Live Health Check ↗](https://followme-gg6q.onrender.com/health) *(Note: May take ~30s if waking from sleep)*
+---
+
+## Live Demo
+
+> **Note:** These links point to the maintainer's reference deployment. Your self-hosted instance will have its own URLs after deployment.
+
+- **Dashboard:** [Launch Demo ↗](https://followme-demo.vercel.app/)
+- **Worker Health:** [Live Health Check ↗](https://followme-gg6q.onrender.com/health) *(may take ~30s to wake from sleep)*
 
 ## License
 Distributed under the [MIT License](LICENSE)
