@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.supabase = void 0;
+exports.DEFAULT_RUNTIME_CONFIG = exports.supabase = void 0;
 exports.isRepoGraded = isRepoGraded;
 exports.saveRepo = saveRepo;
 exports.logAction = logAction;
+exports.fetchSystemSettings = fetchSystemSettings;
 const supabase_js_1 = require("@supabase/supabase-js");
 const ws_1 = __importDefault(require("ws"));
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -90,5 +91,50 @@ async function logAction(action, repoId, status, message) {
     }
     catch (err) {
         console.error(`Failed to log action [${action}]:`, err.message || err);
+    }
+}
+exports.DEFAULT_RUNTIME_CONFIG = {
+    maxProfilesPerRun: parseInt(process.env.MAX_PROFILES_PER_RUN || '50', 10),
+    gradeThreshold: parseInt(process.env.GRADE_THRESHOLD || '7', 10),
+    activeWorkingHours: '00:00 - 24:00',
+    dailyFollowLimit: parseInt(process.env.DAILY_FOLLOW_LIMIT || '30', 10),
+    unfollowGracePeriod: parseInt(process.env.UNFOLLOW_GRACE_PERIOD || '7', 10),
+    autoUnfollowNonMutuals: true,
+    excludeOrgAccounts: true,
+    systemPrompt: 'Focus heavily on README quality, code architecture, commit frequency, and active open-source contribution patterns.',
+    maxOwnerFollowers: parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10),
+    minOwnerFollowing: parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10),
+    maxOwnerAgeDays: parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10),
+};
+async function fetchSystemSettings() {
+    try {
+        const { data, error } = await exports.supabase.from('settings').select('key, value');
+        if (error || !data || data.length === 0) {
+            if (error)
+                console.warn('Could not fetch settings from DB, using fallback defaults:', error.message);
+            return exports.DEFAULT_RUNTIME_CONFIG;
+        }
+        const settingsMap = {};
+        for (const row of data) {
+            settingsMap[row.key] = row.value;
+        }
+        // Merge DB settings with defaults fallback
+        return {
+            maxProfilesPerRun: settingsMap.maxProfilesPerRun != null ? Number(settingsMap.maxProfilesPerRun) : exports.DEFAULT_RUNTIME_CONFIG.maxProfilesPerRun,
+            gradeThreshold: settingsMap.gradeThreshold != null ? Number(settingsMap.gradeThreshold) : exports.DEFAULT_RUNTIME_CONFIG.gradeThreshold,
+            activeWorkingHours: settingsMap.activeWorkingHours ?? exports.DEFAULT_RUNTIME_CONFIG.activeWorkingHours,
+            dailyFollowLimit: settingsMap.dailyFollowLimit != null ? Number(settingsMap.dailyFollowLimit) : exports.DEFAULT_RUNTIME_CONFIG.dailyFollowLimit,
+            unfollowGracePeriod: settingsMap.unfollowGracePeriod != null ? Number(settingsMap.unfollowGracePeriod) : exports.DEFAULT_RUNTIME_CONFIG.unfollowGracePeriod,
+            autoUnfollowNonMutuals: settingsMap.autoUnfollowNonMutuals != null ? Boolean(settingsMap.autoUnfollowNonMutuals) : exports.DEFAULT_RUNTIME_CONFIG.autoUnfollowNonMutuals,
+            excludeOrgAccounts: settingsMap.excludeOrgAccounts != null ? Boolean(settingsMap.excludeOrgAccounts) : exports.DEFAULT_RUNTIME_CONFIG.excludeOrgAccounts,
+            systemPrompt: settingsMap.systemPrompt ?? exports.DEFAULT_RUNTIME_CONFIG.systemPrompt,
+            maxOwnerFollowers: settingsMap.maxOwnerFollowers != null ? Number(settingsMap.maxOwnerFollowers) : exports.DEFAULT_RUNTIME_CONFIG.maxOwnerFollowers,
+            minOwnerFollowing: settingsMap.minOwnerFollowing != null ? Number(settingsMap.minOwnerFollowing) : exports.DEFAULT_RUNTIME_CONFIG.minOwnerFollowing,
+            maxOwnerAgeDays: settingsMap.maxOwnerAgeDays != null ? Number(settingsMap.maxOwnerAgeDays) : exports.DEFAULT_RUNTIME_CONFIG.maxOwnerAgeDays,
+        };
+    }
+    catch (err) {
+        console.warn('Failed to fetch settings from Supabase:', err.message || err);
+        return exports.DEFAULT_RUNTIME_CONFIG;
     }
 }

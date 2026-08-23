@@ -6,15 +6,85 @@ dotenv.config();
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_USERNAME = process.env.GITHUB_USERNAME;
 
-const HEADERS: Record<string, string> = {
+const DEFAULT_HEADERS: Record<string, string> = {
   Accept: 'application/vnd.github+json',
   'User-Agent': 'FollowMe-Automation-Worker',
 };
 
 if (GITHUB_TOKEN) {
-  HEADERS['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+  DEFAULT_HEADERS['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
 } else {
   console.warn('Missing GITHUB_TOKEN. GitHub API rate limits will be highly restricted.');
+}
+
+/**
+ * Robust fetch wrapper for GitHub API with rate limit detection, retry with backoff,
+ * and header inspection (x-ratelimit-remaining, retry-after, x-ratelimit-reset).
+ */
+export async function fetchGitHub(
+  url: string,
+  options: RequestInit = {},
+  maxRetries: number = 3
+): Promise<Response> {
+  const headers = {
+    ...DEFAULT_HEADERS,
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, { ...options, headers });
+
+      // Inspect rate limit headers
+      const remaining = res.headers.get('x-ratelimit-remaining');
+      const resetTime = res.headers.get('x-ratelimit-reset');
+      const retryAfter = res.headers.get('retry-after');
+
+      if (remaining !== null && parseInt(remaining, 10) < 10) {
+        console.warn(`[GitHub RateLimit] Low quota remaining: ${remaining} requests left. Reset epoch: ${resetTime}`);
+      }
+
+      // Handle Rate Limit / Abuse Detection (429 or 403 with zero remaining / abuse message)
+      if (res.status === 429 || res.status === 403) {
+        const bodyText = await res.clone().text().catch(() => '');
+        const isRateLimit =
+          res.status === 429 ||
+          remaining === '0' ||
+          bodyText.toLowerCase().includes('rate limit') ||
+          bodyText.toLowerCase().includes('secondary rate limit') ||
+          bodyText.toLowerCase().includes('abuse');
+
+        if (isRateLimit && attempt < maxRetries) {
+          let waitMs = 3000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 1000);
+
+          if (retryAfter) {
+            waitMs = Math.max(waitMs, parseInt(retryAfter, 10) * 1000);
+          } else if (remaining === '0' && resetTime) {
+            const resetMs = parseInt(resetTime, 10) * 1000 - Date.now() + 1000;
+            if (resetMs > 0 && resetMs < 120000) {
+              waitMs = resetMs;
+            }
+          }
+
+          console.warn(`[GitHub RateLimit] Hit rate limit (${res.status}). Waiting ${Math.round(waitMs / 1000)}s before retry ${attempt}/${maxRetries}...`);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          continue;
+        }
+      }
+
+      return res;
+    } catch (networkErr: any) {
+      if (attempt < maxRetries) {
+        const waitMs = 2000 * attempt;
+        console.warn(`[GitHub Network] Request failed (attempt ${attempt}/${maxRetries}): ${networkErr.message}. Retrying in ${waitMs / 1000}s...`);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      } else {
+        throw networkErr;
+      }
+    }
+  }
+
+  throw new Error(`GitHub API request failed after ${maxRetries} attempts: ${url}`);
 }
 
 export interface OwnerProfileResult {
@@ -38,7 +108,7 @@ export async function checkOwnerProfile(
 
   try {
     const url = `https://api.github.com/users/${username}`;
-    const res = await fetch(url, { headers: HEADERS });
+    const res = await fetchGitHub(url);
     if (!res.ok) {
       console.warn(`Could not fetch profile for ${username}: ${res.status}`);
       return { shouldFollow: false, skipReason: 'profile-fetch-failed' };
@@ -90,9 +160,8 @@ export async function checkOwnerProfile(
   }
 }
 
-
 /**
- * Searches repositories created in the last 7 days with specific topics, sorted by stars descending.
+ * Searches repositories created in the last 14 days with specific topics, sorted by updated descending.
  */
 export async function searchRecentRepos(topics: string[]): Promise<RepoMetadata[]> {
   const allReposMap = new Map<number, RepoMetadata>();
@@ -101,14 +170,13 @@ export async function searchRecentRepos(topics: string[]): Promise<RepoMetadata[
 
   for (const topic of topics) {
     try {
-      // topic:${topic} stars:1..50 pushed:>${date} sort:updated
       const q = `topic:${topic} stars:1..50 pushed:>${dateString}`;
       const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(
         q
       )}&sort=updated&order=desc&per_page=15`;
 
-      console.log(`Searching GitHub repos for topic ${topic} with URL: ${url}`);
-      const res = await fetch(url, { headers: HEADERS });
+      console.log(`Searching GitHub repos for topic ${topic}...`);
+      const res = await fetchGitHub(url);
       if (!res.ok) {
         const errMsg = await res.text();
         console.error(`GitHub search for topic ${topic} failed: ${res.status} - ${errMsg}`);
@@ -132,8 +200,8 @@ export async function searchRecentRepos(topics: string[]): Promise<RepoMetadata[
         });
       }
 
-      // Small sleep to be nice to GitHub's search rate limits
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // 1.5s pacing pause between searches to respect GitHub Search rate limit (30 req/min)
+      await new Promise((resolve) => setTimeout(resolve, 1500));
     } catch (err: any) {
       console.error(`Error searching topic ${topic}:`, err.message || err);
     }
@@ -148,17 +216,16 @@ export async function searchRecentRepos(topics: string[]): Promise<RepoMetadata[
 export async function fetchRepoReadme(owner: string, name: string): Promise<string> {
   try {
     const url = `https://api.github.com/repos/${owner}/${name}/readme`;
-    const res = await fetch(url, { headers: HEADERS });
+    const res = await fetchGitHub(url);
 
     if (!res.ok) {
-      // If README doesn't exist or failed, return empty string
       return '';
     }
 
     const data = (await res.json()) as any;
     if (data.content && data.encoding === 'base64') {
       const decoded = Buffer.from(data.content, 'base64').toString('utf8');
-      return decoded.slice(0, 3000); // Send up to 3000 chars to avoid prompt token overflow
+      return decoded.slice(0, 3000);
     }
     return '';
   } catch (err: any) {
@@ -177,15 +244,14 @@ export async function starRepo(owner: string, name: string): Promise<boolean> {
   }
   try {
     const url = `https://api.github.com/user/starred/${owner}/${name}`;
-    const res = await fetch(url, {
+    const res = await fetchGitHub(url, {
       method: 'PUT',
       headers: {
-        ...HEADERS,
         'Content-Length': '0',
       },
     });
 
-    if (res.status === 204) {
+    if (res.status === 204 || res.status === 200) {
       console.log(`Successfully starred ${owner}/${name}`);
       return true;
     } else {
@@ -209,15 +275,14 @@ export async function followUser(username: string): Promise<boolean> {
   }
   try {
     const url = `https://api.github.com/user/following/${username}`;
-    const res = await fetch(url, {
+    const res = await fetchGitHub(url, {
       method: 'PUT',
       headers: {
-        ...HEADERS,
         'Content-Length': '0',
       },
     });
 
-    if (res.status === 204) {
+    if (res.status === 204 || res.status === 200) {
       console.log(`Successfully followed ${username}`);
       return true;
     } else {
@@ -241,12 +306,11 @@ export async function unfollowUser(username: string): Promise<boolean> {
   }
   try {
     const url = `https://api.github.com/user/following/${username}`;
-    const res = await fetch(url, {
+    const res = await fetchGitHub(url, {
       method: 'DELETE',
-      headers: HEADERS,
     });
 
-    if (res.status === 204) {
+    if (res.status === 204 || res.status === 200) {
       console.log(`Successfully unfollowed ${username}`);
       return true;
     } else {
@@ -270,7 +334,7 @@ export async function checkIfFollowsBack(username: string): Promise<boolean> {
   }
   try {
     const url = `https://api.github.com/users/${username}/following/${GITHUB_USERNAME}`;
-    const res = await fetch(url, { headers: HEADERS });
+    const res = await fetchGitHub(url);
     
     // 204 means username follows GITHUB_USERNAME, 404 means they don't
     if (res.status === 204) {
@@ -295,12 +359,11 @@ export async function unstarRepo(owner: string, name: string): Promise<boolean> 
   }
   try {
     const url = `https://api.github.com/user/starred/${owner}/${name}`;
-    const res = await fetch(url, {
+    const res = await fetchGitHub(url, {
       method: 'DELETE',
-      headers: HEADERS,
     });
 
-    if (res.status === 204) {
+    if (res.status === 204 || res.status === 200) {
       console.log(`Successfully unstarred ${owner}/${name}`);
       return true;
     } else {
@@ -327,10 +390,10 @@ export async function getGitHubFollowing(): Promise<string[]> {
   while (true) {
     try {
       const url = `https://api.github.com/user/following?per_page=100&page=${page}`;
-      const res = await fetch(url, { headers: HEADERS });
+      const res = await fetchGitHub(url);
       if (!res.ok) {
         console.error(`Failed to fetch following page ${page}: ${res.status}`);
-        break;
+        throw new Error(`Failed to fetch following page ${page}: status ${res.status}`);
       }
       const data = (await res.json()) as any[];
       if (!data || data.length === 0) {
@@ -341,9 +404,11 @@ export async function getGitHubFollowing(): Promise<string[]> {
         break;
       }
       page++;
+      // Small pause between pagination requests
+      await new Promise((resolve) => setTimeout(resolve, 300));
     } catch (err: any) {
       console.error(`Error fetching following page ${page}:`, err.message || err);
-      break;
+      throw err;
     }
   }
   return following;
@@ -362,10 +427,10 @@ export async function getGitHubFollowers(): Promise<string[]> {
   while (true) {
     try {
       const url = `https://api.github.com/user/followers?per_page=100&page=${page}`;
-      const res = await fetch(url, { headers: HEADERS });
+      const res = await fetchGitHub(url);
       if (!res.ok) {
         console.error(`Failed to fetch followers page ${page}: ${res.status}`);
-        break;
+        throw new Error(`Failed to fetch followers page ${page}: status ${res.status}`);
       }
       const data = (await res.json()) as any[];
       if (!data || data.length === 0) {
@@ -376,9 +441,11 @@ export async function getGitHubFollowers(): Promise<string[]> {
         break;
       }
       page++;
+      // Small pause between pagination requests
+      await new Promise((resolve) => setTimeout(resolve, 300));
     } catch (err: any) {
       console.error(`Error fetching followers page ${page}:`, err.message || err);
-      break;
+      throw err;
     }
   }
   return followers;
@@ -393,7 +460,7 @@ export async function getAuthenticatedUserStats(): Promise<{ followers: number; 
   }
   try {
     const url = 'https://api.github.com/user';
-    const res = await fetch(url, { headers: HEADERS });
+    const res = await fetchGitHub(url);
     if (!res.ok) {
       console.error(`Failed to fetch authenticated user profile: ${res.status}`);
       return null;
@@ -408,4 +475,5 @@ export async function getAuthenticatedUserStats(): Promise<{ followers: number; 
     return null;
   }
 }
+
 

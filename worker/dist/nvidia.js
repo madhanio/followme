@@ -15,13 +15,14 @@ const openai = new openai_1.default({
     apiKey: NVIDIA_API_KEY || '',
     baseURL: 'https://integrate.api.nvidia.com/v1',
 });
-async function gradeRepository(repo) {
+async function gradeRepository(repo, customSystemPrompt) {
     if (!NVIDIA_API_KEY) {
         console.error('NVIDIA_API_KEY is not defined. Skipping grading.');
         return { grade: 1, reason: 'NVIDIA API key not configured' };
     }
     const prompt = `
 You are an expert software developer and peer community evaluator.
+${customSystemPrompt ? `System Focus Guidance: ${customSystemPrompt}\n` : ''}
 Evaluate the following GitHub repository and grade it on a scale of 1 to 10 based on:
 1. **Learning Effort**: Does this show active learning, dedication, and practical coding practice? (e.g., student assignments, personal experiments, build-in-public projects).
 2. **Originality**: Is it a genuine personal attempt, interesting hackathon project, or custom tool? Avoid penalizing it for being simple, but do penalize if it is an unchanged 1-to-1 clone/fork.

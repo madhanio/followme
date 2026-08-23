@@ -199,7 +199,8 @@ function ProfileCard({
   onDelete,
   isActionLoading,
   setActiveTab,
-  setSearchTerm
+  setSearchTerm,
+  graceDays = 7
 }: { 
   profile: any; 
   onFollow: (username: string) => Promise<void>; 
@@ -208,6 +209,7 @@ function ProfileCard({
   isActionLoading: boolean;
   setActiveTab: (tab: any) => void;
   setSearchTerm: (term: string) => void;
+  graceDays?: number;
 }) {
   const [stats, setStats] = useState<{ followers: number; following: number } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -247,41 +249,47 @@ function ProfileCard({
   }, [profile.owner]);
 
   const status = profile.followStatus;
-  const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
+  const isMutual = status.followed && !status.unfollowed && status.follow_back;
+  const isGracePeriod = status.followed && !status.unfollowed && !status.follow_back;
+  const isInbound = !status.followed && status.follow_back;
   const isUnfollowed = status.unfollowed;
   const isSkipped = status.follow_skipped;
-  const isMutual = status.followed && !status.unfollowed && status.follow_back;
 
-  let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30";
+  let badgeClass = "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400";
   let badgeLabel = "Pending";
 
-  if (isFollowed) {
-    badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/20 dark:text-blue-400";
-    badgeLabel = "Followed";
-  } else if (isMutual) {
-    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 font-bold";
-    badgeLabel = "Mutual Follow";
+  if (isMutual) {
+    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold";
+    badgeLabel = "Mutual (Follows Back)";
+  } else if (isGracePeriod) {
+    badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 font-bold";
+    badgeLabel = "Grace Period";
+  } else if (isInbound) {
+    badgeClass = "bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 font-bold";
+    badgeLabel = "Inbound (Follows You)";
   } else if (isUnfollowed) {
-    badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400";
-    badgeLabel = "Unfollowed";
+    badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 font-bold";
+    badgeLabel = "Unfollowed Archive";
   } else if (isSkipped) {
-    badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400";
-    badgeLabel = "Skipped";
+    badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 font-bold";
+    badgeLabel = "Filter Skipped";
   }
 
-  const letterGrade = (() => {
-    const g = profile.avgGrade;
-    if (g >= 9.0) return "A+";
-    if (g >= 8.0) return "A";
-    if (g >= 7.0) return "B+";
-    if (g >= 6.0) return "B";
-    if (g >= 5.0) return "C+";
-    return "C";
-  })();
+  // Calculate Grace Period Countdown
+  let graceCountdownText: string | null = null;
+  if (isGracePeriod && status.followed_at) {
+    const elapsedDays = (Date.now() - new Date(status.followed_at).getTime()) / (1000 * 60 * 60 * 24);
+    const remaining = Math.max(0, graceDays - elapsedDays);
+    if (remaining <= 0) {
+      graceCountdownText = "Grace period ended (Due for unfollow)";
+    } else {
+      graceCountdownText = `${remaining.toFixed(1)}d remaining in grace period`;
+    }
+  }
 
   return (
-    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-[32px] transition-all duration-300 relative overflow-hidden flex flex-col justify-between min-h-[220px]">
-      {/* Top Header (Unified redesign - visual flow is perfect) */}
+    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-[32px] transition-all duration-300 relative overflow-hidden flex flex-col justify-between min-h-[230px]">
+      {/* Top Header */}
       <div className="h-14 bg-slate-100 dark:bg-[#1c1c1e] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-between px-4 shrink-0 z-10">
         <div className="flex items-center space-x-2.5 min-w-0">
           <img 
@@ -311,7 +319,7 @@ function ProfileCard({
         </div>
         
         <div className="flex items-center space-x-1.5 shrink-0">
-          <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold shrink-0 ${badgeClass}`}>
+          <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono shrink-0 ${badgeClass}`}>
             {badgeLabel}
           </span>
           <button
@@ -328,32 +336,42 @@ function ProfileCard({
       {/* Card Content */}
       <div className="p-4 flex-1 flex flex-col justify-between">
         <div>
-
-        {/* Compact numeric quality grade block */}
-        <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-xl text-center my-3 relative overflow-hidden flex items-center justify-between">
-          <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Average Quality Score</span>
-          <span className={`text-sm font-extrabold font-mono leading-none ${
-            profile.avgGrade >= 9.0 ? 'text-emerald-600 dark:text-emerald-400' :
-            profile.avgGrade >= 7.0 ? 'text-[#e60023]' : 'text-orange-500'
-          }`}>
-            {profile.avgGrade.toFixed(1)}/10
-          </span>
-        </div>
-
-        {profile.repos[0]?.readme_snippet && (
-          <p className="text-[11px] font-sans text-[#767676] dark:text-zinc-400 line-clamp-2 leading-relaxed my-2 px-1">
-            {cleanSnippet(profile.repos[0].readme_snippet)}
-          </p>
-        )}
-
-        {isSkipped && profile.followStatus.reason && (
-          <div className="text-[10px] font-mono text-[#767676] leading-relaxed bg-[#f3f3f3] dark:bg-[#1a1a1a] border border-[#dadada] dark:border-[#2a2a2a] p-2 py-1.5 rounded-lg mb-2">
-            Reason: {profile.followStatus.reason}
+          {/* Quality Score Bar */}
+          <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-xl text-center my-2 relative overflow-hidden flex items-center justify-between">
+            <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Quality Score</span>
+            <span className={`text-sm font-extrabold font-mono leading-none ${
+              profile.avgGrade >= 9.0 ? 'text-emerald-600 dark:text-emerald-400' :
+              profile.avgGrade >= 7.0 ? 'text-[#e60023]' : 'text-orange-500'
+            }`}>
+              {profile.avgGrade.toFixed(1)}/10
+            </span>
           </div>
-        )}
+
+          {/* Grace Period Countdown Alert */}
+          {graceCountdownText && (
+            <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 p-2 rounded-xl mb-2 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-bold">
+                <Clock className="h-3 w-3 shrink-0" />
+                {graceCountdownText}
+              </span>
+            </div>
+          )}
+
+          {profile.repos[0]?.readme_snippet && (
+            <p className="text-[11px] font-sans text-[#767676] dark:text-zinc-400 line-clamp-2 leading-relaxed my-2 px-1">
+              {cleanSnippet(profile.repos[0].readme_snippet)}
+            </p>
+          )}
+
+          {isSkipped && profile.followStatus.reason && (
+            <div className="text-[10px] font-mono text-[#767676] leading-relaxed bg-[#f3f3f3] dark:bg-[#1a1a1a] border border-[#dadada] dark:border-[#2a2a2a] p-2 py-1.5 rounded-lg mb-2">
+              Reason: {profile.followStatus.reason}
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Card Action Buttons */}
       <div className="flex space-x-2 px-4 pb-4 pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
         {isMutual ? (
           <>
@@ -373,7 +391,7 @@ function ProfileCard({
               GitHub
             </a>
           </>
-        ) : isFollowed ? (
+        ) : isGracePeriod ? (
           <>
             <button
               onClick={() => onUnfollow(profile.owner)}
@@ -381,6 +399,24 @@ function ProfileCard({
               className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
             >
               Unfollow
+            </button>
+            <a
+              href={`https://github.com/${profile.owner}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
+            >
+              GitHub
+            </a>
+          </>
+        ) : isInbound ? (
+          <>
+            <button
+              onClick={() => onFollow(profile.owner)}
+              disabled={isActionLoading}
+              className="flex-1 min-h-[34px] flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
+            >
+              Follow Back
             </button>
             <a
               href={`https://github.com/${profile.owner}`}
@@ -501,7 +537,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   // Interactive filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'unstarred' | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'grace_period' | 'inbound' | 'unstarred' | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>('home');
   const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'ALL'>('7D');
 
@@ -906,6 +942,33 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals };
   }, [repos, allProfiles]);
 
+  const relationshipMatrix = useMemo(() => {
+    const mutuals: any[] = [];
+    const gracePeriod: any[] = [];
+    const inbound: any[] = [];
+    const unfollowed: any[] = [];
+
+    allProfiles.forEach((profile) => {
+      const status = profile.followStatus;
+      if (status.followed && !status.unfollowed && status.follow_back) {
+        mutuals.push(profile);
+      } else if (status.followed && !status.unfollowed && !status.follow_back) {
+        gracePeriod.push(profile);
+      } else if (!status.followed && status.follow_back) {
+        inbound.push(profile);
+      } else if (status.unfollowed) {
+        unfollowed.push(profile);
+      }
+    });
+
+    return {
+      mutuals,
+      gracePeriod,
+      inbound,
+      unfollowed,
+    };
+  }, [allProfiles]);
+
   const topProfile = useMemo(() => {
     if (allProfiles.length === 0) return null;
     return [...allProfiles].sort((a, b) => b.avgGrade - a.avgGrade)[0];
@@ -1086,7 +1149,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         return false;
       }
 
-      if (activeFilter === 'followed') {
+      if (activeFilter === 'followed' || activeFilter === 'grace_period') {
         return profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_back;
       }
       if (activeFilter === 'skipped') {
@@ -1097,6 +1160,9 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       }
       if (activeFilter === 'mutual') {
         return profile.followStatus.followed && !profile.followStatus.unfollowed && profile.followStatus.follow_back;
+      }
+      if (activeFilter === 'inbound') {
+        return !profile.followStatus.followed && profile.followStatus.follow_back;
       }
       return true;
     });
@@ -2023,10 +2089,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                 {activeTab === 'profiles' && (
                   <div className="flex flex-wrap items-center gap-2 font-geist">
                     {[
-                      { id: null, label: 'All' },
-                      { id: 'followed', label: 'Followed' },
-                      { id: 'unfollowed', label: 'Unfollowed' },
-                      { id: 'mutual', label: 'Mutuals' }
+                      { id: null, label: `All (${allProfiles.length})` },
+                      { id: 'mutual', label: `Mutuals (${relationshipMatrix.mutuals.length})` },
+                      { id: 'grace_period', label: `Grace Period (${relationshipMatrix.gracePeriod.length})` },
+                      { id: 'inbound', label: `Inbound Fans (${relationshipMatrix.inbound.length})` },
+                      { id: 'unfollowed', label: `Unfollowed (${relationshipMatrix.unfollowed.length})` }
                     ].map(pill => {
                       const isSelected = activeFilter === pill.id;
                       return (
@@ -2088,7 +2155,115 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
               {/* 0. HOMEPAGE TAB */}
               {!isTabTransitioning && !isRefreshing && activeTab === 'home' && (
-                <div className="masonry-grid">
+                <div className="space-y-6">
+                  {/* 4-WAY PROFILE RELATIONSHIP MATRIX CARDS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-geist">
+                    {/* 1. Mutual Friends */}
+                    <div 
+                      onClick={() => { setActiveTab('profiles'); setActiveFilter('mutual'); }}
+                      className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-emerald-500/80 dark:hover:border-emerald-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                          <UserCheck className="h-3.5 w-3.5" /> Mutual Friends
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold border border-emerald-200/50 dark:border-emerald-900/40">
+                          I Follow + They Follow
+                        </span>
+                      </div>
+                      <div className="my-3">
+                        <div className="text-3xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">
+                          {relationshipMatrix.mutuals.length}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                          Reciprocal connections. Protected from auto-unfollow.
+                        </p>
+                      </div>
+                      <div className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                        <span>View mutuals</span> &rarr;
+                      </div>
+                    </div>
+
+                    {/* 2. Grace Period Queue */}
+                    <div 
+                      onClick={() => { setActiveTab('profiles'); setActiveFilter('grace_period'); }}
+                      className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-blue-500/80 dark:hover:border-blue-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#0058bb] dark:text-blue-400 flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" /> Grace Period
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 font-bold border border-blue-200/50 dark:border-blue-900/40">
+                          I Follow + They Don&apos;t
+                        </span>
+                      </div>
+                      <div className="my-3">
+                        <div className="text-3xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">
+                          {relationshipMatrix.gracePeriod.length}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                          Awaiting follow-back ({savedSettings.unfollowGracePeriod || 7}d grace timer).
+                        </p>
+                      </div>
+                      <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                        <span>View pending queue</span> &rarr;
+                      </div>
+                    </div>
+
+                    {/* 3. Inbound Fans */}
+                    <div 
+                      onClick={() => { setActiveTab('profiles'); setActiveFilter('inbound'); }}
+                      className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-purple-500/80 dark:hover:border-purple-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                          <UserPlus className="h-3.5 w-3.5" /> Inbound Fans
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400 font-bold border border-purple-200/50 dark:border-purple-900/40">
+                          They Follow + I Don&apos;t
+                        </span>
+                      </div>
+                      <div className="my-3">
+                        <div className="text-3xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">
+                          {relationshipMatrix.inbound.length}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                          Developers following you. Ready to follow back!
+                        </p>
+                      </div>
+                      <div className="text-[10px] font-mono text-purple-600 dark:text-purple-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                        <span>Follow back opportunities</span> &rarr;
+                      </div>
+                    </div>
+
+                    {/* 4. Unfollowed History */}
+                    <div 
+                      onClick={() => { setActiveTab('profiles'); setActiveFilter('unfollowed'); }}
+                      className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-rose-500/80 dark:hover:border-rose-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                          <UserMinus className="h-3.5 w-3.5" /> Unfollowed
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 font-bold border border-rose-200/50 dark:border-rose-900/40">
+                          I Don&apos;t + They Don&apos;t
+                        </span>
+                      </div>
+                      <div className="my-3">
+                        <div className="text-3xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">
+                          {relationshipMatrix.unfollowed.length}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                          Auto-cleaned after grace period expiration.
+                        </p>
+                      </div>
+                      <div className="text-[10px] font-mono text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                        <span>View cleanup archive</span> &rarr;
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="masonry-grid">
                                {/* Card 1: Top Profile Card -> Rotating Spotlight */}
                   {top5Profiles.length > 0 && (() => {
                     const profile = top5Profiles[spotlightIndex];
@@ -2353,6 +2528,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     </div>
                   </div>
 
+                  </div>
                 </div>
               )}
               {/* 1. PROFILES TAB */}
@@ -2381,6 +2557,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                             isActionLoading={isActionLoading}
                             setActiveTab={setActiveTab}
                             setSearchTerm={setSearchTerm}
+                            graceDays={savedSettings.unfollowGracePeriod || 7}
                           />
                         </div>
                       ))}

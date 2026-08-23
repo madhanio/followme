@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo, getGitHubFollowing, getGitHubFollowers, getAuthenticatedUserStats } from './github';
 import { gradeRepository } from './nvidia';
-import { supabase, isRepoGraded, saveRepo, logAction, fetchSystemSettings } from './supabase';
+import { supabase, isRepoGraded, saveRepo, logAction, fetchSystemSettings, SystemRuntimeConfig } from './supabase';
 
 dotenv.config();
 
@@ -284,13 +284,13 @@ async function runAutomationJob() {
 
     // Call cleanup at the end of every automation run
     try {
-      await runCleanupJob();
+      await runCleanupJob(config);
     } catch (cleanupErr: any) {
       console.error('Error running cleanup job as part of automation:', cleanupErr.message || cleanupErr);
     }
 
     try {
-      await cleanupNonFollowbacks();
+      await cleanupNonFollowbacks(config);
     } catch (ratioErr: any) {
       console.error('Error running auto-unfollow ratio cleanup:', ratioErr.message || ratioErr);
     }
@@ -755,10 +755,16 @@ async function syncMutuals() {
   }
 }
 
-async function cleanupNonFollowbacks() {
+async function cleanupNonFollowbacks(runtimeConfig?: SystemRuntimeConfig) {
   console.log('Starting FollowMe auto-unfollow ratio cleanup (cleanupNonFollowbacks)...');
   let unfollowedRatioCount = 0;
   try {
+    const config = runtimeConfig || (await fetchSystemSettings());
+    if (config.autoUnfollowNonMutuals === false) {
+      console.log('Auto unfollow non-mutuals is disabled in system settings. Skipping ratio cleanup.');
+      return;
+    }
+
     const following = await getGitHubFollowing();
     const followers = await getGitHubFollowers();
 
@@ -775,8 +781,8 @@ async function cleanupNonFollowbacks() {
     console.log(`Ratio unhealthy! following (${followingCount}) > followers (${followersCount}) * 2. Starting unfollow queue...`);
 
     // Find users I follow who do not follow me back
-    const followerSet = new Set(followers);
-    const nonFollowbacks = following.filter(user => !followerSet.has(user));
+    const followerSet = new Set(followers.map(u => u.toLowerCase()));
+    const nonFollowbacks = following.filter(user => !followerSet.has(user.toLowerCase()));
 
     if (nonFollowbacks.length === 0) {
       console.log('No non-followback users found to unfollow.');
@@ -805,25 +811,22 @@ async function cleanupNonFollowbacks() {
       }
     }
 
-    // 7-day grace period cutoff
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    // Dynamic grace period cutoff from settings
+    const graceDays = config.unfollowGracePeriod && config.unfollowGracePeriod > 0 ? config.unfollowGracePeriod : 7;
+    const gracePeriodCutoff = Date.now() - graceDays * 24 * 60 * 60 * 1000;
 
-    // Filter out users followed less than 7 days ago AND users not followed by FollowMe bot
+    // Filter: allow non-followers who are past the grace period
     const eligibleUnfollows = nonFollowbacks.filter(user => {
-      // Must be followed by the bot (in repos table with followed = true)
-      if (!isFollowedByBot.has(user.toLowerCase())) {
-        return false;
-      }
       const followedAt = followedAtMap.get(user.toLowerCase());
-      if (followedAt !== undefined && followedAt > sevenDaysAgo) {
-        // Less than 7 days ago
+      if (followedAt !== undefined && followedAt > gracePeriodCutoff) {
+        // Within grace period
         return false;
       }
       return true;
     });
 
     if (eligibleUnfollows.length === 0) {
-      console.log('All eligible non-followback users are within the 7-day grace period or were followed manually. Skipping unfollow cleanup.');
+      console.log(`All eligible non-followback users are within the ${graceDays}-day grace period. Skipping unfollow cleanup.`);
       return;
     }
 
@@ -849,7 +852,7 @@ async function cleanupNonFollowbacks() {
       return (apiIndexMap.get(a.toLowerCase()) || 0) - (apiIndexMap.get(b.toLowerCase()) || 0);
     });
 
-    console.log(`Sorted ${eligibleUnfollows.length} bot-followed non-followers eligible for unfollow.`);
+    console.log(`Sorted ${eligibleUnfollows.length} non-followers eligible for unfollow (grace period: ${graceDays} days).`);
 
     let currentFollowingCount = followingCount;
     const targetCount = Math.floor(followersCount * 1.3);
@@ -886,8 +889,8 @@ async function cleanupNonFollowbacks() {
         console.error(`Failed to unfollow ${username} during ratio cleanup.`);
       }
 
-      // 2 second delay between unfollow calls to avoid abuse detection
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 2.5 second delay between unfollow calls to avoid abuse detection
+      await new Promise(resolve => setTimeout(resolve, 2500));
     }
 
     // Write a summary row for ratio cleanup
@@ -912,19 +915,31 @@ async function cleanupNonFollowbacks() {
   }
 }
 
-async function runCleanupJob() {
+async function runCleanupJob(runtimeConfig?: SystemRuntimeConfig) {
   console.log('Starting FollowMe cleanup job...');
   await logAction('SYSTEM', null, 'SUCCESS', 'Cleanup job started');
 
   let unfollowedCount = 0;
 
   try {
+    const config = runtimeConfig || (await fetchSystemSettings());
+    if (config.autoUnfollowNonMutuals === false) {
+      console.log('Auto unfollow non-mutuals is disabled in system settings. Skipping cleanup.');
+      await logAction('SYSTEM', null, 'SUCCESS', 'Cleanup job finished: autoUnfollowNonMutuals disabled');
+      return;
+    }
+
+    const graceDays = config.unfollowGracePeriod && config.unfollowGracePeriod > 0 ? config.unfollowGracePeriod : 7;
+    const cutoffDate = new Date(Date.now() - graceDays * 24 * 60 * 60 * 1000).toISOString();
+    console.log(`Checking for non-mutual profiles followed before ${cutoffDate} (${graceDays}-day grace period)...`);
+
     const { data: repos, error } = await supabase
       .from('repos')
       .select('*')
       .eq('follow_back', false)
       .eq('unfollowed', false)
-      .lt('followed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+      .eq('followed', true)
+      .lt('followed_at', cutoffDate);
 
     if (error) {
       console.error('Error fetching repos for cleanup:', error.message);
@@ -932,7 +947,7 @@ async function runCleanupJob() {
     }
 
     if (!repos || repos.length === 0) {
-      console.log('No users found to check for follow-back cleanup.');
+      console.log(`No users found beyond the ${graceDays}-day grace period to unfollow.`);
       await logAction('SYSTEM', null, 'SUCCESS', 'Cleanup job finished: no actions needed');
       
       // Write a summary row for cleanup run even if 0 unfollowed
@@ -952,7 +967,7 @@ async function runCleanupJob() {
       return;
     }
 
-    console.log(`Found ${repos.length} users to check for follow-back status.`);
+    console.log(`Found ${repos.length} users past the ${graceDays}-day grace period to unfollow.`);
 
     for (const repo of repos) {
       // Unfollow
@@ -968,18 +983,18 @@ async function runCleanupJob() {
         if (updateErr) {
           console.error(`Error updating unfollowed status for ${repo.owner}:`, updateErr.message);
         } else {
-          await logAction('UNFOLLOW', repo.id, 'SUCCESS', `Unfollowed user ${repo.owner} (no follow-back within 7 days)`);
+          await logAction('UNFOLLOW', repo.id, 'SUCCESS', `Unfollowed user ${repo.owner} (no follow-back within ${graceDays} days)`);
         }
       } else {
         await logAction('UNFOLLOW', repo.id, 'FAILED', `Failed to unfollow user ${repo.owner}`);
       }
 
-      // Small delay between checks
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // 2.5 second delay between checks
+      await new Promise((resolve) => setTimeout(resolve, 2500));
     }
 
-    console.log('Cleanup job completed.');
-    await logAction('SYSTEM', null, 'SUCCESS', `Cleanup job completed successfully.`);
+    console.log(`Cleanup job completed. Unfollowed ${unfollowedCount} accounts.`);
+    await logAction('SYSTEM', null, 'SUCCESS', `Cleanup job completed successfully. Unfollowed: ${unfollowedCount}`);
 
     // Write a summary row for the cleanup run
     // run_summary is append-only — never delete from this table.
@@ -1014,42 +1029,65 @@ async function reconcileFollowing() {
   console.log('Starting following list reconciliation...');
   try {
     const actualFollowingList = await getGitHubFollowing();
-    const actualFollowingSet = new Set(actualFollowingList.map(u => u.toLowerCase()));
-    console.log(`Live following count from GitHub: ${actualFollowingList.length}`);
-
-    // Fetch all profiles in Supabase marked followed = true
-    const { data: dbFollowed, error } = await supabase
-      .from('repos')
-      .select('id, owner')
-      .eq('followed', true);
-
-    if (error) {
-      console.error('Error fetching followed profiles for reconciliation:', error.message);
+    if (!actualFollowingList || actualFollowingList.length === 0) {
+      console.warn('Reconciliation skipped: GitHub following list returned empty (possible rate limit or token issue).');
       return;
     }
 
-    const toUnfollowInDb = dbFollowed?.filter(
-      row => !actualFollowingSet.has(row.owner.toLowerCase())
+    const actualFollowingSet = new Set(actualFollowingList.map(u => u.toLowerCase()));
+    console.log(`Live following count from GitHub: ${actualFollowingList.length}`);
+
+    // Fetch all profiles in Supabase
+    const { data: allDbRepos, error } = await supabase
+      .from('repos')
+      .select('id, owner, followed, unfollowed');
+
+    if (error) {
+      console.error('Error fetching profiles for reconciliation:', error.message);
+      return;
+    }
+
+    // Find profiles in DB marked followed=true that are NO LONGER followed on GitHub
+    const toMarkUnfollowed = allDbRepos?.filter(
+      row => row.followed === true && !actualFollowingSet.has(row.owner.toLowerCase())
     ) ?? [];
 
-    console.log(`Reconciliation: found ${toUnfollowInDb.length} profiles to mark unfollowed in DB.`);
+    // Find profiles in DB marked followed=false / unfollowed=true that ARE ACTUALLY STILL followed on GitHub
+    const toRestoreFollowed = allDbRepos?.filter(
+      row => actualFollowingSet.has(row.owner.toLowerCase()) && (row.followed !== true || row.unfollowed === true)
+    ) ?? [];
 
-    if (toUnfollowInDb.length > 0) {
-      const idsToUpdate = toUnfollowInDb.map(r => r.id);
+    console.log(`Reconciliation: ${toMarkUnfollowed.length} to mark unfollowed, ${toRestoreFollowed.length} to restore to active followed.`);
+
+    if (toMarkUnfollowed.length > 0) {
+      const idsToUpdate = toMarkUnfollowed.map(r => r.id);
       const { error: updateErr } = await supabase
         .from('repos')
         .update({ followed: false, unfollowed: true })
         .in('id', idsToUpdate);
 
       if (updateErr) {
-        console.error('Error updating profiles during reconciliation:', updateErr.message);
+        console.error('Error updating unfollowed during reconciliation:', updateErr.message);
       } else {
-        console.log(`Successfully updated ${toUnfollowInDb.length} profiles to followed = false, unfollowed = true.`);
-        for (const profile of toUnfollowInDb) {
-          await logAction('SYSTEM', profile.id, 'SUCCESS', `Reconciliation: marked ${profile.owner} as unfollowed/not-followed to match live GitHub state.`);
-        }
+        console.log(`Successfully marked ${toMarkUnfollowed.length} profiles as unfollowed.`);
       }
     }
+
+    if (toRestoreFollowed.length > 0) {
+      const idsToRestore = toRestoreFollowed.map(r => r.id);
+      const { error: restoreErr } = await supabase
+        .from('repos')
+        .update({ followed: true, unfollowed: false })
+        .in('id', idsToRestore);
+
+      if (restoreErr) {
+        console.error('Error restoring profiles during reconciliation:', restoreErr.message);
+      } else {
+        console.log(`Successfully restored ${toRestoreFollowed.length} profiles to followed = true, unfollowed = false.`);
+      }
+    }
+
+    await logAction('SYSTEM', null, 'SUCCESS', `Reconciliation complete. Live following: ${actualFollowingList.length}. Marked unfollowed: ${toMarkUnfollowed.length}, Restored active: ${toRestoreFollowed.length}`);
     console.log('Reconciliation complete.');
   } catch (err: any) {
     console.error('Error in reconcileFollowing:', err.message || err);
