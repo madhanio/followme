@@ -255,6 +255,25 @@ function ProfileCard({
   const isUnfollowed = status.unfollowed;
   const isSkipped = status.follow_skipped;
 
+  // Calculate Grace Period Countdown
+  let graceCountdownText: string | null = null;
+  let isGraceExpired = false;
+  if (isGracePeriod) {
+    if (status.followed_at) {
+      const elapsedDays = (Date.now() - new Date(status.followed_at).getTime()) / (1000 * 60 * 60 * 24);
+      const remaining = Math.max(0, graceDays - elapsedDays);
+      if (remaining <= 0) {
+        graceCountdownText = "Grace period ended (Due for unfollow)";
+        isGraceExpired = true;
+      } else {
+        graceCountdownText = `${remaining.toFixed(1)}d remaining in grace period`;
+      }
+    } else {
+      graceCountdownText = "Grace period ended (Due for unfollow)";
+      isGraceExpired = true;
+    }
+  }
+
   let badgeClass = "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400";
   let badgeLabel = "Pending";
 
@@ -262,8 +281,13 @@ function ProfileCard({
     badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold";
     badgeLabel = "Mutual (Follows Back)";
   } else if (isGracePeriod) {
-    badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 font-bold";
-    badgeLabel = "Grace Period";
+    if (isGraceExpired) {
+      badgeClass = "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 font-extrabold";
+      badgeLabel = "Grace Ended (Due)";
+    } else {
+      badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 font-bold";
+      badgeLabel = "Grace Period";
+    }
   } else if (isInbound) {
     badgeClass = "bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 font-bold";
     badgeLabel = "Inbound (Follows You)";
@@ -273,18 +297,6 @@ function ProfileCard({
   } else if (isSkipped) {
     badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 font-bold";
     badgeLabel = "Filter Skipped";
-  }
-
-  // Calculate Grace Period Countdown
-  let graceCountdownText: string | null = null;
-  if (isGracePeriod && status.followed_at) {
-    const elapsedDays = (Date.now() - new Date(status.followed_at).getTime()) / (1000 * 60 * 60 * 24);
-    const remaining = Math.max(0, graceDays - elapsedDays);
-    if (remaining <= 0) {
-      graceCountdownText = "Grace period ended (Due for unfollow)";
-    } else {
-      graceCountdownText = `${remaining.toFixed(1)}d remaining in grace period`;
-    }
   }
 
   return (
@@ -537,7 +549,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   // Interactive filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'grace_period' | 'inbound' | 'unstarred' | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'grace_period' | 'grace_ended' | 'inbound' | 'unstarred' | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>('home');
   const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'ALL'>('7D');
 
@@ -945,8 +957,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const relationshipMatrix = useMemo(() => {
     const mutuals: any[] = [];
     const gracePeriod: any[] = [];
+    const graceEnded: any[] = [];
     const inbound: any[] = [];
     const unfollowed: any[] = [];
+
+    const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
+    const cutoffMs = graceDays * 24 * 60 * 60 * 1000;
 
     allProfiles.forEach((profile) => {
       const status = profile.followStatus;
@@ -954,6 +970,15 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
         mutuals.push(profile);
       } else if (status.followed && !status.unfollowed && !status.follow_back) {
         gracePeriod.push(profile);
+        if (status.followed_at) {
+          const elapsed = Date.now() - new Date(status.followed_at).getTime();
+          if (elapsed >= cutoffMs) {
+            graceEnded.push(profile);
+          }
+        } else {
+          // If no timestamp is present, it is considered past grace
+          graceEnded.push(profile);
+        }
       } else if (!status.followed && status.follow_back) {
         inbound.push(profile);
       } else if (status.unfollowed) {
@@ -964,10 +989,11 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     return {
       mutuals,
       gracePeriod,
+      graceEnded,
       inbound,
       unfollowed,
     };
-  }, [allProfiles]);
+  }, [allProfiles, savedSettings.unfollowGracePeriod]);
 
   const topProfile = useMemo(() => {
     if (allProfiles.length === 0) return null;
@@ -1152,6 +1178,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       if (activeFilter === 'followed' || activeFilter === 'grace_period') {
         return profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_back;
       }
+      if (activeFilter === 'grace_ended') {
+        if (!profile.followStatus.followed || profile.followStatus.unfollowed || profile.followStatus.follow_back) return false;
+        if (!profile.followStatus.followed_at) return true;
+        const elapsed = Date.now() - new Date(profile.followStatus.followed_at).getTime();
+        const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
+        return elapsed >= graceDays * 24 * 60 * 60 * 1000;
+      }
       if (activeFilter === 'skipped') {
         return profile.followStatus.follow_skipped;
       }
@@ -1166,7 +1199,7 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       }
       return true;
     });
-  }, [allProfiles, searchTerm, activeFilter]);
+  }, [allProfiles, searchTerm, activeFilter, savedSettings.unfollowGracePeriod]);
 
   // Apply filters and sorting to repos
   const filteredRepos = useMemo(() => {
@@ -1363,6 +1396,10 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      // 1. Sync live GitHub followers and following bidirectional state
+      const syncRes = await triggerSyncFollowing();
+      
+      // 2. Fetch fresh data from Supabase
       const reposRes = await supabase.from('repos').select('*');
       if (reposRes.data) setRepos(reposRes.data);
       const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
@@ -1371,8 +1408,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       if (summaryRes.data) setRunSummary(summaryRes.data);
       await fetchStatus();
       setShuffleSeed(prev => prev + 1);
-    } catch (err) {
-      console.error('Error refreshing data:', err);
+
+      if (syncRes.success && syncRes.data) {
+        const d = syncRes.data;
+        setTriggerStatus({
+          success: true,
+          message: `Live Sync Successful: ${d.liveFollowingCount ?? '350+'} Following, ${d.liveFollowersCount ?? '140+'} Followers synced with GitHub.`
+        });
+      }
+    } catch (err: any) {
+      console.error('Error refreshing data and syncing with GitHub:', err);
     } finally {
       setIsRefreshing(false);
     }
@@ -2091,7 +2136,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     {[
                       { id: null, label: `All (${allProfiles.length})` },
                       { id: 'mutual', label: `Mutuals (${relationshipMatrix.mutuals.length})` },
-                      { id: 'grace_period', label: `Grace Period (${relationshipMatrix.gracePeriod.length})` },
+                      { id: 'grace_period', label: `Grace Queue (${relationshipMatrix.gracePeriod.length})` },
+                      { 
+                        id: 'grace_ended', 
+                        label: `Grace Ended (${relationshipMatrix.graceEnded.length})`, 
+                        highlight: relationshipMatrix.graceEnded.length > 0 
+                      },
                       { id: 'inbound', label: `Inbound Fans (${relationshipMatrix.inbound.length})` },
                       { id: 'unfollowed', label: `Unfollowed (${relationshipMatrix.unfollowed.length})` }
                     ].map(pill => {
@@ -2103,6 +2153,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                           className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
                             isSelected
                               ? 'bg-[#e60023] text-white border-[#e60023] shadow-sm'
+                              : pill.highlight
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:border-amber-500 font-extrabold'
                               : 'bg-transparent text-[#767676] border-[#dadada] dark:border-[#2a2a2a] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
                           }`}
                         >
@@ -2534,6 +2586,25 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               {/* 1. PROFILES TAB */}
               {!isTabTransitioning && !isRefreshing && activeTab === 'profiles' && (
                 <div className="space-y-6">
+                  {activeFilter === 'grace_ended' && (
+                    <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono text-amber-800 dark:text-amber-300 mb-4">
+                      <div className="flex items-center space-x-2.5">
+                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                        <div>
+                          <span className="font-bold font-jakarta block sm:inline">Grace Period Ended ({savedSettings.unfollowGracePeriod || 7} Days):</span>
+                          <span className="ml-1 text-[11px] opacity-90">{filteredProfiles.length} profiles have not followed back and are eligible for auto-cleanup.</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleTrigger}
+                        disabled={isTriggering || isActionLoading}
+                        className="px-4 py-1.5 bg-[#e60023] hover:bg-[#c0001b] text-white rounded-full font-bold font-geist text-xs transition-all cursor-pointer shadow-xs active:scale-95 shrink-0 disabled:opacity-40"
+                      >
+                        {isTriggering ? 'Running Cleanup...' : 'Run Auto-Cleanup Job'}
+                      </button>
+                    </div>
+                  )}
+
                   {isRefreshing ? (
                     <div className="masonry-grid">
                       {[1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)}

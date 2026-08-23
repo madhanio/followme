@@ -16,7 +16,9 @@ async function fetchAuthenticatedUser() {
       login: data.login || 'User',
       name: data.name || data.login || 'User',
       avatar_url: data.avatar_url || `https://github.com/${data.login || 'ghost'}.png`,
-      email: data.email || ''
+      email: data.email || '',
+      followers: data.followers || 0,
+      following: data.following || 0
     };
   } catch {
     return null;
@@ -49,6 +51,32 @@ async function fetchAllFollowing(): Promise<Set<string>> {
   return following;
 }
 
+async function fetchAllFollowers(): Promise<Set<string>> {
+  const followers = new Set<string>();
+  if (!process.env.GITHUB_TOKEN) return followers;
+
+  let page = 1;
+  while (true) {
+    const res = await fetch(
+      `https://api.github.com/user/followers?per_page=100&page=${page}`,
+      { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json' } }
+    );
+    if (!res.ok) {
+      if (page === 1) {
+        console.warn(`GitHub API error ${res.status}: Failed to fetch followers list`);
+      }
+      break;
+    }
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) break;
+    data.forEach((u: any) => followers.add(u.login.toLowerCase()));
+    if (data.length < 100) break;
+    page++;
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return followers;
+}
+
 export async function POST() {
   if (!supabaseUrl || !supabaseKey) {
     return Response.json(
@@ -59,15 +87,16 @@ export async function POST() {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const [actualFollowing, userProfile] = await Promise.all([
+    const [actualFollowing, actualFollowers, userProfile] = await Promise.all([
       fetchAllFollowing(),
+      fetchAllFollowers(),
       fetchAuthenticatedUser()
     ]);
 
-    if (actualFollowing.size === 0) {
+    if (actualFollowing.size === 0 && actualFollowers.size === 0) {
       return NextResponse.json({
         synced: false,
-        warning: 'Following list from GitHub was empty or token missing. Aborted database sync to prevent accidental data loss.',
+        warning: 'GitHub network response was empty or token missing. Aborted database sync to prevent accidental data loss.',
         userProfile,
       });
     }
@@ -75,7 +104,7 @@ export async function POST() {
     // Fetch all profiles from Supabase
     const { data: allDbRepos, error } = await supabase
       .from('repos')
-      .select('id, owner, followed, unfollowed');
+      .select('id, owner, followed, unfollowed, follow_back');
     if (error) throw error;
 
     const toMarkUnfollowed = allDbRepos?.filter(
@@ -84,6 +113,15 @@ export async function POST() {
 
     const toRestoreFollowed = allDbRepos?.filter(
       (row) => actualFollowing.has(row.owner.toLowerCase()) && (row.followed !== true || row.unfollowed === true)
+    ) ?? [];
+
+    // Mutuals calculation
+    const toMarkFollowBack = allDbRepos?.filter(
+      (row) => actualFollowers.has(row.owner.toLowerCase()) && row.follow_back !== true
+    ) ?? [];
+
+    const toUnmarkFollowBack = allDbRepos?.filter(
+      (row) => !actualFollowers.has(row.owner.toLowerCase()) && row.follow_back === true
     ) ?? [];
 
     if (toMarkUnfollowed.length > 0) {
@@ -100,15 +138,32 @@ export async function POST() {
         .in('id', toRestoreFollowed.map((r) => r.id));
     }
 
+    if (toMarkFollowBack.length > 0) {
+      await supabase
+        .from('repos')
+        .update({ follow_back: true })
+        .in('id', toMarkFollowBack.map((r) => r.id));
+    }
+
+    if (toUnmarkFollowBack.length > 0) {
+      await supabase
+        .from('repos')
+        .update({ follow_back: false })
+        .in('id', toUnmarkFollowBack.map((r) => r.id));
+    }
+
     return NextResponse.json({
       synced: true,
       liveFollowingCount: actualFollowing.size,
+      liveFollowersCount: actualFollowers.size,
       unfollowedCount: toMarkUnfollowed.length,
       restoredCount: toRestoreFollowed.length,
+      followBackUpdated: toMarkFollowBack.length,
       userProfile
     });
   } catch (err: any) {
     return NextResponse.json({ synced: false, error: err.message }, { status: 500 });
   }
 }
+
 
