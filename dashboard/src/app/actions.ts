@@ -420,3 +420,75 @@ export async function getSystemSettings(): Promise<Record<string, any> | null> {
     return null;
   }
 }
+
+export interface GitHubRateLimitData {
+  core: {
+    limit: number;
+    used: number;
+    remaining: number;
+    reset: number;
+  };
+  search: {
+    limit: number;
+    used: number;
+    remaining: number;
+    reset: number;
+  };
+}
+
+export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: GitHubRateLimitData; error?: string }> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    return {
+      success: false,
+      error: 'Missing GITHUB_TOKEN environment variable.'
+    };
+  }
+
+  try {
+    const res = await fetch('https://api.github.com/rate_limit', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'FollowMe-Dashboard'
+      },
+      cache: 'no-store'
+    });
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: `GitHub rate limit API returned status ${res.status}`
+      };
+    }
+
+    const json = await res.json();
+    const core = json.resources?.core || { limit: 5000, used: 0, remaining: 5000, reset: 0 };
+    const search = json.resources?.search || { limit: 30, used: 0, remaining: 30, reset: 0 };
+
+    return {
+      success: true,
+      data: {
+        core: {
+          limit: core.limit ?? 5000,
+          used: core.used ?? (core.limit - core.remaining),
+          remaining: core.remaining ?? 5000,
+          reset: core.reset ?? 0,
+        },
+        search: {
+          limit: search.limit ?? 30,
+          used: search.used ?? (search.limit - search.remaining),
+          remaining: search.remaining ?? 30,
+          reset: search.reset ?? 0,
+        }
+      }
+    };
+  } catch (err: any) {
+    console.error('Error fetching GitHub rate limit:', err);
+    return {
+      success: false,
+      error: err.message || 'Failed to fetch GitHub rate limit.'
+    };
+  }
+}
+
