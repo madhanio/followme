@@ -20,10 +20,39 @@ interface GradingResult {
   reason: string;
 }
 
+export class FatalAiQuotaError extends Error {
+  public statusCode?: number;
+  constructor(message: string, statusCode?: number) {
+    super(message);
+    this.name = 'FatalAiQuotaError';
+    this.statusCode = statusCode;
+  }
+}
+
+export function isAiQuotaOrAuthError(err: any): boolean {
+  if (!err) return false;
+  const status = err.status || err.statusCode || err.response?.status;
+  const msg = (err.message || String(err)).toLowerCase();
+  return (
+    status === 401 ||
+    status === 402 ||
+    status === 403 ||
+    (status === 429 && (msg.includes('quota') || msg.includes('credit') || msg.includes('balance') || msg.includes('insufficient') || msg.includes('exceeded') || msg.includes('limit'))) ||
+    msg.includes('invalid_api_key') ||
+    msg.includes('incorrect api key') ||
+    msg.includes('credit') ||
+    msg.includes('quota') ||
+    msg.includes('unauthorized') ||
+    msg.includes('payment required') ||
+    msg.includes('payment_required') ||
+    msg.includes('billing')
+  );
+}
+
 export async function gradeRepository(repo: RepoMetadata, customSystemPrompt?: string): Promise<GradingResult> {
   if (!NVIDIA_API_KEY) {
-    console.error('NVIDIA_API_KEY is not defined. Skipping grading.');
-    return { grade: 1, reason: 'NVIDIA API key not configured' };
+    console.error('🚨 [FATAL] NVIDIA_API_KEY is not defined. Skipping AI grading.');
+    throw new FatalAiQuotaError('NVIDIA_API_KEY is not defined. AI grading cannot proceed.', 401);
   }
 
   const prompt = `
@@ -92,6 +121,14 @@ Return your evaluation EXACTLY in the following JSON format. Do not add any conv
       reason: result.reason || 'No reason provided by LLM.',
     };
   } catch (err: any) {
+    if (isAiQuotaOrAuthError(err)) {
+      console.error(`🚨 [FATAL AI QUOTA ERROR] NVIDIA API key/credits expired while grading ${repo.owner}/${repo.name}:`, err.message || err);
+      throw new FatalAiQuotaError(
+        `AI API Key / Quota Exhausted: ${err.message || 'API key invalid, expired, or out of credits.'}`,
+        err.status || 402
+      );
+    }
+
     console.error(`Error grading repository ${repo.owner}/${repo.name}:`, err.message || err);
     return {
       grade: 1,

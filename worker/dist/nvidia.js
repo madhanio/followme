@@ -3,6 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.FatalAiQuotaError = void 0;
+exports.isAiQuotaOrAuthError = isAiQuotaOrAuthError;
 exports.gradeRepository = gradeRepository;
 const openai_1 = __importDefault(require("openai"));
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -15,10 +17,37 @@ const openai = new openai_1.default({
     apiKey: NVIDIA_API_KEY || '',
     baseURL: 'https://integrate.api.nvidia.com/v1',
 });
+class FatalAiQuotaError extends Error {
+    statusCode;
+    constructor(message, statusCode) {
+        super(message);
+        this.name = 'FatalAiQuotaError';
+        this.statusCode = statusCode;
+    }
+}
+exports.FatalAiQuotaError = FatalAiQuotaError;
+function isAiQuotaOrAuthError(err) {
+    if (!err)
+        return false;
+    const status = err.status || err.statusCode || err.response?.status;
+    const msg = (err.message || String(err)).toLowerCase();
+    return (status === 401 ||
+        status === 402 ||
+        status === 403 ||
+        (status === 429 && (msg.includes('quota') || msg.includes('credit') || msg.includes('balance') || msg.includes('insufficient') || msg.includes('exceeded') || msg.includes('limit'))) ||
+        msg.includes('invalid_api_key') ||
+        msg.includes('incorrect api key') ||
+        msg.includes('credit') ||
+        msg.includes('quota') ||
+        msg.includes('unauthorized') ||
+        msg.includes('payment required') ||
+        msg.includes('payment_required') ||
+        msg.includes('billing'));
+}
 async function gradeRepository(repo, customSystemPrompt) {
     if (!NVIDIA_API_KEY) {
-        console.error('NVIDIA_API_KEY is not defined. Skipping grading.');
-        return { grade: 1, reason: 'NVIDIA API key not configured' };
+        console.error('🚨 [FATAL] NVIDIA_API_KEY is not defined. Skipping AI grading.');
+        throw new FatalAiQuotaError('NVIDIA_API_KEY is not defined. AI grading cannot proceed.', 401);
     }
     const prompt = `
 You are an expert software developer and peer community evaluator.
@@ -82,6 +111,10 @@ Return your evaluation EXACTLY in the following JSON format. Do not add any conv
         };
     }
     catch (err) {
+        if (isAiQuotaOrAuthError(err)) {
+            console.error(`🚨 [FATAL AI QUOTA ERROR] NVIDIA API key/credits expired while grading ${repo.owner}/${repo.name}:`, err.message || err);
+            throw new FatalAiQuotaError(`AI API Key / Quota Exhausted: ${err.message || 'API key invalid, expired, or out of credits.'}`, err.status || 402);
+        }
         console.error(`Error grading repository ${repo.owner}/${repo.name}:`, err.message || err);
         return {
             grade: 1,
