@@ -121,17 +121,18 @@ async function runAutomationJob() {
                 stats.skipped++;
                 continue;
             }
-            // Check if owner already exists in repos table with follow_back = false and unfollowed = false
+            // Check if owner already exists in repos table with followed = true, follow_back = false and unfollowed = false
             const { data: existingFollow } = await supabase_1.supabase
                 .from('repos')
                 .select('id')
                 .ilike('owner', repo.owner)
+                .eq('followed', true)
                 .eq('follow_back', false)
                 .eq('unfollowed', false)
                 .limit(1)
                 .maybeSingle();
             if (existingFollow) {
-                console.log(`Skipping profile ${repo.owner} — already followed (follow_back=false, unfollowed=false). Skipping AI grading.`);
+                console.log(`Skipping profile ${repo.owner} — already followed (followed=true, follow_back=false, unfollowed=false). Skipping AI grading.`);
                 stats.skipped++;
                 continue;
             }
@@ -147,8 +148,24 @@ async function runAutomationJob() {
             console.log(`Owner ${repo.owner} passed targeting filters. Proceeding to fetch README and grade repo ${repo.owner}/${repo.name}...`);
             const readme = await (0, github_1.fetchRepoReadme)(repo.owner, repo.name);
             repo.readme_snippet = readme;
-            const grading = await (0, nvidia_1.gradeRepository)(repo, config.systemPrompt);
-            stats.graded++;
+            let grading;
+            try {
+                grading = await (0, nvidia_1.gradeRepository)(repo, config.systemPrompt);
+                stats.graded++;
+            }
+            catch (aiErr) {
+                if (aiErr instanceof nvidia_1.FatalAiQuotaError || (0, nvidia_1.isAiQuotaOrAuthError)(aiErr)) {
+                    const loudMsg = `🚨 [FATAL AI QUOTA ERROR] ${aiErr.message}. Automation run halted immediately to prevent silent failure. Please renew/update NVIDIA_API_KEY.`;
+                    console.error(`\n================================================================`);
+                    console.error(loudMsg);
+                    console.error(`================================================================\n`);
+                    await logFatalErrorOrWarn(loudMsg, 'ERROR');
+                    await (0, supabase_1.logAction)('SYSTEM', repo.id, 'FAILED', loudMsg);
+                    throw aiErr;
+                }
+                console.error(`Unexpected grading error for ${repo.owner}/${repo.name}:`, aiErr.message || aiErr);
+                continue;
+            }
             console.log(`Repo: ${repo.owner}/${repo.name} | Grade: ${grading.grade} | Reason: ${grading.reason}`);
             let followed = false;
             let starred = false;
@@ -181,7 +198,7 @@ async function runAutomationJob() {
                     followResult = { success: false, message: `Failed to follow user ${repo.owner}` };
                 }
             }
-            // 5. Save repository to database and log if followed or starred
+            // 5. Save repository to database and log (persist both followed and skipped repos)
             if (followed || starred) {
                 await (0, supabase_1.saveRepo)({
                     id: repo.id,
@@ -203,7 +220,20 @@ async function runAutomationJob() {
                 await (0, supabase_1.logAction)('GRADE', repo.id, 'SUCCESS', `Graded repo: ${repo.owner}/${repo.name}. Score: ${grading.grade}. Reason: ${grading.reason}`);
             }
             else {
-                console.log(`[Automation] Skipped database write for ${repo.owner}/${repo.name} - grade below threshold or action failed. (Grade: ${grading.grade}, Reason: ${grading.reason})`);
+                // Persist low-grade or non-actioned repo to database as follow_skipped: true
+                await (0, supabase_1.saveRepo)({
+                    id: repo.id,
+                    github_url: repo.github_url,
+                    owner: repo.owner,
+                    name: repo.name,
+                    stars: repo.stars,
+                    language: repo.language,
+                    topics: repo.topics,
+                    readme_snippet: repo.readme_snippet,
+                    grade: grading.grade,
+                }, false, false, true, `Grade ${grading.grade} < ${config.gradeThreshold}: ${grading.reason}`);
+                await (0, supabase_1.logAction)('GRADE', repo.id, 'SUCCESS', `Graded repo (skipped follow): ${repo.owner}/${repo.name}. Score: ${grading.grade}. Reason: ${grading.reason}`);
+                console.log(`[Automation] Persisted skipped repo for ${repo.owner}/${repo.name} - grade below threshold. (Grade: ${grading.grade}, Reason: ${grading.reason})`);
             }
             // Sleep 1.5 seconds between repositories
             await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -588,14 +618,8 @@ async function syncMutuals() {
         const followers = await (0, github_1.getGitHubFollowers)();
         const followerSet = new Set(followers.map(u => u.toLowerCase()));
         console.log(`Fetched ${followers.length} GitHub followers for mutuals sync.`);
-        // 2. Fetch all profiles in Supabase repos table (no followed = true filter)
-        const { data: allProfiles, error } = await supabase_1.supabase
-            .from('repos')
-            .select('id, owner');
-        if (error) {
-            console.error('Error fetching profiles for mutuals sync:', error.message);
-            return;
-        }
+        // 2. Fetch all profiles in Supabase repos table (paginated)
+        const allProfiles = await (0, supabase_1.fetchAllRows)('repos', 'id, owner');
         if (!allProfiles || allProfiles.length === 0) {
             console.log('No profiles found in repos table to sync.');
             return;
@@ -613,31 +637,33 @@ async function syncMutuals() {
             }
         }
         console.log(`Mutuals: ${mutualOwners.length}, Non-mutuals: ${nonMutualOwners.length}`);
-        // 4. Batch update follow_back = true for mutual owners
-        if (mutualOwners.length > 0) {
+        // 4. Batch update follow_back = true for mutual owners (chunked by 200)
+        for (let i = 0; i < mutualOwners.length; i += 200) {
+            const chunk = mutualOwners.slice(i, i + 200);
             const { error: mutualErr } = await supabase_1.supabase
                 .from('repos')
                 .update({ follow_back: true })
-                .in('owner', mutualOwners);
+                .in('owner', chunk);
             if (mutualErr) {
-                console.error('Error updating follow_back=true for mutuals:', mutualErr.message);
-            }
-            else {
-                console.log(`Updated follow_back=true for ${mutualOwners.length} mutual owner entries.`);
+                console.error('Error updating follow_back=true for mutuals chunk:', mutualErr.message);
             }
         }
-        // 5. Batch update follow_back = false for non-mutual owners
-        if (nonMutualOwners.length > 0) {
+        if (mutualOwners.length > 0) {
+            console.log(`Updated follow_back=true for ${mutualOwners.length} mutual owner entries.`);
+        }
+        // 5. Batch update follow_back = false for non-mutual owners (chunked by 200)
+        for (let i = 0; i < nonMutualOwners.length; i += 200) {
+            const chunk = nonMutualOwners.slice(i, i + 200);
             const { error: nonMutualErr } = await supabase_1.supabase
                 .from('repos')
                 .update({ follow_back: false })
-                .in('owner', nonMutualOwners);
+                .in('owner', chunk);
             if (nonMutualErr) {
-                console.error('Error updating follow_back=false for non-mutuals:', nonMutualErr.message);
+                console.error('Error updating follow_back=false for non-mutuals chunk:', nonMutualErr.message);
             }
-            else {
-                console.log(`Updated follow_back=false for ${nonMutualOwners.length} non-mutual owner entries.`);
-            }
+        }
+        if (nonMutualOwners.length > 0) {
+            console.log(`Updated follow_back=false for ${nonMutualOwners.length} non-mutual owner entries.`);
         }
         await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Mutuals sync complete. Mutuals: ${mutualOwners.length}, Non-mutuals: ${nonMutualOwners.length}`);
         console.log('Mutuals sync completed successfully.');
@@ -674,14 +700,7 @@ async function cleanupNonFollowbacks(runtimeConfig) {
             return;
         }
         // Fetch followed profiles from Supabase where we set followed = true
-        const { data: dbRepos, error } = await supabase_1.supabase
-            .from('repos')
-            .select('owner, followed_at')
-            .eq('followed', true)
-            .in('owner', nonFollowbacks);
-        if (error) {
-            console.warn('Error fetching followed users from Supabase, processing in API order:', error.message);
-        }
+        const dbRepos = await (0, supabase_1.fetchAllRows)('repos', 'owner, followed_at', q => q.eq('followed', true));
         const followedAtMap = new Map();
         const isFollowedByBot = new Set();
         if (dbRepos) {
@@ -798,17 +817,11 @@ async function runCleanupJob(runtimeConfig) {
         const graceDays = config.unfollowGracePeriod && config.unfollowGracePeriod > 0 ? config.unfollowGracePeriod : 7;
         const cutoffDate = new Date(Date.now() - graceDays * 24 * 60 * 60 * 1000).toISOString();
         console.log(`Checking for non-mutual profiles followed before ${cutoffDate} (${graceDays}-day grace period)...`);
-        const { data: repos, error } = await supabase_1.supabase
-            .from('repos')
-            .select('*')
+        const repos = await (0, supabase_1.fetchAllRows)('repos', '*', q => q
             .eq('follow_back', false)
             .eq('unfollowed', false)
             .eq('followed', true)
-            .lt('followed_at', cutoffDate);
-        if (error) {
-            console.error('Error fetching repos for cleanup:', error.message);
-            throw error;
-        }
+            .lt('followed_at', cutoffDate));
         if (!repos || repos.length === 0) {
             console.log(`No users found beyond the ${graceDays}-day grace period to unfollow.`);
             await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', 'Cleanup job finished: no actions needed');
@@ -894,14 +907,8 @@ async function reconcileFollowing() {
         }
         const actualFollowingSet = new Set(actualFollowingList.map(u => u.toLowerCase()));
         console.log(`Live following count from GitHub: ${actualFollowingList.length}`);
-        // Fetch all profiles in Supabase
-        const { data: allDbRepos, error } = await supabase_1.supabase
-            .from('repos')
-            .select('id, owner, followed, unfollowed');
-        if (error) {
-            console.error('Error fetching profiles for reconciliation:', error.message);
-            return;
-        }
+        // Fetch all profiles in Supabase (paginated)
+        const allDbRepos = await (0, supabase_1.fetchAllRows)('repos', 'id, owner, followed, unfollowed');
         // Find profiles in DB marked followed=true that are NO LONGER followed on GitHub
         const toMarkUnfollowed = allDbRepos?.filter(row => row.followed === true && !actualFollowingSet.has(row.owner.toLowerCase())) ?? [];
         // Find profiles in DB marked followed=false / unfollowed=true that ARE ACTUALLY STILL followed on GitHub
@@ -909,29 +916,31 @@ async function reconcileFollowing() {
         console.log(`Reconciliation: ${toMarkUnfollowed.length} to mark unfollowed, ${toRestoreFollowed.length} to restore to active followed.`);
         if (toMarkUnfollowed.length > 0) {
             const idsToUpdate = toMarkUnfollowed.map(r => r.id);
-            const { error: updateErr } = await supabase_1.supabase
-                .from('repos')
-                .update({ followed: false, unfollowed: true })
-                .in('id', idsToUpdate);
-            if (updateErr) {
-                console.error('Error updating unfollowed during reconciliation:', updateErr.message);
+            for (let i = 0; i < idsToUpdate.length; i += 200) {
+                const chunk = idsToUpdate.slice(i, i + 200);
+                const { error: updateErr } = await supabase_1.supabase
+                    .from('repos')
+                    .update({ followed: false, unfollowed: true })
+                    .in('id', chunk);
+                if (updateErr) {
+                    console.error('Error updating unfollowed during reconciliation chunk:', updateErr.message);
+                }
             }
-            else {
-                console.log(`Successfully marked ${toMarkUnfollowed.length} profiles as unfollowed.`);
-            }
+            console.log(`Successfully marked ${toMarkUnfollowed.length} profiles as unfollowed.`);
         }
         if (toRestoreFollowed.length > 0) {
             const idsToRestore = toRestoreFollowed.map(r => r.id);
-            const { error: restoreErr } = await supabase_1.supabase
-                .from('repos')
-                .update({ followed: true, unfollowed: false })
-                .in('id', idsToRestore);
-            if (restoreErr) {
-                console.error('Error restoring profiles during reconciliation:', restoreErr.message);
+            for (let i = 0; i < idsToRestore.length; i += 200) {
+                const chunk = idsToRestore.slice(i, i + 200);
+                const { error: restoreErr } = await supabase_1.supabase
+                    .from('repos')
+                    .update({ followed: true, unfollowed: false })
+                    .in('id', chunk);
+                if (restoreErr) {
+                    console.error('Error restoring profiles during reconciliation chunk:', restoreErr.message);
+                }
             }
-            else {
-                console.log(`Successfully restored ${toRestoreFollowed.length} profiles to followed = true, unfollowed = false.`);
-            }
+            console.log(`Successfully restored ${toRestoreFollowed.length} profiles to followed = true, unfollowed = false.`);
         }
         await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Reconciliation complete. Live following: ${actualFollowingList.length}. Marked unfollowed: ${toMarkUnfollowed.length}, Restored active: ${toRestoreFollowed.length}`);
         console.log('Reconciliation complete.');
