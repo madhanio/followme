@@ -83,7 +83,9 @@ import {
   Mail,
   Palette,
   Lock,
-  Send
+  Send,
+  KeyRound,
+  LogOut
 } from 'lucide-react';
 
 
@@ -734,27 +736,43 @@ export default function DashboardView({
   const [scrollLeftNav, setScrollLeftNav] = useState(0);
 
 
-  const handleTabChange = (newTab: 'home' | 'profiles' | 'repos' | 'logs' | 'stats') => {
-    if (newTab === activeTab) return;
+  const handleTabChange = (newTab: 'home' | 'profiles' | 'repos' | 'logs' | 'stats', filter: any = null) => {
     setIsTabTransitioning(true);
     setActiveTab(newTab);
-    setActiveFilter(null);
+    setActiveFilter(filter);
     setTimeout(() => {
       setIsTabTransitioning(false);
     }, 150);
 
-    if (newTab === 'home') {
-      router.push('/');
-    } else if (newTab === 'profiles') {
-      router.push('/profiles');
-    } else if (newTab === 'repos') {
-      router.push('/repositories');
-    } else if (newTab === 'logs') {
-      router.push('/logs');
-    } else if (newTab === 'stats') {
-      router.push('/?tab=stats');
+    const basePath = newTab === 'home' 
+      ? '/' 
+      : newTab === 'profiles' 
+      ? '/profiles' 
+      : newTab === 'repos' 
+      ? '/repositories' 
+      : newTab === 'logs' 
+      ? '/logs' 
+      : '/?tab=stats';
+
+    const fullPath = filter ? `${basePath}?filter=${filter}` : basePath;
+
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', fullPath);
     }
+    router.push(fullPath);
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlFilter = params.get('filter');
+      const urlQuery = params.get('q');
+      const urlTab = params.get('tab');
+      if (urlFilter) setActiveFilter(urlFilter as any);
+      if (urlQuery) setSearchTerm(urlQuery);
+      if (urlTab === 'stats') setActiveTab('stats');
+    }
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'home') {
@@ -1827,7 +1845,7 @@ export default function DashboardView({
           </button>
 
           <div 
-            onClick={() => setActiveTab('home')}
+            onClick={() => handleTabChange('home')}
             className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90 absolute left-1/2 -translate-x-1/2"
           >
             <div className="h-7 w-7 rounded-lg bg-[#e60023] flex items-center justify-center text-white font-bold text-sm font-jakarta">F</div>
@@ -1842,76 +1860,65 @@ export default function DashboardView({
             >
               <img
                 src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
-                alt={userProfile?.name || userProfile?.login || "Profile"}
+                alt={userProfile?.login || 'User Profile'}
                 className="h-full w-full rounded-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://github.com/github.png";
+                  (e.target as HTMLImageElement).src = `https://unavatar.io/github/${userProfile?.login || 'github'}`;
                 }}
               />
             </button>
-
+            
+            {/* Top-Right Profile Dropdown Menu on Mobile */}
             {isProfileMenuOpen && (
-              <div 
-                className="absolute right-0 mt-3 w-60 bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl shadow-2xl p-4 z-50 space-y-3 font-sans animate-in fade-in zoom-in-95"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Header */}
-                <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
-                  <img
-                    src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
-                    alt={userProfile?.name || userProfile?.login || "Profile"}
-                    className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://github.com/github.png";
-                    }}
-                  />
-                  <div>
-                    <h4 className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">{userProfile?.name || userProfile?.login || 'User'}</h4>
-                    <span className="text-[10px] font-mono text-zinc-400">@{userProfile?.login || 'user'}</span>
+              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 font-sans">
+                <div className="p-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
+                  <div className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0] truncate">
+                    {userProfile?.name || `@${userProfile?.login || 'user'}`}
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400 dark:text-zinc-500 truncate">
+                    @{userProfile?.login || 'github_user'}
                   </div>
                 </div>
 
-                {/* Body options */}
-                <div className="space-y-1 font-geist text-xs">
-                  <button 
+                <div className="p-1 space-y-1">
+                  <button
                     onClick={() => {
                       setIsProfileMenuOpen(false);
                       setIsSettingsOpen(true);
-                      setTempSettings(savedSettings);
                     }}
-                    className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-[#f3f3f3] dark:hover:bg-[#1c1c1f] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] cursor-pointer transition text-left font-bold"
+                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] rounded-xl transition cursor-pointer font-geist"
                   >
-                    <Settings className="h-4.5 w-4.5 text-zinc-450" />
-                    <span>Dashboard Settings</span>
+                    <Settings className="h-3.5 w-3.5 text-zinc-500" />
+                    <span>Settings</span>
                   </button>
-                  <button 
+
+                  <button
                     onClick={() => {
                       setIsProfileMenuOpen(false);
                       setIsSecurityModalOpen(true);
-                      setCurrentSecKey('');
-                      setNewSecKey('');
-                      setConfirmSecKey('');
-                      setSecKeyError(null);
-                      setSecKeySuccess(null);
                     }}
-                    className="w-full flex flex-row items-center space-x-2.5 px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-[#f3f3f3] dark:hover:bg-[#1c1c1f] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] cursor-pointer transition text-left font-bold"
+                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] rounded-xl transition cursor-pointer font-geist"
                   >
-                    <Lock className="h-4.5 w-4.5 text-zinc-450" />
-                    <span>Password</span>
+                    <KeyRound className="h-3.5 w-3.5 text-zinc-500" />
+                    <span>Security Key</span>
                   </button>
-                </div>
 
-                {/* Footer sign out */}
-                <div className="pt-2.5 border-t border-[#eeeeee] dark:border-[#2a2a2a] flex justify-end">
-                  <button 
+                  <div className="border-t border-[#eeeeee] dark:border-[#2a2a2a] my-1" />
+
+                  <button
                     onClick={async () => {
-                      setIsProfileMenuOpen(false);
-                      document.cookie = "auth_key=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-                      router.push('/login');
+                      try {
+                        await fetch('/api/auth', { method: 'DELETE' });
+                        router.push('/login');
+                        router.refresh();
+                      } catch (err) {
+                        router.push('/login');
+                      }
                     }}
-                    className="px-4 py-1.5 bg-[#e60023] hover:bg-[#c0001b] text-white text-[10px] font-bold rounded-full transition cursor-pointer font-geist active:scale-95 shadow-xs"
+                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition cursor-pointer font-geist"
                   >
-                    Logout
+                    <LogOut className="h-3.5 w-3.5" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>
@@ -1919,12 +1926,12 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* SIDE NAVIGATION */}
-        <aside className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-[#111111] border-r border-[#dadada] dark:border-[#2a2a2a] flex flex-col justify-between py-6 px-4 shrink-0 z-40 transition-transform duration-300 md:translate-x-0 md:static ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* DESKTOP PERMANENT SIDEBAR */}
+        <aside className="w-64 bg-white dark:bg-[#111111] border-r border-[#dadada] dark:border-[#2a2a2a] flex flex-col justify-between p-4 z-20 shrink-0 select-none transition-all duration-300 hidden md:flex">
           <div className="space-y-7">
             {/* Title / Brand */}
             <div 
-              onClick={() => setActiveTab('home')}
+              onClick={() => handleTabChange('home')}
               className="flex items-center space-x-3 px-2 cursor-pointer hover:opacity-90 active:scale-95 transition-all"
             >
               <div className="h-9 w-9 rounded-xl bg-[#e60023] flex items-center justify-center text-white font-bold text-lg font-jakarta shadow-sm">
@@ -2207,7 +2214,19 @@ export default function DashboardView({
                       return (
                         <button
                           key={pill.label}
-                          onClick={() => setActiveFilter(pill.id as any)}
+                          onClick={() => {
+                            const nextFilter = isSelected ? null : pill.id;
+                            setActiveFilter(nextFilter as any);
+                            if (typeof window !== 'undefined') {
+                              const url = new URL(window.location.href);
+                              if (nextFilter) {
+                                url.searchParams.set('filter', nextFilter);
+                              } else {
+                                url.searchParams.delete('filter');
+                              }
+                              window.history.replaceState(null, '', url.toString());
+                            }
+                          }}
                           className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
                             isSelected
                               ? 'bg-[#e60023] text-white border-[#e60023] shadow-sm'
@@ -2235,7 +2254,19 @@ export default function DashboardView({
                       return (
                         <button
                           key={pill.label}
-                          onClick={() => setActiveFilter(pill.id as any)}
+                          onClick={() => {
+                            const nextFilter = isSelected ? null : pill.id;
+                            setActiveFilter(nextFilter as any);
+                            if (typeof window !== 'undefined') {
+                              const url = new URL(window.location.href);
+                              if (nextFilter) {
+                                url.searchParams.set('filter', nextFilter);
+                              } else {
+                                url.searchParams.delete('filter');
+                              }
+                              window.history.replaceState(null, '', url.toString());
+                            }
+                          }}
                           className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
                             isSelected
                               ? 'bg-[#e60023] text-white border-[#e60023] shadow-sm'
@@ -2294,7 +2325,7 @@ export default function DashboardView({
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-geist">
                     {/* 1. Mutual Friends */}
                     <div 
-                      onClick={() => { setActiveTab('profiles'); setActiveFilter('mutual'); }}
+                      onClick={() => handleTabChange('profiles', 'mutual')}
                       className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-emerald-500/80 dark:hover:border-emerald-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
                     >
                       <div className="flex items-center justify-between">
@@ -2320,7 +2351,7 @@ export default function DashboardView({
 
                     {/* 2. Grace Period Queue */}
                     <div 
-                      onClick={() => { setActiveTab('profiles'); setActiveFilter('grace_period'); }}
+                      onClick={() => handleTabChange('profiles', 'grace_period')}
                       className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-blue-500/80 dark:hover:border-blue-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
                     >
                       <div className="flex items-center justify-between">
@@ -2346,7 +2377,7 @@ export default function DashboardView({
 
                     {/* 3. Inbound Fans */}
                     <div 
-                      onClick={() => { setActiveTab('profiles'); setActiveFilter('inbound'); }}
+                      onClick={() => handleTabChange('profiles', 'inbound')}
                       className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-purple-500/80 dark:hover:border-purple-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
                     >
                       <div className="flex items-center justify-between">
@@ -2372,7 +2403,7 @@ export default function DashboardView({
 
                     {/* 4. Unfollowed History */}
                     <div 
-                      onClick={() => { setActiveTab('profiles'); setActiveFilter('unfollowed'); }}
+                      onClick={() => handleTabChange('profiles', 'unfollowed')}
                       className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-rose-500/80 dark:hover:border-rose-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
                     >
                       <div className="flex items-center justify-between">
@@ -2426,7 +2457,7 @@ export default function DashboardView({
 
                     return (
                       <div 
-                        onClick={() => setActiveTab('profiles')}
+                        onClick={() => handleTabChange('profiles')}
                         className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[245px]"
                       >
                         {/* Redesigned Spotlight Top Header Row (Unified Layout) */}
@@ -2774,7 +2805,7 @@ export default function DashboardView({
                             onUnfollow={handleUnfollowUser}
                             onDelete={handleDeleteProfile}
                             isActionLoading={isActionLoading}
-                            setActiveTab={setActiveTab}
+                            setActiveTab={handleTabChange}
                             setSearchTerm={setSearchTerm}
                             graceDays={savedSettings.unfollowGracePeriod || 7}
                           />
