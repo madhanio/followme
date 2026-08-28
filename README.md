@@ -45,7 +45,21 @@ Follow this guide to spin up your own instance of **FollowMe**.
  
 ---
 
-### 1. Prerequisites & API Keys
+### 1. Fork or Clone the Repository
+
+To deploy and customize your own instance:
+
+- **Option A (Recommended for Cloud Deployments):** **Fork** this repository to your GitHub account so you can easily link it to Render, Vercel, and GitHub Actions.
+- **Option B (Local Development):** Clone the repository locally:
+
+```bash
+git clone https://github.com/madhanio/followme.git
+cd followme
+```
+
+---
+
+### 2. Prerequisites & API Keys
 
 Before starting, gather the following credentials:
 
@@ -58,7 +72,7 @@ Before starting, gather the following credentials:
 
 ---
 
-### 2. Database Setup (Supabase)
+### 3. Database Setup (Supabase)
 
 1. Open your **Supabase Dashboard** -> **SQL Editor**.
 2. Click **New Query**.
@@ -68,7 +82,7 @@ Before starting, gather the following credentials:
 
 ---
 
-### 3. Deploy the Background Worker (Render)
+### 4. Deploy the Background Worker (Render)
 
 1. Create a new **Web Service** on [Render](https://render.com/) and connect your repository.
 2. Set the **Root Directory** to `worker`.
@@ -88,7 +102,7 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ---
 
-### 4. Deploy the Web Dashboard (Vercel)
+### 5. Deploy the Web Dashboard (Vercel)
 1. Import your repository into [Vercel](https://vercel.com).
 2. Set the **Root Directory** to `dashboard`.
 3. Reference [`dashboard/.env.example`](./dashboard/.env.example) and add the required **Environment Variables**:
@@ -106,7 +120,7 @@ GITHUB_TOKEN=your_github_personal_access_token
 
 ---
 
-### 5. Automate with GitHub Actions
+### 6. Automate with GitHub Actions
 
 To enable automated background execution:
 
