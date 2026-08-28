@@ -158,21 +158,35 @@ NEXT_PUBLIC_APP_URL=https://your-dashboard.vercel.app
 
 ---
 
-### 5. GitHub OAuth Setup (Optional)
+### 5. Configure Authentication (Choose One)
 
-To enable the "Continue with GitHub" login button on your dashboard:
+FollowMe supports two secure login methods for the web dashboard:
 
+#### Option A: Password Login (Recommended — Simplest Setup)
+The fastest path for self-hosters with zero third-party configuration:
+1. In your dashboard environment variables (or `.env`), set `DASHBOARD_PASSWORD`:
+   ```env
+   DASHBOARD_PASSWORD=your_secure_password_here
+   ```
+2. When opening your dashboard, enter this password to gain immediate access.
+
+#### Option B: GitHub OAuth Login (Optional — One-Click Sign In)
+If you prefer a seamless **"Continue with GitHub"** button on the login screen:
 1. In GitHub, go to **Settings → Developer Settings → OAuth Apps → New OAuth App**.
-2. Set **Application Name** to `FollowMe Dashboard`.
-3. Set **Homepage URL** to your dashboard URL (e.g., `https://your-dashboard.vercel.app` or `http://localhost:3000`).
-4. Set **Authorization callback URL** to:
-   `https://your-dashboard.vercel.app/api/auth/callback/github` (or `http://localhost:3000/api/auth/callback/github`).
-5. Copy the **Client ID** and generate a **Client Secret**.
-6. Add these to your dashboard environment variables:
+2. Configure the OAuth App details:
+   - **Application Name:** `FollowMe Dashboard`
+   - **Homepage URL:** `https://your-dashboard.vercel.app` (or `http://localhost:3000` for local Docker)
+   - **Authorization callback URL:** `https://your-dashboard.vercel.app/api/auth/callback/github` (or `http://localhost:3000/api/auth/callback/github`)
+3. Click **Register application**, copy your **Client ID**, and generate a **Client Secret**.
+4. Add these to your dashboard environment variables:
    ```env
    GITHUB_CLIENT_ID=your_github_oauth_client_id_here
    GITHUB_CLIENT_SECRET=your_github_oauth_client_secret_here
+   NEXT_PUBLIC_APP_URL=https://your-dashboard.vercel.app
    ```
+
+> [!NOTE]
+> When signing in via GitHub OAuth, FollowMe verifies your GitHub username against `GITHUB_USERNAME` to ensure only you can access the dashboard.
 
 ---
 
