@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_RUNTIME_CONFIG = exports.supabase = void 0;
+exports.fetchAllRows = fetchAllRows;
 exports.isRepoGraded = isRepoGraded;
 exports.saveRepo = saveRepo;
 exports.logAction = logAction;
@@ -25,6 +26,32 @@ exports.supabase = (0, supabase_js_1.createClient)(supabaseUrl || '', supabaseAn
         transport: ws_1.default,
     },
 });
+async function fetchAllRows(table, selectQuery = '*', filterFn, pageSize = 1000) {
+    const allRows = [];
+    let page = 0;
+    while (true) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        let query = exports.supabase.from(table).select(selectQuery).range(from, to);
+        if (filterFn) {
+            query = filterFn(query);
+        }
+        const { data, error } = await query;
+        if (error) {
+            console.error(`Error fetching rows from ${table} (range ${from}-${to}):`, error.message);
+            throw error;
+        }
+        if (!data || data.length === 0) {
+            break;
+        }
+        allRows.push(...data);
+        if (data.length < pageSize) {
+            break;
+        }
+        page++;
+    }
+    return allRows;
+}
 async function isRepoGraded(repoId) {
     try {
         const { data, error } = await exports.supabase

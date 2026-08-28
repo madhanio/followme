@@ -20,6 +20,45 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   },
 });
 
+export async function fetchAllRows<T = any>(
+  table: string,
+  selectQuery: string = '*',
+  filterFn?: (query: any) => any,
+  pageSize: number = 1000
+): Promise<T[]> {
+  const allRows: T[] = [];
+  let page = 0;
+
+  while (true) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase.from(table).select(selectQuery).range(from, to);
+    if (filterFn) {
+      query = filterFn(query);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error(`Error fetching rows from ${table} (range ${from}-${to}):`, error.message);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allRows.push(...(data as unknown as T[]));
+    if (data.length < pageSize) {
+      break;
+    }
+
+    page++;
+  }
+
+  return allRows;
+}
+
 export async function isRepoGraded(repoId: number): Promise<boolean> {
   try {
     const { data, error } = await supabase
