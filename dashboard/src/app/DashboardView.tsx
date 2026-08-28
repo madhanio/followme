@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Lottie from 'lottie-react';
 import mainCharacter from '../../public/animations/main_character.json';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { 
   triggerWorker, 
   triggerCleanup, 
@@ -17,7 +17,9 @@ import {
   triggerClearStale, 
   triggerDeleteProfile, 
   triggerSyncFollowing,
-  saveSystemSettings
+  saveSystemSettings,
+  getGitHubRateLimit,
+  GitHubRateLimitData
 } from './actions';
 
 // Recharts components for Stats Tab
@@ -88,6 +90,7 @@ import {
 
 
 const githubStatsCache = new Map<string, { followers: number; following: number }>();
+let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -488,9 +491,17 @@ interface DashboardViewProps {
   initialRunSummary?: RunSummary[];
   initialUserProfile?: UserProfile | null;
   initialSettings?: Record<string, any>;
+  initialTab?: 'home' | 'profiles' | 'repos' | 'logs' | 'stats';
 }
 
-export default function DashboardView({ initialRepos, initialLogs, initialRunSummary = [], initialUserProfile = null, initialSettings }: DashboardViewProps) {
+export default function DashboardView({ 
+  initialRepos, 
+  initialLogs, 
+  initialRunSummary = [], 
+  initialUserProfile = null, 
+  initialSettings,
+  initialTab = 'home'
+}: DashboardViewProps) {
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
@@ -502,6 +513,44 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [spotlightIndex, setSpotlightIndex] = useState(0);
   const [insightIndex, setInsightIndex] = useState(0);
+
+  // Interactive filters & active tab
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'grace_period' | 'grace_ended' | 'inbound' | 'unstarred' | null>(null);
+  const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>(initialTab);
+  const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'ALL'>('7D');
+
+  // GitHub Rate Limit live data state with 60-second client-side caching
+  const [rateLimitData, setRateLimitData] = useState<GitHubRateLimitData | null>(globalRateLimitCache?.data || null);
+  const [rateLimitLoading, setRateLimitLoading] = useState(false);
+
+  const fetchRateLimits = async (force: boolean = false) => {
+    const now = Date.now();
+    // 60-second client-side cache check across remounts and tab switches
+    if (!force && globalRateLimitCache && (now - globalRateLimitCache.timestamp < 60000)) {
+      setRateLimitData(globalRateLimitCache.data);
+      return;
+    }
+    setRateLimitLoading(true);
+    try {
+      const res = await getGitHubRateLimit();
+      if (res.success && res.data) {
+        globalRateLimitCache = { data: res.data, timestamp: now };
+        setRateLimitData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch GitHub rate limits:', err);
+    } finally {
+      setRateLimitLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Only fetch rate limits when on the Home tab where the card is displayed
+    if (activeTab === 'home') {
+      fetchRateLimits();
+    }
+  }, [activeTab]);
 
   // Sync state if initialProps change
   useEffect(() => {
@@ -546,12 +595,6 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       localStorage.theme = 'light';
     }
   };
-
-  // Interactive filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'grace_period' | 'grace_ended' | 'inbound' | 'unstarred' | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>('home');
-  const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'ALL'>('7D');
 
 
   // Master Settings Default Values
@@ -699,6 +742,18 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     setTimeout(() => {
       setIsTabTransitioning(false);
     }, 150);
+
+    if (newTab === 'home') {
+      router.push('/');
+    } else if (newTab === 'profiles') {
+      router.push('/profiles');
+    } else if (newTab === 'repos') {
+      router.push('/repositories');
+    } else if (newTab === 'logs') {
+      router.push('/logs');
+    } else if (newTab === 'stats') {
+      router.push('/?tab=stats');
+    }
   };
 
   useEffect(() => {
@@ -852,16 +907,18 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
   const fetchUnfollowList = async () => {
     setIsFetchingUnfollowList(true);
-    const { data, error } = await supabase
-      .from('repos')
-      .select('*')
-      .eq('follow_back', false)
-      .eq('unfollowed', false)
-      .lt('followed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-    
-    if (!error && data) {
+    try {
+      const data = await fetchAllRows(
+        supabase,
+        'repos',
+        '*',
+        q => q
+          .eq('follow_back', false)
+          .eq('unfollowed', false)
+          .lt('followed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      );
       setUnfollowList(data);
-    } else {
+    } catch (error) {
       console.error('Error fetching unfollow list:', error);
     }
     setIsFetchingUnfollowList(false);
@@ -1241,8 +1298,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     try {
       const res = await triggerSyncFollowing();
       if (res.success) {
-        const reposRes = await supabase.from('repos').select('*');
-        if (reposRes.data) setRepos(reposRes.data);
+        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+        if (freshRepos) setRepos(freshRepos);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
         fetchStatus();
@@ -1264,8 +1321,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       const res = await triggerCleanup();
       if (res.success) {
         setCleanupStatus({ success: true, message: res.message });
-        const reposRes = await supabase.from('repos').select('*');
-        if (reposRes.data) setRepos(reposRes.data);
+        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+        if (freshRepos) setRepos(freshRepos);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
         fetchStatus();
@@ -1306,8 +1363,8 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
     try {
       const res = await triggerClearStale();
       if (res.success) {
-        const reposRes = await supabase.from('repos').select('*');
-        if (reposRes.data) setRepos(reposRes.data);
+        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+        if (freshRepos) setRepos(freshRepos);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
         alert(res.message);
@@ -1399,14 +1456,15 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
       // 1. Sync live GitHub followers and following bidirectional state
       const syncRes = await triggerSyncFollowing();
       
-      // 2. Fetch fresh data from Supabase
-      const reposRes = await supabase.from('repos').select('*');
-      if (reposRes.data) setRepos(reposRes.data);
+      // 2. Fetch fresh data from Supabase (paginated)
+      const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+      if (freshRepos) setRepos(freshRepos);
       const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
       if (logsRes.data) setLogs(logsRes.data);
       const summaryRes = await supabase.from('run_summary').select('*').order('ran_at', { ascending: false });
       if (summaryRes.data) setRunSummary(summaryRes.data);
       await fetchStatus();
+      await fetchRateLimits(true);
       setShuffleSeed(prev => prev + 1);
 
       if (syncRes.success && syncRes.data) {
@@ -2552,6 +2610,72 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                         <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.skipped}</span>
                         <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Skipped</span>
                       </div>
+                    </div>
+
+                    {/* GitHub API Rate Limits Live Display */}
+                    <div className="pt-2 border-t border-[#eeeeee] dark:border-[#222222] space-y-2.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between text-[9px] uppercase font-bold tracking-wider text-[#767676]">
+                        <span>GitHub Rate Limits</span>
+                        {rateLimitLoading && (
+                          <span className="text-[8px] font-mono lowercase text-zinc-400 animate-pulse">refreshing...</span>
+                        )}
+                      </div>
+
+                      {/* Row 1: Core API */}
+                      {(() => {
+                        const coreLimit = rateLimitData?.core?.limit ?? 5000;
+                        const coreUsed = rateLimitData?.core?.used ?? 0;
+                        const coreRemaining = rateLimitData?.core?.remaining ?? (coreLimit - coreUsed);
+                        const isCoreLow = coreLimit > 0 && (coreRemaining / coreLimit) < 0.2;
+                        const corePct = Math.min(100, Math.max(0, (coreUsed / coreLimit) * 100));
+
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[11px] font-mono font-semibold">
+                              <span className="text-[#1a1c1c] dark:text-[#f0f0f0]">
+                                Core API <span className="text-[9px] text-[#767676] font-normal">(resets hourly)</span>
+                              </span>
+                              <span className={isCoreLow ? "text-[#e60023] font-bold" : "text-[#767676] dark:text-zinc-400"}>
+                                {coreUsed.toLocaleString()} / {coreLimit.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="w-full bg-[#eeeeee] dark:bg-[#222222] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full transition-all duration-500 rounded-full ${isCoreLow ? 'bg-[#e60023]' : 'bg-[#1a1c1c] dark:bg-zinc-300'}`}
+                                style={{ width: `${corePct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Row 2: Search API */}
+                      {(() => {
+                        const searchLimit = rateLimitData?.search?.limit ?? 30;
+                        const searchUsed = rateLimitData?.search?.used ?? 0;
+                        const searchRemaining = rateLimitData?.search?.remaining ?? (searchLimit - searchUsed);
+                        const isSearchLow = searchLimit > 0 && (searchRemaining / searchLimit) < 0.2;
+                        const searchPct = Math.min(100, Math.max(0, (searchUsed / searchLimit) * 100));
+
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[11px] font-mono font-semibold">
+                              <span className="text-[#1a1c1c] dark:text-[#f0f0f0]">
+                                Search API <span className="text-[9px] text-[#767676] font-normal">(resets every min)</span>
+                              </span>
+                              <span className={isSearchLow ? "text-[#e60023] font-bold" : "text-[#767676] dark:text-zinc-400"}>
+                                {searchUsed} / {searchLimit}
+                              </span>
+                            </div>
+                            <div className="w-full bg-[#eeeeee] dark:bg-[#222222] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full transition-all duration-500 rounded-full ${isSearchLow ? 'bg-[#e60023]' : 'bg-[#1a1c1c] dark:bg-zinc-300'}`}
+                                style={{ width: `${searchPct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 

@@ -1,23 +1,25 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import DashboardView from './DashboardView';
 import { getUserProfile, getSystemSettings } from './actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: { searchParams?: Promise<{ tab?: string }> }) {
+  const searchParams = props.searchParams ? await props.searchParams : undefined;
+  const initialTab = searchParams?.tab === 'stats' ? 'stats' : 'home';
+
   const [userProfile, dbSettings] = await Promise.all([
     getUserProfile(),
     getSystemSettings()
   ]);
 
-  // Simplify fetch to select all rows with no filters or ordering
-  const { data: repos, error: reposError } = await supabase
-    .from('repos')
-    .select('*');
-
-  console.log("Supabase Repos Fetch:", { dataCount: repos?.length, error: reposError });
-  if (reposError) {
-    console.error('Error fetching repos details:', reposError.message);
+  // Paginated fetch to select all rows across 1000+ records
+  let repos: any[] = [];
+  try {
+    repos = await fetchAllRows(supabase, 'repos', '*');
+    console.log("Supabase Repos Paginated Fetch:", { dataCount: repos.length });
+  } catch (reposError: any) {
+    console.error('Error fetching repos details:', reposError.message || reposError);
   }
 
   // Fetch recent logs
@@ -50,6 +52,7 @@ export default async function DashboardPage() {
       initialRunSummary={runSummary || []}
       initialUserProfile={userProfile}
       initialSettings={dbSettings || undefined}
+      initialTab={initialTab}
     />
   );
 }
