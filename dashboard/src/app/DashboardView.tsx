@@ -630,7 +630,7 @@ export default function DashboardView({
     ...defaultSettings,
     ...(initialSettings || {})
   }));
-  const [settingsTab, setSettingsTab] = useState<'automation' | 'safety' | 'ai' | 'notifications'>('automation');
+  const [settingsTab, setSettingsTab] = useState<'automation' | 'safety' | 'ai' | 'notifications' | 'github'>('automation');
 
   // Security Key Modal States
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
@@ -2266,6 +2266,30 @@ export default function DashboardView({
               {/* 0. HOMEPAGE TAB */}
               {!isTabTransitioning && !isRefreshing && activeTab === 'home' && (
                 <div className="space-y-6">
+                  {/* ONBOARDING GITHUB OAUTH BANNER FOR NEW USERS */}
+                  {!userProfile?.login && (
+                    <div className="p-5 rounded-3xl bg-gradient-to-r from-zinc-900 via-[#1a1a1c] to-black text-white border border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                      <div className="flex items-center space-x-3.5">
+                        <div className="h-11 w-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
+                          <GithubIcon className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold font-jakarta text-sm">Welcome to FollowMe! Connect Your GitHub Account</h4>
+                          <p className="text-xs text-zinc-400 font-sans mt-0.5">
+                            Authorize FollowMe with one click via GitHub OAuth to enable automated discovery, evaluation, and follow actions.
+                          </p>
+                        </div>
+                      </div>
+                      <a
+                        href="/api/auth/github"
+                        className="px-5 py-2.5 bg-[#e60023] hover:bg-[#c0001b] text-white rounded-full font-bold text-xs transition-all active:scale-95 shrink-0 flex items-center space-x-2 shadow-sm cursor-pointer"
+                      >
+                        <GithubIcon className="h-4 w-4" />
+                        <span>Connect GitHub via OAuth</span>
+                      </a>
+                    </div>
+                  )}
+
                   {/* 4-WAY PROFILE RELATIONSHIP MATRIX CARDS */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-geist">
                     {/* 1. Mutual Friends */}
@@ -3536,7 +3560,8 @@ export default function DashboardView({
                 { id: 'automation', label: 'Automation', icon: Clock },
                 { id: 'safety', label: 'Safety', icon: ShieldCheck },
                 { id: 'ai', label: 'AI Settings', icon: Cpu },
-                { id: 'notifications', label: 'Notifications', icon: Mail }
+                { id: 'notifications', label: 'Notifications', icon: Mail },
+                { id: 'github', label: 'GitHub Account', icon: GithubIcon }
               ].map(cat => {
                 const Icon = cat.icon;
                 const isActive = settingsTab === cat.id;
@@ -3866,6 +3891,65 @@ export default function DashboardView({
                       )}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* TAB 5: GITHUB ACCOUNT INTEGRATION */}
+              {settingsTab === 'github' && (
+                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-4 animate-in fade-in">
+                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
+                    <GithubIcon className="h-4 w-4 text-[#e60023]" /> GitHub Account Integration
+                  </h4>
+
+                  <div className="p-4 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center space-x-3.5">
+                      {userProfile?.avatar_url ? (
+                        <img 
+                          src={userProfile.avatar_url} 
+                          alt={userProfile.login || 'GitHub User'} 
+                          className="h-11 w-11 rounded-full border border-zinc-200 dark:border-zinc-700 object-cover"
+                        />
+                      ) : (
+                        <div className="h-11 w-11 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-300">
+                          <GithubIcon className="h-6 w-6" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">
+                            {userProfile?.login ? `@${userProfile.login}` : 'Not Connected'}
+                          </span>
+                          {userProfile?.login ? (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                              Setup Needed
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                          {userProfile?.name ? `${userProfile.name} • ` : ''}Used for discovery, grading & follow automations
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      href="/api/auth/github"
+                      className="px-4 py-2 bg-[#24292e] hover:bg-[#1b1f23] dark:bg-[#1f2328] dark:hover:bg-[#2d333b] text-white rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center space-x-2 shrink-0 shadow-xs cursor-pointer"
+                    >
+                      <GithubIcon className="h-3.5 w-3.5" />
+                      <span>{userProfile?.login ? 'Re-authorize OAuth' : 'Connect via GitHub OAuth'}</span>
+                    </a>
+                  </div>
+
+                  <div className="p-3 bg-zinc-50 dark:bg-[#151518] border border-zinc-200 dark:border-zinc-800 rounded-xl text-[11px] font-sans text-zinc-600 dark:text-zinc-400 space-y-1">
+                    <p className="font-bold text-zinc-800 dark:text-zinc-200">ℹ️ How Account Connection Works</p>
+                    <p className="leading-relaxed text-[10px]">
+                      FollowMe uses GitHub OAuth solely to authorize API actions (follow, star, and fetch repo details). Daily dashboard access is protected by your Master Password.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

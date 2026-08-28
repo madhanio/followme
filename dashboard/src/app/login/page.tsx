@@ -26,7 +26,6 @@ function LoginContent() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(urlError);
   const [isLoading, setIsLoading] = useState(false);
-  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -43,11 +42,6 @@ function LoginContent() {
       document.documentElement.classList.remove('dark');
     }
   }, []);
-
-  const handleGitHubOAuth = () => {
-    setIsOAuthLoading(true);
-    window.location.href = '/api/auth/github';
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,55 +104,29 @@ function LoginContent() {
       {/* Main Access Control Card */}
       <div className="w-full max-w-md bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-3xl p-8 shadow-xl shadow-zinc-200/50 dark:shadow-none relative z-10 transition-all">
         {/* Top Header Badge */}
-        <div className="flex flex-col items-center mb-6 text-center">
+        <div className="flex flex-col items-center mb-8 text-center">
           <div className="h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4 shadow-sm">
             <Lock className="h-7 w-7 text-red-600" />
           </div>
           <h1 className="text-2xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] tracking-tight font-jakarta">Access Control</h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-mono tracking-wide">
-            FollowMe Gateway • Sign in to continue
+            FollowMe Gateway • Enter Password
           </p>
         </div>
 
-        {/* 1. GitHub OAuth Login Button */}
-        <div className="space-y-4 mb-6">
-          <button
-            type="button"
-            onClick={handleGitHubOAuth}
-            disabled={isOAuthLoading || isLoading}
-            className="w-full bg-[#24292e] hover:bg-[#1b1f23] dark:bg-[#1f2328] dark:hover:bg-[#2d333b] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-sm cursor-pointer font-sans text-sm tracking-wide disabled:opacity-60 active:scale-[0.99]"
-          >
-            {isOAuthLoading ? (
-              <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-            ) : (
-              <>
-                <GithubIcon className="h-4 w-4" />
-                <span>Continue with GitHub</span>
-              </>
-            )}
-          </button>
-
-          {/* Divider */}
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-[#eeeeee] dark:border-[#2a2a2a]"></div>
-            <span className="flex-shrink mx-3 text-[10px] uppercase font-mono font-bold tracking-widest text-zinc-400 dark:text-zinc-600">OR WITH PASSWORD</span>
-            <div className="flex-grow border-t border-[#eeeeee] dark:border-[#2a2a2a]"></div>
-          </div>
-        </div>
-
-        {/* 2. Password Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Password Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-[11px] uppercase font-mono tracking-widest text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1.5">
               <KeyRound className="h-3.5 w-3.5 text-red-600" /> Master Password
             </label>
             <input
               type="password"
-              placeholder="Enter master password..."
+              placeholder="Enter password..."
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-zinc-50/50 dark:bg-[#18181c] border border-[#dadada] dark:border-[#2a2a2a] focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl py-3 px-4 text-sm text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-zinc-400 outline-none transition-all font-mono"
-              disabled={isLoading || isOAuthLoading}
+              className="w-full bg-zinc-50/50 dark:bg-[#18181c] border border-[#dadada] dark:border-[#2a2a2a] focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl py-3.5 px-4 text-sm text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-zinc-400 outline-none transition-all font-mono"
+              disabled={isLoading}
               required
               autoFocus
             />
@@ -166,8 +134,8 @@ function LoginContent() {
 
           <button
             type="submit"
-            disabled={isLoading || isOAuthLoading || !password.trim()}
-            className="w-full bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/10 cursor-pointer font-sans text-sm tracking-wide"
+            disabled={isLoading || !password.trim()}
+            className="w-full bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/10 cursor-pointer font-sans text-sm tracking-wide"
           >
             {isLoading ? (
               <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
