@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/supabase';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -101,11 +102,12 @@ export async function POST() {
       });
     }
 
-    // Fetch all profiles from Supabase
-    const { data: allDbRepos, error } = await supabase
-      .from('repos')
-      .select('id, owner, followed, unfollowed, follow_back');
-    if (error) throw error;
+    // Fetch all profiles from Supabase (paginated)
+    const allDbRepos = await fetchAllRows<{ id: number; owner: string; followed: boolean; unfollowed: boolean; follow_back: boolean }>(
+      supabase,
+      'repos',
+      'id, owner, followed, unfollowed, follow_back'
+    );
 
     const toMarkUnfollowed = allDbRepos?.filter(
       (row) => row.followed === true && !actualFollowing.has(row.owner.toLowerCase())
@@ -125,31 +127,47 @@ export async function POST() {
     ) ?? [];
 
     if (toMarkUnfollowed.length > 0) {
-      await supabase
-        .from('repos')
-        .update({ unfollowed: true, followed: false })
-        .in('id', toMarkUnfollowed.map((r) => r.id));
+      const ids = toMarkUnfollowed.map((r) => r.id);
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        await supabase
+          .from('repos')
+          .update({ unfollowed: true, followed: false })
+          .in('id', chunk);
+      }
     }
 
     if (toRestoreFollowed.length > 0) {
-      await supabase
-        .from('repos')
-        .update({ followed: true, unfollowed: false })
-        .in('id', toRestoreFollowed.map((r) => r.id));
+      const ids = toRestoreFollowed.map((r) => r.id);
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        await supabase
+          .from('repos')
+          .update({ followed: true, unfollowed: false })
+          .in('id', chunk);
+      }
     }
 
     if (toMarkFollowBack.length > 0) {
-      await supabase
-        .from('repos')
-        .update({ follow_back: true })
-        .in('id', toMarkFollowBack.map((r) => r.id));
+      const ids = toMarkFollowBack.map((r) => r.id);
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        await supabase
+          .from('repos')
+          .update({ follow_back: true })
+          .in('id', chunk);
+      }
     }
 
     if (toUnmarkFollowBack.length > 0) {
-      await supabase
-        .from('repos')
-        .update({ follow_back: false })
-        .in('id', toUnmarkFollowBack.map((r) => r.id));
+      const ids = toUnmarkFollowBack.map((r) => r.id);
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        await supabase
+          .from('repos')
+          .update({ follow_back: false })
+          .in('id', chunk);
+      }
     }
 
     return NextResponse.json({
