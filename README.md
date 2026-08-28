@@ -1,145 +1,209 @@
 # FollowMe
 
-Automated GitHub repo discovery, NVIDIA NIM LLM grading, and auto follow/star tool
+Automated GitHub repository discovery, NVIDIA NIM LLM evaluation, and intelligent developer community networking tool.
 
 ![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-postgres-3ECF8E?logo=supabase&logoColor=white)
 ![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM-76B900?logo=nvidia&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
 ![Render](https://img.shields.io/badge/Worker-Render-46E3B7?logo=render&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Dashboard-Vercel-black?logo=vercel&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-Scheduler-2088FF?logo=github-actions&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-## Dashboard
+---
+
+## Overview & Dashboard
+
+FollowMe continuously searches for recently created repositories across your tech stack, analyzes code snippets and READMEs with LLMs (NVIDIA NIM), filters for active peer builders (students, hobbyists, independent developers), automatically stars quality projects, and manages mutual connections with customizable grace periods.
 
 ![FollowMe Dashboard](assets/dashboard.png)
 
-## How It Works
+---
 
-1. **Discover**: Scans GitHub every 6 hours for new repos created in the last 7 days.
-2. **AI Grade**: Evaluates READMEs using **NVIDIA NIM** (`meta/llama-3.1-8b-instruct`), scoring repos (1–10) based on student effort, originality, and community impact.
-3. **Smart Filter**: Targets peer developers (20–500 followers, balanced ratios, >6-month-old accounts). High-profile users are starred, not followed.
-4. **Sync**: Stores scores, actions, logs, and follow states in Supabase.
-5. **Auto-Cleanup**: Unfollows accounts after 3 days if they don't follow back to keep stats clean.
+## Key Features
+
+- **AI Code & README Evaluation:** Grades repositories on a scale of 1–10 using NVIDIA NIM (`meta/llama-3.1-8b-instruct`), identifying genuine builders and original projects while penalizing unchanged copies.
+- **Smart Peer Targeting:** Filters accounts based on follower ranges, account maturity, and organic follow ratios (stars high-profile developers instead of following).
+- **Persistent Evaluation Cache:** Stores low-score and skipped repositories in Supabase with `follow_skipped` flags to prevent repeated re-evaluation and conserve LLM API credits.
+- **Live GitHub Rate Limit Monitor:** Real-time Core API and Search API quota tracking with dynamic progress bars and $<20\%$ remaining alert thresholds.
+- **Automated Grace Period & Cleanup:** Configurable non-followback grace period (default 7 days) and mutual sync engine.
+- **Dedicated Console Views:** Dedicated pages for `/profiles`, `/repositories`, `/logs`, and `/?tab=stats` with search, filters, and paginated tables.
+- **Dual Authentication:** Secure master password login and one-click GitHub OAuth authentication.
+- **Loud Quota Alerts:** Immediate fatal alerting to database logs on AI API key exhaustion or rate limit walls.
+
+---
 
 ## Architecture
 
-- **Worker:** Node.js + Express on Render, triggered on-demand via its /run endpoint
-- **Scheduler:** GitHub Actions workflows (discovery + cleanup, every 6 hours)
-Grading Engine: NVIDIA NIM LLM Integration
-- **Storage Layer:** Supabase PostgreSQL database
-- **Web Console:** Next.js 15 UI with monochrome design dashboard on Vercel
-
-## Self-Hosting & Deployment Guide
-
-> [!TIP]
-> **Modular Architecture:** The stack below (Supabase + Render + Vercel) reflects my personal setup for low overhead, but the worker and dashboard are decoupled. Feel free to swap in your preferred database, host, or framework!
-
-Follow this guide to spin up your own instance of **FollowMe**.
-
-## Before You Begin
- 
->[!NOTE]
->The `/demo` folder in this repository contains seed/mock data used for the reference deployment at [followme-demo.vercel.app](https://followme-demo.vercel.app). It is not required for your own instance — you can safely delete it before deploying.
- 
----
-
-### 1. Fork or Clone the Repository
-
-To deploy and customize your own instance:
-
-- **Option A (Recommended for Cloud Deployments):** **Fork** this repository to your GitHub account so you can easily link it to Render, Vercel, and GitHub Actions.
-- **Option B (Local Development):** Clone the repository locally:
-
-```bash
-git clone https://github.com/madhanio/followme.git
-cd followme
+```
+┌────────────────────────────────────────────────────────┐
+│                   GitHub Ecosystem                     │
+│  (Repo Search, User Profiles, Follow/Star API, OAuth)  │
+└───────────────────────────┬────────────────────────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+┌───────────────────────────┐   ┌───────────────────────────┐
+│     Background Worker     │   │      Next.js Console      │
+│  (Node.js / Express API)  │   │  (Dashboard UI & Actions) │
+└─────────────┬─────────────┘   └─────────────┬─────────────┘
+              │                               │
+              ├───────────────┬───────────────┤
+              ▼               ▼               ▼
+┌──────────────────┐ ┌─────────────────┐ ┌──────────────────┐
+│    NVIDIA NIM    │ │ Supabase DB     │ │  GitHub Actions  │
+│  (LLM Evaluator) │ │ (PostgreSQL)    │ │   (Scheduler)    │
+└──────────────────┘ └─────────────────┘ └──────────────────┘
 ```
 
 ---
 
-### 2. Prerequisites & API Keys
+## Before You Begin
 
-Before starting, gather the following credentials:
+> [!NOTE]
+> The `/demo` folder in this repository contains seed/mock data used for the reference demo deployment. It is not required for your own self-hosted instance and can safely be removed or ignored.
 
-* **GitHub Personal Access Token (PAT):** Create one in GitHub Settings -> Developer Settings -> Personal Access Tokens (Fine-grained or Classic). Needs `user:follow`, `public_repo`, and `read:user` permissions.
-* **NVIDIA NIM API Key:** Get a free key at [build.nvidia.com](https://build.nvidia.com/).
-* **Supabase Keys:** Create a free project at [supabase.com](https://supabase.com). Go to **Project Settings** → **API** to copy your **Project URL** and `anon` / `public` API key.
+---
+
+## Quick Start (Docker Compose)
+
+The easiest way to run the complete FollowMe stack (Worker + Dashboard) locally or on a VPS is with Docker Compose:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/madhanio/followme.git
+   cd followme
+   ```
+
+2. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   ```
+   Fill in your credentials in `.env` (Supabase, GitHub PAT, NVIDIA NIM key, master password).
+
+3. **Start services:**
+   ```bash
+   docker compose up -d --build
+   ```
+
+4. **Access Dashboard:** Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## Cloud Self-Hosting Guide
+
+### 1. Prerequisites & API Keys
+
+Gather the following credentials before deployment:
+
+* **GitHub Personal Access Token (PAT):** Create a token under **GitHub Settings → Developer Settings → Personal Access Tokens**. Required scopes: `user:follow`, `public_repo`, `read:user`.
+* **NVIDIA NIM API Key:** Obtain a key at [build.nvidia.com](https://build.nvidia.com/).
+* **Supabase Project:** Create a project at [supabase.com](https://supabase.com). Copy the **Project URL**, `anon` key, and `service_role` key from **Project Settings → API**.
 
 > [!WARNING]
-> Keep your `SUPABASE_ANON_KEY` and `GITHUB_TOKEN` secure and never commit them directly to the repository.
+> Keep your secret keys secure and never commit `.env` files with real credentials to your git repository.
 
 ---
 
-### 3. Database Setup (Supabase)
+### 2. Database Setup (Supabase)
 
-1. Open your **Supabase Dashboard** -> **SQL Editor**.
+1. Open your Supabase project dashboard and navigate to **SQL Editor**.
 2. Click **New Query**.
-3. Copy the contents of [`schema.sql`](./schema.sql) from this repository, paste it into the editor, and click **Run**.
-
-*(This initializes the required tables for evaluation history, follow tracking, and queue state).*
+3. Copy the contents of [`schema.sql`](./schema.sql) and click **Run**.
 
 ---
 
-### 4. Deploy the Background Worker (Render)
+### 3. Deploy Background Worker (Render)
 
-1. Create a new **Web Service** on [Render](https://render.com/) and connect your repository.
-2. Set the **Root Directory** to `worker`.
-3. Reference [`worker/.env.example`](./worker/.env.example) and add the required **Environment Variables**:
+1. Create a new **Web Service** on [Render](https://render.com) and link your repository.
+2. Set **Root Directory** to `worker`.
+3. Configure the environment variables (see [`worker/.env.example`](./worker/.env.example)):
 
 ```env
 PORT=8000
-WORKER_SECRET=your_worker_secret
-GITHUB_TOKEN=your_github_personal_access_token
-GITHUB_USERNAME=your_github_username
-NVIDIA_API_KEY=your_nvidia_api_key
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
+WORKER_SECRET=your_worker_secret_here
+GITHUB_TOKEN=your_github_personal_access_token_here
+GITHUB_USERNAME=your_github_username_here
+NVIDIA_API_KEY=your_nvidia_api_key_here
+SUPABASE_URL=https://your_supabase_url_here.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
 ```
 
-4. Click Deploy Web Service and copy your public service URL (e.g., https://your-worker.onrender.com).
+4. Deploy the service and note your service URL (e.g. `https://your-worker.onrender.com`).
 
 ---
 
-### 5. Deploy the Web Dashboard (Vercel)
+### 4. Deploy Dashboard Console (Vercel)
+
 1. Import your repository into [Vercel](https://vercel.com).
-2. Set the **Root Directory** to `dashboard`.
-3. Reference [`dashboard/.env.example`](./dashboard/.env.example) and add the required **Environment Variables**:
+2. Set **Root Directory** to `dashboard`.
+3. Configure the environment variables (see [`dashboard/.env.example`](./dashboard/.env.example)):
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+NEXT_PUBLIC_SUPABASE_URL=https://your_supabase_url_here.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 NEXT_PUBLIC_WORKER_URL=https://your-worker.onrender.com
-WORKER_SECRET=your_worker_secret
-GITHUB_TOKEN=your_github_personal_access_token
+WORKER_URL=https://your-worker.onrender.com
+WORKER_SECRET=your_worker_secret_here
+GITHUB_TOKEN=your_github_personal_access_token_here
+GITHUB_USERNAME=your_github_username_here
+DASHBOARD_PASSWORD=your_dashboard_password_here
+NEXT_PUBLIC_APP_URL=https://your-dashboard.vercel.app
 ```
 
-4. Click Deploy.
+4. Click **Deploy**.
 
 ---
 
-### 6. Automate with GitHub Actions
+### 5. GitHub OAuth Setup (Optional)
 
-To enable automated background execution:
+To enable the "Continue with GitHub" login button on your dashboard:
 
-1. Go to your GitHub Repository → **Settings** → **Secrets and variables** → **Actions**.
-2. Add the following **Repository Secrets**:
-   - `WORKER_URL`: Your deployed Render worker endpoint with `/run` appended (e.g., `https://your-worker.onrender.com/run`)
-   - `WORKER_SECRET`: The same secret key you set in your worker and dashboard environment variables.
-3. Go to the **Actions** tab in your repository and enable the workflows.
-
-The scheduler will now trigger discovery automatically every 6 hours.
+1. In GitHub, go to **Settings → Developer Settings → OAuth Apps → New OAuth App**.
+2. Set **Application Name** to `FollowMe Dashboard`.
+3. Set **Homepage URL** to your dashboard URL (e.g., `https://your-dashboard.vercel.app` or `http://localhost:3000`).
+4. Set **Authorization callback URL** to:
+   `https://your-dashboard.vercel.app/api/auth/callback/github` (or `http://localhost:3000/api/auth/callback/github`).
+5. Copy the **Client ID** and generate a **Client Secret**.
+6. Add these to your dashboard environment variables:
+   ```env
+   GITHUB_CLIENT_ID=your_github_oauth_client_id_here
+   GITHUB_CLIENT_SECRET=your_github_oauth_client_secret_here
+   ```
 
 ---
 
-## Live Demo
+### 6. Automated CRON Execution (GitHub Actions)
 
-> **Note:** These links point to the maintainer's reference deployment. Your self-hosted instance will have its own URLs after deployment.
+1. In your GitHub repository, navigate to **Settings → Secrets and variables → Actions**.
+2. Add the following repository secrets:
+   - `WORKER_URL`: `https://your-worker.onrender.com/run`
+   - `WORKER_SECRET`: The shared worker secret string.
+3. Enable workflows under the **Actions** tab. The discovery job runs every 6 hours automatically.
 
-- **Dashboard:** [Launch Demo ↗](https://followme-demo.vercel.app/)
-- **Worker Health:** [Live Health Check ↗](https://followme-gg6q.onrender.com/health) *(may take ~30s to wake from sleep)*
+---
+
+## Environment Variables Reference
+
+| Variable | Required By | Description |
+|---|---|---|
+| `GITHUB_TOKEN` | Worker & Dashboard | GitHub Personal Access Token (`read:user`, `user:follow`, `public_repo`) |
+| `GITHUB_USERNAME` | Worker & Dashboard | Your GitHub username for account locking and mutual sync |
+| `NVIDIA_API_KEY` | Worker | API Key from build.nvidia.com for LLM grading |
+| `SUPABASE_URL` | Worker & Dashboard | Supabase PostgreSQL project URL |
+| `SUPABASE_ANON_KEY` | Worker & Dashboard | Supabase public anonymous API key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Dashboard | Supabase service role key for settings and logs management |
+| `WORKER_SECRET` | Worker & Dashboard | Shared secret header (`x-worker-secret`) to protect API endpoints |
+| `DASHBOARD_PASSWORD` | Dashboard | Master password for dashboard web console |
+| `GITHUB_CLIENT_ID` | Dashboard | Optional GitHub OAuth Application Client ID |
+| `GITHUB_CLIENT_SECRET` | Dashboard | Optional GitHub OAuth Application Client Secret |
+| `NEXT_PUBLIC_APP_URL` | Dashboard | Production dashboard URL for OAuth redirects |
+
+---
 
 ## License
-Distributed under the [MIT License](LICENSE)
+
+Distributed under the [MIT License](LICENSE).
