@@ -26,6 +26,8 @@ function LoginContent() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(urlError);
   const [isLoading, setIsLoading] = useState(false);
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -42,6 +44,53 @@ function LoginContent() {
       document.documentElement.classList.remove('dark');
     }
   }, []);
+
+  const handleGitHubOAuth = () => {
+    setIsOAuthLoading(true);
+    setError(null);
+
+    const width = 600;
+    const height = 700;
+    const left = typeof window !== 'undefined' ? window.screenX + (window.outerWidth - width) / 2 : 100;
+    const top = typeof window !== 'undefined' ? window.screenY + (window.outerHeight - height) / 2 : 100;
+
+    const popup = window.open(
+      '/api/auth/github',
+      'github_oauth_popup',
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no,resizable=yes`
+    );
+
+    if (!popup) {
+      window.location.href = '/api/auth/github';
+      return;
+    }
+
+    // Monitor popup close (e.g. user cancelled or closed dialog)
+    const checkTimer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkTimer);
+        setIsOAuthLoading(false);
+      }
+    }, 500);
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GITHUB_OAUTH_SUCCESS') {
+        clearInterval(checkTimer);
+        window.removeEventListener('message', onMessage);
+        setIsOAuthLoading(false);
+        setIsRedirecting(true);
+        window.location.href = '/';
+      } else if (event.data?.type === 'GITHUB_OAUTH_ERROR') {
+        clearInterval(checkTimer);
+        window.removeEventListener('message', onMessage);
+        setIsOAuthLoading(false);
+        setIsRedirecting(false);
+        setError(event.data?.error || 'Authentication was denied or failed.');
+      }
+    };
+
+    window.addEventListener('message', onMessage);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,18 +153,44 @@ function LoginContent() {
       {/* Main Access Control Card */}
       <div className="w-full max-w-md bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-3xl p-8 shadow-xl shadow-zinc-200/50 dark:shadow-none relative z-10 transition-all">
         {/* Top Header Badge */}
-        <div className="flex flex-col items-center mb-8 text-center">
+        <div className="flex flex-col items-center mb-6 text-center">
           <div className="h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4 shadow-sm">
             <Lock className="h-7 w-7 text-red-600" />
           </div>
           <h1 className="text-2xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] tracking-tight font-jakarta">Access Control</h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-mono tracking-wide">
-            FollowMe Gateway • Enter Password
+            FollowMe Gateway • Sign in or Onboard
           </p>
         </div>
 
-        {/* Password Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* 1. GitHub OAuth Login / Onboarding Button */}
+        <div className="space-y-4 mb-6">
+          <button
+            type="button"
+            onClick={handleGitHubOAuth}
+            disabled={isOAuthLoading || isLoading}
+            className="w-full bg-[#24292e] hover:bg-[#1b1f23] dark:bg-[#1f2328] dark:hover:bg-[#2d333b] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-sm cursor-pointer font-sans text-sm tracking-wide disabled:opacity-60 active:scale-[0.99]"
+          >
+            {isOAuthLoading ? (
+              <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+            ) : (
+              <>
+                <GithubIcon className="h-4 w-4" />
+                <span>Continue with GitHub</span>
+              </>
+            )}
+          </button>
+
+          {/* Divider */}
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-[#eeeeee] dark:border-[#2a2a2a]"></div>
+            <span className="flex-shrink mx-3 text-[10px] uppercase font-mono font-bold tracking-widest text-zinc-400 dark:text-zinc-600">OR WITH PASSWORD</span>
+            <div className="flex-grow border-t border-[#eeeeee] dark:border-[#2a2a2a]"></div>
+          </div>
+        </div>
+
+        {/* 2. Password Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-[11px] uppercase font-mono tracking-widest text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1.5">
               <KeyRound className="h-3.5 w-3.5 text-red-600" /> Master Password
@@ -126,7 +201,7 @@ function LoginContent() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-zinc-50/50 dark:bg-[#18181c] border border-[#dadada] dark:border-[#2a2a2a] focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl py-3.5 px-4 text-sm text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-zinc-400 outline-none transition-all font-mono"
-              disabled={isLoading}
+              disabled={isLoading || isOAuthLoading}
               required
               autoFocus
             />
@@ -134,7 +209,7 @@ function LoginContent() {
 
           <button
             type="submit"
-            disabled={isLoading || !password.trim()}
+            disabled={isLoading || isOAuthLoading || !password.trim()}
             className="w-full bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/10 cursor-pointer font-sans text-sm tracking-wide"
           >
             {isLoading ? (
@@ -154,6 +229,19 @@ function LoginContent() {
             </div>
           )}
         </form>
+
+        {/* Redirecting Overlay after OAuth success */}
+        {isRedirecting && (
+          <div className="absolute inset-0 bg-white/95 dark:bg-[#121215]/95 rounded-3xl z-30 flex flex-col items-center justify-center space-y-3.5 p-6 text-center backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <span className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-emerald-500 border-t-transparent" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0]">Authentication Successful!</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mt-1">Connecting to FollowMe Dashboard...</p>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
