@@ -564,8 +564,8 @@ export default function DashboardView({
       });
     }
 
-    // 2. Recent Backend Errors in Logs (e.g. AI 410/401/429, 0 credits, worker errors)
-    const recentErrors = logs.slice(0, 20).filter(l => {
+    // 2. Scan Recent Backend Logs (up to 100 items) for AI/Task/API Errors
+    const recentErrors = logs.slice(0, 100).filter(l => {
       const status = (l.status || '').toUpperCase();
       const msg = (l.message || '').toLowerCase();
       return (
@@ -574,17 +574,19 @@ export default function DashboardView({
         status === 'CRITICAL' ||
         msg.includes('failed to evaluate') ||
         msg.includes('410') ||
+        msg.includes('404') ||
+        msg.includes('401') ||
+        msg.includes('429') ||
         msg.includes('no body') ||
         msg.includes('status code') ||
         msg.includes('quota') || 
         msg.includes('credit') || 
         msg.includes('exhausted') || 
-        msg.includes('429') || 
         msg.includes('rate limit') || 
-        msg.includes('401') || 
         msg.includes('unauthorized') ||
         msg.includes('invalid api key') ||
         msg.includes('worker error') ||
+        msg.includes('all ai evaluation') ||
         msg.includes('fatal')
       );
     });
@@ -595,35 +597,28 @@ export default function DashboardView({
       const isAiIssue =
         msgLower.includes('failed to evaluate') ||
         msgLower.includes('410') ||
+        msgLower.includes('404') ||
+        msgLower.includes('401') ||
         msgLower.includes('quota') ||
         msgLower.includes('credit') ||
         msgLower.includes('429') ||
         msgLower.includes('nvidia') ||
         msgLower.includes('groq') ||
         msgLower.includes('all ai evaluation') ||
+        msgLower.includes('model') ||
         msgLower.includes('decommissioned') ||
         msgLower.includes('ai evaluation');
 
-      if (isAiIssue) {
-        warnings.push({
-          id: `log-error-${topErr.id}`,
-          title: 'AI Evaluation Paused — New API Keys Needed',
-          message: 'AI grading providers (Groq / NVIDIA) failed or quota exhausted. Please add new API keys to resume repository grading. (Note: Unfollow and mutual sync actions continue running normally).',
-          severity: 'warning',
-          timestamp: new Date(topErr.timestamp).toLocaleTimeString(),
-          actionLabel: 'Inspect Logs'
-        });
-      } else {
-        const cleanMsg = topErr.message.length > 180 ? topErr.message.slice(0, 177) + '...' : topErr.message;
-        warnings.push({
-          id: `log-error-${topErr.id}`,
-          title: `Backend Notice: ${topErr.action || 'Worker'} (${topErr.status || 'Error'})`,
-          message: cleanMsg,
-          severity: 'critical',
-          timestamp: new Date(topErr.timestamp).toLocaleTimeString(),
-          actionLabel: 'Inspect Logs'
-        });
-      }
+      const cleanMsg = topErr.message.length > 220 ? topErr.message.slice(0, 217) + '...' : topErr.message;
+
+      warnings.push({
+        id: `log-error-${topErr.id}`,
+        title: isAiIssue ? 'AI Evaluation Service Error / Model Deprecated' : `Automation Task Failed: ${topErr.action || 'Worker'}`,
+        message: cleanMsg,
+        severity: 'critical',
+        timestamp: new Date(topErr.timestamp).toLocaleTimeString(),
+        actionLabel: 'Inspect Console'
+      });
     }
 
     return warnings;
@@ -2502,16 +2497,16 @@ export default function DashboardView({
                     .map(warning => (
                       <div 
                         key={warning.id}
-                        className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-300 font-sans ${
+                        className={`p-4 rounded-2xl border-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm animate-in fade-in duration-300 font-sans ${
                           warning.severity === 'critical'
-                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
-                            : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300'
+                            ? 'bg-red-500/10 dark:bg-red-950/40 border-red-500/40 dark:border-red-500/50 text-red-700 dark:text-red-300'
+                            : 'bg-amber-500/10 dark:bg-amber-950/40 border-amber-500/40 dark:border-amber-500/50 text-amber-800 dark:text-amber-300'
                         }`}
                       >
                         <div className="flex items-start space-x-3">
                           <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
                             warning.severity === 'critical' 
-                              ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' 
+                              ? 'bg-red-500/20 text-[#e60023] dark:text-red-400' 
                               : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
                           }`}>
                             <AlertTriangle className="h-4 w-4" />
@@ -2535,7 +2530,7 @@ export default function DashboardView({
                               onClick={() => handleTabChange('logs')}
                               className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-xs ${
                                 warning.severity === 'critical'
-                                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                                  ? 'bg-[#e60023] hover:bg-[#c0001b] text-white'
                                   : 'bg-amber-600 hover:bg-amber-700 text-white'
                               }`}
                             >
