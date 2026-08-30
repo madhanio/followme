@@ -5,15 +5,25 @@ import { RepoMetadata } from './types';
 dotenv.config();
 
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-if (!NVIDIA_API_KEY) {
-  console.warn('Missing NVIDIA_API_KEY. AI grading will fail.');
+if (!NVIDIA_API_KEY && !GROQ_API_KEY) {
+  console.warn('⚠️ Missing both NVIDIA_API_KEY and GROQ_API_KEY. AI grading will fail.');
 }
 
-const openai = new OpenAI({
-  apiKey: NVIDIA_API_KEY || '',
-  baseURL: 'https://integrate.api.nvidia.com/v1',
-});
+const nvidiaClient = NVIDIA_API_KEY
+  ? new OpenAI({
+      apiKey: NVIDIA_API_KEY,
+      baseURL: 'https://integrate.api.nvidia.com/v1',
+    })
+  : null;
+
+const groqClient = GROQ_API_KEY
+  ? new OpenAI({
+      apiKey: GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    })
+  : null;
 
 interface GradingResult {
   grade: number;
@@ -37,7 +47,13 @@ export function isAiQuotaOrAuthError(err: any): boolean {
     status === 401 ||
     status === 402 ||
     status === 403 ||
-    (status === 429 && (msg.includes('quota') || msg.includes('credit') || msg.includes('balance') || msg.includes('insufficient') || msg.includes('exceeded') || msg.includes('limit'))) ||
+    status === 404 ||
+    status === 410 ||
+    status === 429 ||
+    msg.includes('410') ||
+    msg.includes('401') ||
+    msg.includes('403') ||
+    msg.includes('429') ||
     msg.includes('invalid_api_key') ||
     msg.includes('incorrect api key') ||
     msg.includes('credit') ||
@@ -45,15 +61,101 @@ export function isAiQuotaOrAuthError(err: any): boolean {
     msg.includes('unauthorized') ||
     msg.includes('payment required') ||
     msg.includes('payment_required') ||
-    msg.includes('billing')
+    msg.includes('billing') ||
+    msg.includes('no body') ||
+    msg.includes('model not found') ||
+    msg.includes('model deprecated') ||
+    msg.includes('failed to evaluate')
   );
 }
 
-export async function gradeRepository(repo: RepoMetadata, customSystemPrompt?: string): Promise<GradingResult> {
-  if (!NVIDIA_API_KEY) {
-    console.error('🚨 [FATAL] NVIDIA_API_KEY is not defined. Skipping AI grading.');
-    throw new FatalAiQuotaError('NVIDIA_API_KEY is not defined. AI grading cannot proceed.', 401);
+async function tryGradeWithClient(
+  client: OpenAI,
+  model: string,
+  prompt: string,
+  providerName: string
+): Promise<GradingResult> {
+  const response = await client.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+    temperature: 0.1,
+    max_tokens: 250,
+  });
+
+  const content = response.choices[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error(`${providerName} (${model}) returned an empty response.`);
   }
+
+  // Clean up possible markdown code block wrappers
+  let cleanedContent = content;
+  if (cleanedContent.startsWith('```')) {
+    cleanedContent = cleanedContent.replace(/^```(json)?/, '').replace(/```$/, '').trim();
+  }
+
+  const result = JSON.parse(cleanedContent) as GradingResult;
+  let grade = Math.round(Number(result.grade));
+  if (isNaN(grade)) grade = 1;
+  grade = Math.max(1, Math.min(10, grade));
+
+  return {
+    grade,
+    reason: result.reason || `Graded by ${providerName}`,
+  };
+}
+
+let cachedGroqModel: string | null = null;
+let cachedNvidiaModel: string | null = null;
+
+async function getBestModel(client: OpenAI, preferred: string[], isGroq: boolean): Promise<string> {
+  if (isGroq && cachedGroqModel) return cachedGroqModel;
+  if (!isGroq && cachedNvidiaModel) return cachedNvidiaModel;
+
+  try {
+    const list = await client.models.list();
+    const modelIds = list.data.map((m) => m.id);
+    for (const pref of preferred) {
+      if (modelIds.includes(pref)) {
+        if (isGroq) cachedGroqModel = pref;
+        else cachedNvidiaModel = pref;
+        return pref;
+      }
+    }
+    // Fallback to any valid generative text/chat model
+    const suitable = modelIds.find(
+      (id) =>
+        !id.includes('whisper') &&
+        !id.includes('guard') &&
+        !id.includes('embedding') &&
+        !id.includes('tts') &&
+        !id.includes('moderation')
+    );
+    if (suitable) {
+      if (isGroq) cachedGroqModel = suitable;
+      else cachedNvidiaModel = suitable;
+      return suitable;
+    }
+  } catch (err) {
+    // models.list may fail if unauthorized or unsupported, fallback to preferred list
+  }
+
+  return preferred[0];
+}
+
+export async function gradeRepository(repo: RepoMetadata, customSystemPrompt?: string): Promise<GradingResult> {
+  if (!nvidiaClient && !groqClient) {
+    const loudMsg = 'Neither NVIDIA_API_KEY nor GROQ_API_KEY is configured in worker environment.';
+    console.error(`🚨 [FATAL] ${loudMsg}`);
+    throw new FatalAiQuotaError(loudMsg, 401);
+  }
+
+  // Truncate readme to ~2000 chars to prevent 413 Payload Too Large
+  const snippet = (repo.readme_snippet || '(No README content available)').slice(0, 2000);
 
   const prompt = `
 You are an expert software developer and peer community evaluator.
@@ -75,7 +177,7 @@ Repository Details:
 
 README Snippet:
 """
-${repo.readme_snippet || '(No README content available)'}
+${snippet}
 """
 
 Return your evaluation EXACTLY in the following JSON format. Do not add any conversational text or markdown code fence wrappers (like \`\`\`json). Just the raw JSON object.
@@ -85,54 +187,66 @@ Return your evaluation EXACTLY in the following JSON format. Do not add any conv
 }
 `;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'meta/llama-3.1-8b-instruct',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.1,
-      max_tokens: 250,
-    });
+  const errors: string[] = [];
 
-    const content = response.choices[0]?.message?.content?.trim();
-    if (!content) {
-      throw new Error('NVIDIA NIM API returned an empty response.');
+  // 1. Try Groq with dynamic model discovery and active model fallbacks
+  if (groqClient) {
+    const preferredGroq = [
+      'llama-3.3-70b-versatile',
+      'llama-3.1-8b-instant',
+      'qwen-2.5-coder-32b',
+      'deepseek-r1-distill-llama-70b',
+      'meta-llama/llama-guard-3-8b',
+    ];
+    
+    // First attempt dynamic discovered model
+    try {
+      const bestModel = await getBestModel(groqClient, preferredGroq, true);
+      return await tryGradeWithClient(groqClient, bestModel, prompt, `Groq (${bestModel})`);
+    } catch (groqErr: any) {
+      console.warn(`[AI Evaluator] Groq primary attempt failed:`, groqErr.message);
+      errors.push(`Groq: ${groqErr.message}`);
+
+      // Try other fallback models explicitly
+      for (const fallback of preferredGroq) {
+        try {
+          return await tryGradeWithClient(groqClient, fallback, prompt, `Groq (${fallback})`);
+        } catch (fErr: any) {
+          errors.push(`Groq (${fallback}): ${fErr.message}`);
+        }
+      }
     }
-
-    // Clean up possible markdown code block format if the model ignores instruction
-    let cleanedContent = content;
-    if (cleanedContent.startsWith('```')) {
-      cleanedContent = cleanedContent.replace(/^```(json)?/, '').replace(/```$/, '').trim();
-    }
-
-    const result = JSON.parse(cleanedContent) as GradingResult;
-
-    // Validate grade range and structure
-    let grade = Math.round(Number(result.grade));
-    if (isNaN(grade)) grade = 1;
-    grade = Math.max(1, Math.min(10, grade));
-
-    return {
-      grade,
-      reason: result.reason || 'No reason provided by LLM.',
-    };
-  } catch (err: any) {
-    if (isAiQuotaOrAuthError(err)) {
-      console.error(`🚨 [FATAL AI QUOTA ERROR] NVIDIA API key/credits expired while grading ${repo.owner}/${repo.name}:`, err.message || err);
-      throw new FatalAiQuotaError(
-        `AI API Key / Quota Exhausted: ${err.message || 'API key invalid, expired, or out of credits.'}`,
-        err.status || 402
-      );
-    }
-
-    console.error(`Error grading repository ${repo.owner}/${repo.name}:`, err.message || err);
-    return {
-      grade: 1,
-      reason: `Failed to evaluate using NVIDIA NIM: ${err.message || 'Unknown error'}`,
-    };
   }
+
+  // 2. Try NVIDIA NIM with dynamic discovery and wide fallbacks
+  if (nvidiaClient) {
+    const preferredNvidia = [
+      'meta/llama-3.1-70b-instruct',
+      'nvidia/llama-3.1-nemotron-70b-instruct',
+      'mistralai/mistral-7b-instruct-v0.3',
+      'meta/llama-3.3-70b-instruct',
+      'meta/llama-3.1-8b-instruct',
+      'google/gemma-2-9b-it',
+    ];
+
+    try {
+      const bestModel = await getBestModel(nvidiaClient, preferredNvidia, false);
+      return await tryGradeWithClient(nvidiaClient, bestModel, prompt, `NVIDIA NIM (${bestModel})`);
+    } catch (nvidiaErr: any) {
+      console.warn(`[AI Evaluator] NVIDIA primary attempt failed:`, nvidiaErr.message);
+      errors.push(`NVIDIA: ${nvidiaErr.message}`);
+
+      for (const fallback of preferredNvidia) {
+        try {
+          return await tryGradeWithClient(nvidiaClient, fallback, prompt, `NVIDIA NIM (${fallback})`);
+        } catch (fErr: any) {
+          errors.push(`NVIDIA (${fallback}): ${fErr.message}`);
+        }
+      }
+    }
+  }
+
+  // If ALL providers failed, log details to console for debugging, but throw a clean user-facing error message
+  console.error(`🚨 [FATAL AI EVALUATION ERROR] Details: ${errors.join(' | ')}`);
+  throw new FatalAiQuotaError('AI evaluation keys (Groq/NVIDIA) expired or unavailable. Please add or update your AI API keys.', 410);
 }
