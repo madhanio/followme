@@ -2513,6 +2513,9 @@ export default function DashboardView({
                           </div>
                           <div>
                             <div className="flex items-center space-x-2">
+                              {warning.severity === 'critical' && (
+                                <span className="h-2 w-2 rounded-full bg-[#e60023] animate-pulse shrink-0" />
+                              )}
                               <h4 className="font-bold text-xs font-jakarta">{warning.title}</h4>
                               {warning.timestamp && (
                                 <span className="text-[10px] font-mono opacity-70">({warning.timestamp})</span>
