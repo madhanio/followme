@@ -494,6 +494,7 @@ interface DashboardViewProps {
   initialUserProfile?: UserProfile | null;
   initialSettings?: Record<string, any>;
   initialTab?: 'home' | 'profiles' | 'repos' | 'logs' | 'stats';
+  initialRateLimitData?: GitHubRateLimitData;
 }
 
 export default function DashboardView({ 
@@ -502,7 +503,8 @@ export default function DashboardView({
   initialRunSummary = [], 
   initialUserProfile = null, 
   initialSettings,
-  initialTab = 'home'
+  initialTab = 'home',
+  initialRateLimitData
 }: DashboardViewProps) {
   const router = useRouter();
 
@@ -521,14 +523,115 @@ export default function DashboardView({
   const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'grace_period' | 'grace_ended' | 'inbound' | 'unstarred' | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>(initialTab);
   const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'ALL'>('7D');
+  const [showOnboardingTest, setShowOnboardingTest] = useState(false);
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
+  const [dismissedWarningIds, setDismissedWarningIds] = useState<string[]>([]);
 
-  // GitHub Rate Limit live data state with 60-second client-side caching
-  const [rateLimitData, setRateLimitData] = useState<GitHubRateLimitData | null>(globalRateLimitCache?.data || null);
+  // GitHub Rate Limit live data state with 60-second client-side caching & SSR data
+  const [rateLimitData, setRateLimitData] = useState<GitHubRateLimitData | null>(globalRateLimitCache?.data || initialRateLimitData || null);
   const [rateLimitLoading, setRateLimitLoading] = useState(false);
+
+  // Proactive Backend Health & Incident Monitoring
+  const systemWarnings = useMemo(() => {
+    const warnings: { id: string; title: string; message: string; severity: 'critical' | 'warning'; timestamp?: string; actionLabel?: string }[] = [];
+
+    // 1. GitHub API Rate Limit Exhaustion / Low Quota
+    if (rateLimitData?.core && rateLimitData.core.limit > 0) {
+      if (rateLimitData.core.remaining === 0) {
+        warnings.push({
+          id: 'gh-core-exhausted',
+          title: 'GitHub API Limit Exhausted (0 / 5,000 remaining)',
+          message: `Hourly core API limit reached. Quota resets at ${new Date(rateLimitData.core.reset * 1000).toLocaleTimeString()}. Automated follows & stars are temporarily paused.`,
+          severity: 'critical',
+          actionLabel: 'Check Rate Limit'
+        });
+      } else if (rateLimitData.core.remaining / rateLimitData.core.limit < 0.1) {
+        warnings.push({
+          id: 'gh-core-low',
+          title: 'GitHub API Quota Running Critically Low (< 10%)',
+          message: `Only ${rateLimitData.core.remaining.toLocaleString()} requests remaining. Resets at ${new Date(rateLimitData.core.reset * 1000).toLocaleTimeString()}.`,
+          severity: 'warning'
+        });
+      }
+    }
+
+    if (rateLimitData?.search && rateLimitData.search.limit > 0 && rateLimitData.search.remaining === 0) {
+      warnings.push({
+        id: 'gh-search-exhausted',
+        title: 'GitHub Search Quota Reached (0 / 30 remaining)',
+        message: `Search rate limit reached. Resets in ~1 min (${new Date(rateLimitData.search.reset * 1000).toLocaleTimeString()}). Discovery query paused briefly.`,
+        severity: 'warning'
+      });
+    }
+
+    // 2. Recent Backend Errors in Logs (e.g. AI 410/401/429, 0 credits, worker errors)
+    const recentErrors = logs.slice(0, 20).filter(l => {
+      const status = (l.status || '').toUpperCase();
+      const msg = (l.message || '').toLowerCase();
+      return (
+        status === 'FAILED' || 
+        status === 'ERROR' || 
+        status === 'CRITICAL' ||
+        msg.includes('failed to evaluate') ||
+        msg.includes('410') ||
+        msg.includes('no body') ||
+        msg.includes('status code') ||
+        msg.includes('quota') || 
+        msg.includes('credit') || 
+        msg.includes('exhausted') || 
+        msg.includes('429') || 
+        msg.includes('rate limit') || 
+        msg.includes('401') || 
+        msg.includes('unauthorized') ||
+        msg.includes('invalid api key') ||
+        msg.includes('worker error') ||
+        msg.includes('fatal')
+      );
+    });
+
+    if (recentErrors.length > 0) {
+      const topErr = recentErrors[0];
+      const msgLower = topErr.message.toLowerCase();
+      const isAiIssue =
+        msgLower.includes('failed to evaluate') ||
+        msgLower.includes('410') ||
+        msgLower.includes('quota') ||
+        msgLower.includes('credit') ||
+        msgLower.includes('429') ||
+        msgLower.includes('nvidia') ||
+        msgLower.includes('groq') ||
+        msgLower.includes('all ai evaluation') ||
+        msgLower.includes('decommissioned') ||
+        msgLower.includes('ai evaluation');
+
+      if (isAiIssue) {
+        warnings.push({
+          id: `log-error-${topErr.id}`,
+          title: 'AI Evaluation Paused — New API Keys Needed',
+          message: 'AI grading providers (Groq / NVIDIA) failed or quota exhausted. Please add new API keys to resume repository grading. (Note: Unfollow and mutual sync actions continue running normally).',
+          severity: 'warning',
+          timestamp: new Date(topErr.timestamp).toLocaleTimeString(),
+          actionLabel: 'Inspect Logs'
+        });
+      } else {
+        const cleanMsg = topErr.message.length > 180 ? topErr.message.slice(0, 177) + '...' : topErr.message;
+        warnings.push({
+          id: `log-error-${topErr.id}`,
+          title: `Backend Notice: ${topErr.action || 'Worker'} (${topErr.status || 'Error'})`,
+          message: cleanMsg,
+          severity: 'critical',
+          timestamp: new Date(topErr.timestamp).toLocaleTimeString(),
+          actionLabel: 'Inspect Logs'
+        });
+      }
+    }
+
+    return warnings;
+  }, [rateLimitData, logs, runSummary]);
 
   const fetchRateLimits = async (force: boolean = false) => {
     const now = Date.now();
-    // 60-second client-side cache check across remounts and tab switches
+    // 60-second client-side cache check across remounts and tab switches unless forced
     if (!force && globalRateLimitCache && (now - globalRateLimitCache.timestamp < 60000)) {
       setRateLimitData(globalRateLimitCache.data);
       return;
@@ -548,9 +651,13 @@ export default function DashboardView({
   };
 
   useEffect(() => {
-    // Only fetch rate limits when on the Home tab where the card is displayed
+    // Fetch live rate limits immediately and set live auto-polling every 30s on Home tab
     if (activeTab === 'home') {
       fetchRateLimits();
+      const interval = setInterval(() => {
+        fetchRateLimits(true);
+      }, 30000);
+      return () => clearInterval(interval);
     }
   }, [activeTab]);
 
@@ -768,11 +875,58 @@ export default function DashboardView({
       const urlFilter = params.get('filter');
       const urlQuery = params.get('q');
       const urlTab = params.get('tab');
+      const urlOnboarding = params.get('onboarding');
       if (urlFilter) setActiveFilter(urlFilter as any);
       if (urlQuery) setSearchTerm(urlQuery);
       if (urlTab === 'stats') setActiveTab('stats');
+      if (urlOnboarding === '1' || urlOnboarding === 'true') setShowOnboardingTest(true);
     }
   }, []);
+
+  const [isOAuthConnecting, setIsOAuthConnecting] = useState(false);
+
+  const handleGitHubOAuth = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setIsOAuthConnecting(true);
+
+    const width = 600;
+    const height = 700;
+    const left = typeof window !== 'undefined' ? window.screenX + (window.outerWidth - width) / 2 : 100;
+    const top = typeof window !== 'undefined' ? window.screenY + (window.outerHeight - height) / 2 : 100;
+
+    const popup = window.open(
+      '/api/auth/github',
+      'github_oauth_popup',
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no,resizable=yes`
+    );
+
+    if (!popup) {
+      window.location.href = '/api/auth/github';
+      return;
+    }
+
+    const checkTimer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkTimer);
+        setIsOAuthConnecting(false);
+      }
+    }, 500);
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GITHUB_OAUTH_SUCCESS') {
+        clearInterval(checkTimer);
+        window.removeEventListener('message', onMessage);
+        setIsOAuthConnecting(false);
+        router.refresh();
+      } else if (event.data?.type === 'GITHUB_OAUTH_ERROR') {
+        clearInterval(checkTimer);
+        window.removeEventListener('message', onMessage);
+        setIsOAuthConnecting(false);
+      }
+    };
+
+    window.addEventListener('message', onMessage);
+  };
 
   useEffect(() => {
     if (activeTab === 'home') {
@@ -1926,12 +2080,17 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* DESKTOP PERMANENT SIDEBAR */}
-        <aside className="w-64 bg-white dark:bg-[#111111] border-r border-[#dadada] dark:border-[#2a2a2a] flex flex-col justify-between p-4 z-20 shrink-0 select-none transition-all duration-300 hidden md:flex">
+        {/* DESKTOP & MOBILE RESPONSIVE SIDEBAR DRAWER */}
+        <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-[#111111] border-r border-[#dadada] dark:border-[#2a2a2a] flex flex-col justify-between p-4 shrink-0 select-none transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+        }`}>
           <div className="space-y-7">
             {/* Title / Brand */}
             <div 
-              onClick={() => handleTabChange('home')}
+              onClick={() => {
+                handleTabChange('home');
+                setIsSidebarOpen(false);
+              }}
               className="flex items-center space-x-3 px-2 cursor-pointer hover:opacity-90 active:scale-95 transition-all"
             >
               <div className="h-9 w-9 rounded-xl bg-[#e60023] flex items-center justify-center text-white font-bold text-lg font-jakarta shadow-sm">
@@ -1984,12 +2143,11 @@ export default function DashboardView({
           </div>
         </aside>
 
-
         {/* BACKDROP FOR MOBILE */}
         {isSidebarOpen && (
           <div 
             onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 bg-black/40 z-30 md:hidden backdrop-blur-xs"
+            className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-xs transition-opacity duration-300"
           />
         )}
 
@@ -2298,9 +2456,9 @@ export default function DashboardView({
               {!isTabTransitioning && !isRefreshing && activeTab === 'home' && (
                 <div className="space-y-6">
                   {/* ONBOARDING GITHUB OAUTH BANNER FOR NEW USERS */}
-                  {!userProfile?.login && (
-                    <div className="p-5 rounded-3xl bg-gradient-to-r from-zinc-900 via-[#1a1a1c] to-black text-white border border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
-                      <div className="flex items-center space-x-3.5">
+                  {(showOnboardingTest || (!userProfile?.login && !isBannerDismissed)) && (
+                    <div className="relative p-5 rounded-3xl bg-gradient-to-r from-zinc-900 via-[#1a1a1c] to-black text-white border border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                      <div className="flex items-center space-x-3.5 pr-8">
                         <div className="h-11 w-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
                           <GithubIcon className="h-6 w-6 text-white" />
                         </div>
@@ -2311,15 +2469,89 @@ export default function DashboardView({
                           </p>
                         </div>
                       </div>
-                      <a
-                        href="/api/auth/github"
-                        className="px-5 py-2.5 bg-[#e60023] hover:bg-[#c0001b] text-white rounded-full font-bold text-xs transition-all active:scale-95 shrink-0 flex items-center space-x-2 shadow-sm cursor-pointer"
-                      >
-                        <GithubIcon className="h-4 w-4" />
-                        <span>Connect GitHub via OAuth</span>
-                      </a>
+                      <div className="flex items-center space-x-3 shrink-0">
+                        <button
+                          onClick={handleGitHubOAuth}
+                          disabled={isOAuthConnecting}
+                          className="px-5 py-2.5 bg-[#e60023] hover:bg-[#c0001b] disabled:opacity-50 text-white rounded-full font-bold text-xs transition-all active:scale-95 shrink-0 flex items-center space-x-2 shadow-sm cursor-pointer"
+                        >
+                          {isOAuthConnecting ? (
+                            <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                          ) : (
+                            <GithubIcon className="h-4 w-4" />
+                          )}
+                          <span>{isOAuthConnecting ? 'Connecting...' : 'Connect GitHub via OAuth'}</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsBannerDismissed(true);
+                            setShowOnboardingTest(false);
+                          }}
+                          className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-zinc-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                          title="Dismiss Banner"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   )}
+
+                  {/* PROACTIVE BACKEND HEALTH & API WARNING ALERTS */}
+                  {systemWarnings
+                    .filter(w => !dismissedWarningIds.includes(w.id))
+                    .map(warning => (
+                      <div 
+                        key={warning.id}
+                        className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-300 font-sans ${
+                          warning.severity === 'critical'
+                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+                            : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300'
+                        }`}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                            warning.severity === 'critical' 
+                              ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' 
+                              : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                          }`}>
+                            <AlertTriangle className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <h4 className="font-bold text-xs font-jakarta">{warning.title}</h4>
+                              {warning.timestamp && (
+                                <span className="text-[10px] font-mono opacity-70">({warning.timestamp})</span>
+                              )}
+                            </div>
+                            <p className="text-xs opacity-90 font-sans mt-0.5 leading-relaxed">
+                              {warning.message}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                          {warning.actionLabel && (
+                            <button
+                              onClick={() => handleTabChange('logs')}
+                              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-xs ${
+                                warning.severity === 'critical'
+                                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                                  : 'bg-amber-600 hover:bg-amber-700 text-white'
+                              }`}
+                            >
+                              {warning.actionLabel}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setDismissedWarningIds(prev => [...prev, warning.id])}
+                            className="h-7 w-7 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 flex items-center justify-center transition-all cursor-pointer"
+                            title="Dismiss Alert"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
 
                   {/* 4-WAY PROFILE RELATIONSHIP MATRIX CARDS */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-geist">
@@ -2667,70 +2899,91 @@ export default function DashboardView({
                       </div>
                     </div>
 
-                    {/* GitHub API Rate Limits Live Display */}
-                    <div className="pt-2 border-t border-[#eeeeee] dark:border-[#222222] space-y-2.5" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-between text-[9px] uppercase font-bold tracking-wider text-[#767676]">
-                        <span>GitHub Rate Limits</span>
-                        {rateLimitLoading && (
-                          <span className="text-[8px] font-mono lowercase text-zinc-400 animate-pulse">refreshing...</span>
-                        )}
+                    {/* GitHub API Rate Limits Live Display Cards */}
+                    <div className="pt-3 border-t border-[#eeeeee] dark:border-[#222222] space-y-2.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[#767676] font-jakarta">
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>GitHub Rate Limits</span>
+                        </span>
+                        <button
+                          onClick={() => fetchRateLimits(true)}
+                          disabled={rateLimitLoading}
+                          className="flex items-center space-x-1 text-[9px] font-mono lowercase text-zinc-500 hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] transition-all cursor-pointer select-none"
+                          title="Click to fetch live quota immediately"
+                        >
+                          <RotateCw className={`h-3 w-3 ${rateLimitLoading ? 'animate-spin text-[#e60023]' : ''}`} />
+                          <span>{rateLimitLoading ? 'syncing...' : 'live'}</span>
+                        </button>
                       </div>
 
-                      {/* Row 1: Core API */}
-                      {(() => {
-                        const coreLimit = rateLimitData?.core?.limit ?? 5000;
-                        const coreUsed = rateLimitData?.core?.used ?? 0;
-                        const coreRemaining = rateLimitData?.core?.remaining ?? (coreLimit - coreUsed);
-                        const isCoreLow = coreLimit > 0 && (coreRemaining / coreLimit) < 0.2;
-                        const corePct = Math.min(100, Math.max(0, (coreUsed / coreLimit) * 100));
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Card 1: Core API */}
+                        {(() => {
+                          const coreLimit = rateLimitData?.core?.limit ?? 5000;
+                          const coreRemaining = rateLimitData?.core?.remaining ?? 5000;
+                          const coreUsed = rateLimitData?.core?.used ?? (coreLimit - coreRemaining);
+                          const isCoreLow = coreLimit > 0 && (coreRemaining / coreLimit) < 0.2;
+                          const remainingPct = coreLimit > 0 ? Math.min(100, Math.max(0, (coreRemaining / coreLimit) * 100)) : 100;
 
-                        return (
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px] font-mono font-semibold">
-                              <span className="text-[#1a1c1c] dark:text-[#f0f0f0]">
-                                Core API <span className="text-[9px] text-[#767676] font-normal">(resets hourly)</span>
-                              </span>
-                              <span className={isCoreLow ? "text-[#e60023] font-bold" : "text-[#767676] dark:text-zinc-400"}>
-                                {coreUsed.toLocaleString()} / {coreLimit.toLocaleString()}
-                              </span>
+                          return (
+                            <div className="relative bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[20px] p-3.5 pb-4 overflow-hidden flex flex-col justify-between transition-all hover:border-[#dadada] dark:hover:border-zinc-700 shadow-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Core API</span>
+                                <span className="text-[8px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">1h limit</span>
+                              </div>
+                              <div className="my-1.5">
+                                <div className="text-lg font-black font-mono text-[#1a1c1c] dark:text-[#f0f0f0] leading-none">
+                                  {coreRemaining.toLocaleString()} <span className="text-[10px] text-[#767676] font-normal font-sans">/ {coreLimit.toLocaleString()}</span>
+                                </div>
+                                <span className={`text-[9px] font-mono mt-1 block ${isCoreLow ? 'text-[#e60023] font-bold' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                  {coreUsed > 0 ? `${coreUsed} used this hr` : '100% capacity free'}
+                                </span>
+                              </div>
+                              {/* Bottom Edge Available Quota Bar */}
+                              <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 rounded-r-full ${isCoreLow ? 'bg-[#e60023]' : 'bg-emerald-500'}`}
+                                  style={{ width: `${Math.max(remainingPct, 3)}%` }}
+                                />
+                              </div>
                             </div>
-                            <div className="w-full bg-[#eeeeee] dark:bg-[#222222] h-1.5 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full transition-all duration-500 rounded-full ${isCoreLow ? 'bg-[#e60023]' : 'bg-[#1a1c1c] dark:bg-zinc-300'}`}
-                                style={{ width: `${corePct}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })()}
+                          );
+                        })()}
 
-                      {/* Row 2: Search API */}
-                      {(() => {
-                        const searchLimit = rateLimitData?.search?.limit ?? 30;
-                        const searchUsed = rateLimitData?.search?.used ?? 0;
-                        const searchRemaining = rateLimitData?.search?.remaining ?? (searchLimit - searchUsed);
-                        const isSearchLow = searchLimit > 0 && (searchRemaining / searchLimit) < 0.2;
-                        const searchPct = Math.min(100, Math.max(0, (searchUsed / searchLimit) * 100));
+                        {/* Card 2: Search API */}
+                        {(() => {
+                          const searchLimit = rateLimitData?.search?.limit ?? 30;
+                          const searchRemaining = rateLimitData?.search?.remaining ?? 30;
+                          const searchUsed = rateLimitData?.search?.used ?? (searchLimit - searchRemaining);
+                          const isSearchLow = searchLimit > 0 && (searchRemaining / searchLimit) < 0.2;
+                          const remainingPct = searchLimit > 0 ? Math.min(100, Math.max(0, (searchRemaining / searchLimit) * 100)) : 100;
 
-                        return (
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px] font-mono font-semibold">
-                              <span className="text-[#1a1c1c] dark:text-[#f0f0f0]">
-                                Search API <span className="text-[9px] text-[#767676] font-normal">(resets every min)</span>
-                              </span>
-                              <span className={isSearchLow ? "text-[#e60023] font-bold" : "text-[#767676] dark:text-zinc-400"}>
-                                {searchUsed} / {searchLimit}
-                              </span>
+                          return (
+                            <div className="relative bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[20px] p-3.5 pb-4 overflow-hidden flex flex-col justify-between transition-all hover:border-[#dadada] dark:hover:border-zinc-700 shadow-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Search API</span>
+                                <span className="text-[8px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">1m limit</span>
+                              </div>
+                              <div className="my-1.5">
+                                <div className="text-lg font-black font-mono text-[#1a1c1c] dark:text-[#f0f0f0] leading-none">
+                                  {searchRemaining} <span className="text-[10px] text-[#767676] font-normal font-sans">/ {searchLimit}</span>
+                                </div>
+                                <span className={`text-[9px] font-mono mt-1 block ${isSearchLow ? 'text-[#e60023] font-bold' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                  {searchUsed > 0 ? `${searchUsed} used this min` : '100% capacity free'}
+                                </span>
+                              </div>
+                              {/* Bottom Edge Available Quota Bar */}
+                              <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 rounded-r-full ${isSearchLow ? 'bg-[#e60023]' : 'bg-emerald-500'}`}
+                                  style={{ width: `${Math.max(remainingPct, 3)}%` }}
+                                />
+                              </div>
                             </div>
-                            <div className="w-full bg-[#eeeeee] dark:bg-[#222222] h-1.5 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full transition-all duration-500 rounded-full ${isSearchLow ? 'bg-[#e60023]' : 'bg-[#1a1c1c] dark:bg-zinc-300'}`}
-                                style={{ width: `${searchPct}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })()}
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
 
@@ -3966,13 +4219,18 @@ export default function DashboardView({
                       </div>
                     </div>
 
-                    <a
-                      href="/api/auth/github"
-                      className="px-4 py-2 bg-[#24292e] hover:bg-[#1b1f23] dark:bg-[#1f2328] dark:hover:bg-[#2d333b] text-white rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center space-x-2 shrink-0 shadow-xs cursor-pointer"
+                    <button
+                      onClick={handleGitHubOAuth}
+                      disabled={isOAuthConnecting}
+                      className="px-4 py-2 bg-[#24292e] hover:bg-[#1b1f23] dark:bg-[#1f2328] dark:hover:bg-[#2d333b] disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center space-x-2 shrink-0 shadow-xs cursor-pointer"
                     >
-                      <GithubIcon className="h-3.5 w-3.5" />
-                      <span>{userProfile?.login ? 'Re-authorize OAuth' : 'Connect via GitHub OAuth'}</span>
-                    </a>
+                      {isOAuthConnecting ? (
+                        <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                      ) : (
+                        <GithubIcon className="h-3.5 w-3.5" />
+                      )}
+                      <span>{isOAuthConnecting ? 'Connecting...' : (userProfile?.login ? 'Re-authorize OAuth' : 'Connect via GitHub OAuth')}</span>
+                    </button>
                   </div>
 
                   <div className="p-3 bg-zinc-50 dark:bg-[#151518] border border-zinc-200 dark:border-zinc-800 rounded-xl text-[11px] font-sans text-zinc-600 dark:text-zinc-400 space-y-1">
