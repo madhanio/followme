@@ -133,7 +133,7 @@ export async function saveRepo(
 export async function logAction(
   action: string,
   repoId: number | null,
-  status: 'SUCCESS' | 'FAILED',
+  status: 'SUCCESS' | 'FAILED' | 'ERROR' | 'WARN',
   message?: string
 ) {
   try {

@@ -159,8 +159,8 @@ async function runAutomationJob() {
                     console.warn(`\n================================================================`);
                     console.warn(`[AI EVALUATION NOTICE] ${loudMsg}`);
                     console.warn(`================================================================\n`);
-                    await logFatalErrorOrWarn(loudMsg, 'WARN');
-                    await (0, supabase_1.logAction)('SYSTEM', repo.id, 'FAILED', loudMsg);
+                    await logFatalErrorOrWarn(loudMsg, 'ERROR');
+                    await (0, supabase_1.logAction)('SYSTEM', repo.id, 'ERROR', loudMsg);
                     // Stop trying more repos this run to avoid spamming API, but proceed with cleanup & unfollows
                     break;
                 }
