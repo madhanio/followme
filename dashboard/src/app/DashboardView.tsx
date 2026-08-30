@@ -564,19 +564,28 @@ export default function DashboardView({
       });
     }
 
-    // 2. Scan Recent Backend Logs (up to 100 items) for AI/Task/API Errors
-    const recentErrors = logs.slice(0, 100).filter(l => {
+    // 2. Scan the Most Recent Automation Run for Failures/Errors
+    let latestRunStartIndex = logs.findIndex(l => (l.message || '').includes('Automation job started'));
+    if (latestRunStartIndex === -1) {
+      latestRunStartIndex = Math.min(logs.length, 30);
+    }
+    const latestRunLogs = logs.slice(0, latestRunStartIndex + 1);
+
+    const latestRunError = latestRunLogs.find(l => {
       const status = (l.status || '').toUpperCase();
       const msg = (l.message || '').toLowerCase();
       return (
         status === 'FAILED' || 
         status === 'ERROR' || 
         status === 'CRITICAL' ||
+        status === 'WARN' ||
         msg.includes('failed to evaluate') ||
+        msg.includes('ai evaluation paused') ||
         msg.includes('410') ||
         msg.includes('404') ||
         msg.includes('401') ||
         msg.includes('429') ||
+        msg.includes('413') ||
         msg.includes('no body') ||
         msg.includes('status code') ||
         msg.includes('quota') || 
@@ -587,18 +596,20 @@ export default function DashboardView({
         msg.includes('invalid api key') ||
         msg.includes('worker error') ||
         msg.includes('all ai evaluation') ||
+        msg.includes('decommissioned') ||
         msg.includes('fatal')
       );
     });
 
-    if (recentErrors.length > 0) {
-      const topErr = recentErrors[0];
-      const msgLower = topErr.message.toLowerCase();
+    if (latestRunError) {
+      const msgLower = latestRunError.message.toLowerCase();
       const isAiIssue =
         msgLower.includes('failed to evaluate') ||
+        msgLower.includes('ai evaluation') ||
         msgLower.includes('410') ||
         msgLower.includes('404') ||
         msgLower.includes('401') ||
+        msgLower.includes('413') ||
         msgLower.includes('quota') ||
         msgLower.includes('credit') ||
         msgLower.includes('429') ||
@@ -606,17 +617,16 @@ export default function DashboardView({
         msgLower.includes('groq') ||
         msgLower.includes('all ai evaluation') ||
         msgLower.includes('model') ||
-        msgLower.includes('decommissioned') ||
-        msgLower.includes('ai evaluation');
+        msgLower.includes('decommissioned');
 
-      const cleanMsg = topErr.message.length > 220 ? topErr.message.slice(0, 217) + '...' : topErr.message;
+      const cleanMsg = latestRunError.message.length > 220 ? latestRunError.message.slice(0, 217) + '...' : latestRunError.message;
 
       warnings.push({
-        id: `log-error-${topErr.id}`,
-        title: isAiIssue ? 'AI Evaluation Service Error / Model Deprecated' : `Automation Task Failed: ${topErr.action || 'Worker'}`,
+        id: `log-error-${latestRunError.id}`,
+        title: isAiIssue ? 'AI Evaluation Service Error / Key Expired' : `Automation Task Error: ${latestRunError.action || 'Worker'}`,
         message: cleanMsg,
         severity: 'critical',
-        timestamp: new Date(topErr.timestamp).toLocaleTimeString(),
+        timestamp: new Date(latestRunError.timestamp).toLocaleTimeString(),
         actionLabel: 'Inspect Console'
       });
     }
