@@ -155,13 +155,14 @@ async function runAutomationJob() {
             }
             catch (aiErr) {
                 if (aiErr instanceof nvidia_1.FatalAiQuotaError || (0, nvidia_1.isAiQuotaOrAuthError)(aiErr)) {
-                    const loudMsg = `🚨 [FATAL AI QUOTA ERROR] ${aiErr.message}. Automation run halted immediately to prevent silent failure. Please renew/update NVIDIA_API_KEY.`;
-                    console.error(`\n================================================================`);
-                    console.error(loudMsg);
-                    console.error(`================================================================\n`);
-                    await logFatalErrorOrWarn(loudMsg, 'ERROR');
+                    const loudMsg = `AI evaluation paused: ${aiErr.message || 'API keys expired or quota exceeded'}. Continuing with unfollow cleanup and mutual sync.`;
+                    console.warn(`\n================================================================`);
+                    console.warn(`[AI EVALUATION NOTICE] ${loudMsg}`);
+                    console.warn(`================================================================\n`);
+                    await logFatalErrorOrWarn(loudMsg, 'WARN');
                     await (0, supabase_1.logAction)('SYSTEM', repo.id, 'FAILED', loudMsg);
-                    throw aiErr;
+                    // Stop trying more repos this run to avoid spamming API, but proceed with cleanup & unfollows
+                    break;
                 }
                 console.error(`Unexpected grading error for ${repo.owner}/${repo.name}:`, aiErr.message || aiErr);
                 continue;
