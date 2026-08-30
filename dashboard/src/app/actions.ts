@@ -351,26 +351,62 @@ export async function triggerSyncFollowing() {
 }
 
 export async function getUserProfile() {
-  if (!process.env.GITHUB_TOKEN) return null;
-  try {
-    const res = await fetch('https://api.github.com/user', {
-      headers: { 
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github+json'
-      },
-      next: { revalidate: 3600 }
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return {
-      login: data.login || '',
-      name: data.name || data.login || '',
-      avatar_url: data.avatar_url || '',
-      email: data.email || ''
-    };
-  } catch (err) {
-    return null;
+  const token = process.env.GITHUB_TOKEN;
+  if (token) {
+    try {
+      const res = await fetch('https://api.github.com/user', {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'FollowMe-Dashboard'
+        },
+        next: { revalidate: 3600 }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          login: data.login || '',
+          name: data.name || data.login || '',
+          avatar_url: data.avatar_url || '',
+          email: data.email || ''
+        };
+      }
+    } catch (_) {}
   }
+
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const cookieUser = cookieStore.get('fm_user')?.value;
+  const username = process.env.GITHUB_USERNAME || cookieUser;
+
+  if (username) {
+    try {
+      const res = await fetch(`https://api.github.com/users/${username}`, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'FollowMe-Dashboard'
+        },
+        next: { revalidate: 3600 }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          login: data.login || username,
+          name: data.name || data.login || username,
+          avatar_url: data.avatar_url || `https://github.com/${username}.png`,
+          email: data.email || ''
+        };
+      }
+    } catch (_) {}
+    return {
+      login: username,
+      name: username,
+      avatar_url: `https://github.com/${username}.png`,
+      email: ''
+    };
+  }
+
+  return null;
 }
 
 export async function saveSystemSettings(settings: Record<string, any>) {
@@ -437,21 +473,30 @@ export interface GitHubRateLimitData {
 }
 
 export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: GitHubRateLimitData; error?: string }> {
-  const token = process.env.GITHUB_TOKEN;
+  let token = process.env.GITHUB_TOKEN;
+
+  // If no env token, attempt to check DB settings
   if (!token) {
-    return {
-      success: false,
-      error: 'Missing GITHUB_TOKEN environment variable.'
-    };
+    try {
+      const settings = await getSystemSettings();
+      if (settings?.github_token) {
+        token = settings.github_token;
+      }
+    } catch (_) {}
+  }
+
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'FollowMe-Dashboard'
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   try {
     const res = await fetch('https://api.github.com/rate_limit', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'FollowMe-Dashboard'
-      },
+      headers,
       cache: 'no-store'
     });
 
@@ -463,22 +508,30 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
     }
 
     const json = await res.json();
-    const core = json.resources?.core || { limit: 5000, used: 0, remaining: 5000, reset: 0 };
-    const search = json.resources?.search || { limit: 30, used: 0, remaining: 30, reset: 0 };
+    const core = json.resources?.core || { limit: token ? 5000 : 60, used: 0, remaining: token ? 5000 : 60, reset: 0 };
+    const search = json.resources?.search || { limit: token ? 30 : 10, used: 0, remaining: token ? 30 : 10, reset: 0 };
+
+    const coreLimit = core.limit ?? (token ? 5000 : 60);
+    const coreRemaining = core.remaining ?? coreLimit;
+    const coreUsed = typeof core.used === 'number' ? core.used : (coreLimit - coreRemaining);
+
+    const searchLimit = search.limit ?? (token ? 30 : 10);
+    const searchRemaining = search.remaining ?? searchLimit;
+    const searchUsed = typeof search.used === 'number' ? search.used : (searchLimit - searchRemaining);
 
     return {
       success: true,
       data: {
         core: {
-          limit: core.limit ?? 5000,
-          used: core.used ?? (core.limit - core.remaining),
-          remaining: core.remaining ?? 5000,
+          limit: coreLimit,
+          used: coreUsed,
+          remaining: coreRemaining,
           reset: core.reset ?? 0,
         },
         search: {
-          limit: search.limit ?? 30,
-          used: search.used ?? (search.limit - search.remaining),
-          remaining: search.remaining ?? 30,
+          limit: searchLimit,
+          used: searchUsed,
+          remaining: searchRemaining,
           reset: search.reset ?? 0,
         }
       }
