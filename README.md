@@ -24,13 +24,14 @@ FollowMe continuously searches for recently created repositories across your tec
 
 ## Key Features
 
-- **AI Code & README Evaluation:** Grades repositories on a scale of 1–10 using NVIDIA NIM (`meta/llama-3.1-8b-instruct`), identifying genuine builders and original projects while penalizing unchanged copies.
+- **AI Code & README Evaluation:** Grades repositories on a scale of 1–10 using NVIDIA NIM & Groq LLMs with resilient JSON extraction tolerant to reasoning preamble (`<think>`) and codeblock wrappers.
 - **Smart Peer Targeting:** Filters accounts based on follower ranges, account maturity, and organic follow ratios (stars high-profile developers instead of following).
 - **Persistent Evaluation Cache:** Stores low-score and skipped repositories in Supabase with `follow_skipped` flags to prevent repeated re-evaluation and conserve LLM API credits.
 - **Live GitHub Rate Limit Monitor:** Real-time Core API and Search API quota tracking with dynamic progress bars and $<20\%$ remaining alert thresholds.
-- **Automated Grace Period & Cleanup:** Configurable non-followback grace period (default 7 days) and mutual sync engine.
+- **Automated Grace Period & Cleanup:** Configurable non-followback grace period (default 7 days), manual follow protection, and mutual sync engine.
+- **Autonomous Interval Scheduling:** Worker service features built-in periodic scheduling with dynamic next-run time estimation and on-demand trigger support.
 - **Dedicated Console Views:** Dedicated pages for `/profiles`, `/repositories`, `/logs`, and `/?tab=stats` with search, filters, and paginated tables.
-- **Dual Authentication:** Secure master password login and one-click GitHub OAuth authentication.
+- **Dual Authentication & Middleware:** Master password login, one-click GitHub OAuth authentication, and Next.js middleware route protection.
 - **Loud Quota Alerts:** Immediate fatal alerting to database logs on AI API key exhaustion or rate limit walls.
 
 ---
