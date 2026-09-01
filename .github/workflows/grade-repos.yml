@@ -12,7 +12,7 @@ jobs:
       - name: Wake and trigger worker job
         run: |
           response=$(curl -s -o response.json -w "%{http_code}" -X POST \
-            https://followme-gg6q.onrender.com/run \
+            "${{ secrets.WORKER_URL || 'https://followme-gg6q.onrender.com' }}/run" \
             -H "x-worker-secret: ${{ secrets.WORKER_SECRET }}" \
             -H "Content-Type: application/json" \
             --max-time 90 \
@@ -23,14 +23,14 @@ jobs:
           echo "HTTP status: $response"
           cat response.json
 
-          if [ "$response" -lt 200 ] || [ "$response" -ge 300 ]; then
+          if [ "$response" -ne 200 ] && [ "$response" -ne 409 ]; then
             echo "Worker trigger failed with status $response"
             exit 1
           fi
 
       - name: Wait for job to process
-        run: sleep 45
+        run: sleep 60
 
       - name: Check worker status
         run: |
-          curl -s https://followme-gg6q.onrender.com/status | tee status.json
+          curl -s "${{ secrets.WORKER_URL || 'https://followme-gg6q.onrender.com' }}/status" | tee status.json
