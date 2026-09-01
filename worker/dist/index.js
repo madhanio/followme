@@ -155,11 +155,33 @@ async function runAutomationJob(isManual = false) {
                 if (isFollowedOrMutual) {
                     console.log(`Skipping profile ${repo.owner} — already followed or mutual in database. Skipping AI grading.`);
                     stats.skipped++;
+                    await (0, supabase_1.saveRepo)({
+                        id: repo.id,
+                        github_url: repo.github_url,
+                        owner: repo.owner,
+                        name: repo.name,
+                        stars: repo.stars,
+                        language: repo.language,
+                        topics: repo.topics,
+                        readme_snippet: repo.readme_snippet || '',
+                        grade: 0,
+                    }, false, false, true, 'already-followed-or-mutual');
                     continue;
                 }
                 if (isPreviouslyUnfollowed) {
                     console.log(`Skipping profile ${repo.owner} — previously unfollowed. Respecting grace period cooldown.`);
                     stats.skipped++;
+                    await (0, supabase_1.saveRepo)({
+                        id: repo.id,
+                        github_url: repo.github_url,
+                        owner: repo.owner,
+                        name: repo.name,
+                        stars: repo.stars,
+                        language: repo.language,
+                        topics: repo.topics,
+                        readme_snippet: repo.readme_snippet || '',
+                        grade: 0,
+                    }, false, false, true, 'previously-unfollowed');
                     continue;
                 }
             }
@@ -169,6 +191,17 @@ async function runAutomationJob(isManual = false) {
                 console.log(`Skipping profile ${repo.owner} — targeting filter failed: ${profileCheck.skipReason}. Skipping AI grading.`);
                 stats.skipped++;
                 await (0, supabase_1.logAction)('SKIP_FOLLOW', repo.id, 'SUCCESS', `Skipped ${repo.owner} before grading: ${profileCheck.skipReason}`);
+                await (0, supabase_1.saveRepo)({
+                    id: repo.id,
+                    github_url: repo.github_url,
+                    owner: repo.owner,
+                    name: repo.name,
+                    stars: repo.stars,
+                    language: repo.language,
+                    topics: repo.topics,
+                    readme_snippet: repo.readme_snippet || '',
+                    grade: 0,
+                }, false, false, true, `Targeting filter: ${profileCheck.skipReason}`);
                 continue;
             }
             // 3. Profile passed target filters — Now fetch README snippet & grade using NVIDIA NIM
@@ -268,24 +301,24 @@ async function runAutomationJob(isManual = false) {
         }
         console.log('FollowMe job completed successfully.', stats);
         await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Automation job finished. Graded ${stats.graded} new repos. Followed: ${stats.followed}, Starred: ${stats.starred}, Skipped: ${stats.skipped}`);
-        // Write to run_summary at the end of the main evaluation job
-        let mutualsCount = 0;
+        // Run mutuals sync first so follow_back flags are fresh before recording summary & cleanup
+        let newMutualsFound = 0;
         try {
-            const { count } = await supabase_1.supabase
-                .from('repos')
-                .select('*', { count: 'exact', head: true })
-                .eq('follow_back', true);
-            mutualsCount = count || 0;
+            const syncRes = await syncMutuals();
+            if (syncRes) {
+                newMutualsFound = syncRes.inboundCount || 0;
+            }
         }
-        catch (countErr) {
-            console.warn('Failed to query mutuals count for run_summary:', countErr);
+        catch (syncErr) {
+            console.error('Error running mutuals sync before cleanup:', syncErr.message || syncErr);
         }
+        // Write to run_summary at the end of the main evaluation job
         try {
             await supabase_1.supabase.from('run_summary').insert({
                 profiles_followed: stats.followed,
                 profiles_unfollowed: 0,
                 repos_starred: stats.starred,
-                mutuals_found: mutualsCount,
+                mutuals_found: newMutualsFound,
                 profiles_skipped: stats.skipped,
                 profiles_evaluated: stats.graded,
                 run_type: 'evaluation'
@@ -308,12 +341,6 @@ async function runAutomationJob(isManual = false) {
         }
         catch (ratioErr) {
             console.error('Error running auto-unfollow ratio cleanup:', ratioErr.message || ratioErr);
-        }
-        try {
-            await syncMutuals();
-        }
-        catch (syncErr) {
-            console.error('Error running mutuals sync:', syncErr.message || syncErr);
         }
     }
     catch (err) {
@@ -658,34 +685,34 @@ async function syncMutuals() {
         const dbOwnerSet = new Set();
         (allProfiles || []).forEach(p => dbOwnerSet.add(p.owner.toLowerCase()));
         // 3. Separate into mutual (follows back) vs non-mutual
-        const mutualOwners = [];
-        const nonMutualOwners = [];
+        const mutualRepoIds = [];
+        const nonMutualRepoIds = [];
         for (const profile of (allProfiles || [])) {
             if (followerSet.has(profile.owner.toLowerCase())) {
-                mutualOwners.push(profile.owner);
+                mutualRepoIds.push(profile.id);
             }
             else {
-                nonMutualOwners.push(profile.owner);
+                nonMutualRepoIds.push(profile.id);
             }
         }
-        // 4. Batch update follow_back = true for mutual owners (chunked by 200)
-        for (let i = 0; i < mutualOwners.length; i += 200) {
-            const chunk = mutualOwners.slice(i, i + 200);
+        // 4. Batch update follow_back = true for mutual IDs (chunked by 200)
+        for (let i = 0; i < mutualRepoIds.length; i += 200) {
+            const chunk = mutualRepoIds.slice(i, i + 200);
             const { error: mutualErr } = await supabase_1.supabase
                 .from('repos')
                 .update({ follow_back: true })
-                .in('owner', chunk);
+                .in('id', chunk);
             if (mutualErr) {
                 console.error('Error updating follow_back=true for mutuals chunk:', mutualErr.message);
             }
         }
-        // 5. Batch update follow_back = false for non-mutual owners (chunked by 200)
-        for (let i = 0; i < nonMutualOwners.length; i += 200) {
-            const chunk = nonMutualOwners.slice(i, i + 200);
+        // 5. Batch update follow_back = false for non-mutual IDs (chunked by 200)
+        for (let i = 0; i < nonMutualRepoIds.length; i += 200) {
+            const chunk = nonMutualRepoIds.slice(i, i + 200);
             const { error: nonMutualErr } = await supabase_1.supabase
                 .from('repos')
                 .update({ follow_back: false })
-                .in('owner', chunk);
+                .in('id', chunk);
             if (nonMutualErr) {
                 console.error('Error updating follow_back=false for non-mutuals chunk:', nonMutualErr.message);
             }
@@ -722,12 +749,14 @@ async function syncMutuals() {
             }
             console.log(`Inserted ${missingInboundRows.length} missing inbound followers into repos.`);
         }
-        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Mutuals sync complete. Mutuals: ${mutualOwners.length}, Inbound added: ${missingInboundRows.length}`);
+        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Mutuals sync complete. Mutuals: ${mutualRepoIds.length}, Inbound added: ${missingInboundRows.length}`);
         console.log('Mutuals sync completed successfully.');
+        return { mutualsCount: mutualRepoIds.length, inboundCount: missingInboundRows.length };
     }
     catch (err) {
         console.error('Error in syncMutuals:', err.message || err);
         await (0, supabase_1.logAction)('SYSTEM', null, 'FAILED', `syncMutuals failed: ${err.message || 'Unknown error'}`);
+        return { mutualsCount: 0, inboundCount: 0 };
     }
 }
 async function cleanupNonFollowbacks(runtimeConfig) {
@@ -822,10 +851,11 @@ async function cleanupNonFollowbacks(runtimeConfig) {
                 currentFollowingCount--;
                 unfollowedRatioCount++;
                 // Find repo ID if exists to log action properly
+                const escapedUsername = username.replace(/[_%]/g, '\\$&');
                 const { data: dbRepo } = await supabase_1.supabase
                     .from('repos')
                     .select('id')
-                    .ilike('owner', username)
+                    .ilike('owner', escapedUsername)
                     .limit(1)
                     .maybeSingle();
                 const repoId = dbRepo ? dbRepo.id : null;
@@ -833,7 +863,7 @@ async function cleanupNonFollowbacks(runtimeConfig) {
                 await supabase_1.supabase
                     .from('repos')
                     .update({ followed: false, unfollowed: true })
-                    .ilike('owner', username);
+                    .ilike('owner', escapedUsername);
                 await (0, supabase_1.logAction)('UNFOLLOW_RATIO', repoId, 'SUCCESS', `Auto-unfollowed ${username} to balance following/followers ratio.`);
             }
             else {
@@ -922,10 +952,11 @@ async function runCleanupJob(runtimeConfig) {
             const unfollowedSuccess = await (0, github_1.unfollowUser)(primaryOwner);
             if (unfollowedSuccess) {
                 unfollowedCount++;
+                const escapedOwner = primaryOwner.replace(/[_%]/g, '\\$&');
                 const { error: updateErr } = await supabase_1.supabase
                     .from('repos')
                     .update({ unfollowed: true, followed: false })
-                    .in('id', allRepoIds);
+                    .ilike('owner', escapedOwner);
                 if (updateErr) {
                     console.error(`Error updating unfollowed status for ${primaryOwner}:`, updateErr.message);
                 }
@@ -1069,7 +1100,6 @@ app.listen(PORT, () => {
         updateNextRunTime();
         try {
             await runAutomationJob(false);
-            await runCleanupJob();
         }
         catch (schedErr) {
             console.error('Error during autonomous background cycle:', schedErr.message || schedErr);
