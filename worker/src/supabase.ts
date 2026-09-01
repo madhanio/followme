@@ -118,7 +118,26 @@ export async function saveRepo(
       upsertData.followed_at = new Date().toISOString();
     }
 
-    const { error } = await supabase.from('repos').upsert(upsertData);
+    // Check if repo already exists to preserve follow_back and unfollowed state
+    const { data: existing } = await supabase
+      .from('repos')
+      .select('follow_back, unfollowed, followed_at')
+      .eq('id', repo.id)
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.follow_back !== undefined) {
+        upsertData.follow_back = existing.follow_back;
+      }
+      if (existing.unfollowed !== undefined && !followed) {
+        upsertData.unfollowed = existing.unfollowed;
+      }
+      if (existing.followed_at && !upsertData.followed_at) {
+        upsertData.followed_at = existing.followed_at;
+      }
+    }
+
+    const { error } = await supabase.from('repos').upsert(upsertData, { onConflict: 'id' });
 
     if (error) {
       console.error(`Error saving repo ${repo.owner}/${repo.name}:`, error.message);
