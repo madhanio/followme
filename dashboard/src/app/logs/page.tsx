@@ -1,13 +1,14 @@
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import DashboardView from '../DashboardView';
-import { getUserProfile, getSystemSettings } from '../actions';
+import { getUserProfile, getSystemSettings, getGitHubRateLimit } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LogsPage() {
-  const [userProfile, dbSettings] = await Promise.all([
+  const [userProfile, dbSettings, rateLimitRes] = await Promise.all([
     getUserProfile(),
-    getSystemSettings()
+    getSystemSettings(),
+    getGitHubRateLimit().catch(() => ({ success: false, data: undefined }))
   ]);
 
   // Paginated fetch to select all rows across 1000+ records
@@ -47,6 +48,7 @@ export default async function LogsPage() {
       initialUserProfile={userProfile}
       initialSettings={dbSettings || undefined}
       initialTab="logs"
+      initialRateLimitData={rateLimitRes?.data || undefined}
     />
   );
 }
