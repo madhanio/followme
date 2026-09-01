@@ -61,4 +61,12 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at timestamptz DEFAULT now()
 );
 
+ALTER TABLE repos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE run_summary ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY "Allow select" ON repos FOR SELECT USING (true);
+CREATE POLICY "Allow select" ON logs FOR SELECT USING (true);
+CREATE POLICY "Allow select" ON run_summary FOR SELECT USING (true);
+CREATE POLICY "Allow select" ON settings FOR SELECT USING (true);
