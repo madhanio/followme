@@ -26,6 +26,12 @@ async function fetchAuthenticatedUser() {
   }
 }
 
+interface FollowerUser {
+  id: number;
+  login: string;
+  html_url: string;
+}
+
 async function fetchAllFollowing(): Promise<Set<string>> {
   const following = new Set<string>();
   if (!process.env.GITHUB_TOKEN) return following;
@@ -52,8 +58,8 @@ async function fetchAllFollowing(): Promise<Set<string>> {
   return following;
 }
 
-async function fetchAllFollowers(): Promise<Set<string>> {
-  const followers = new Set<string>();
+async function fetchAllFollowers(): Promise<Map<string, FollowerUser>> {
+  const followers = new Map<string, FollowerUser>();
   if (!process.env.GITHUB_TOKEN) return followers;
 
   let page = 1;
@@ -70,7 +76,13 @@ async function fetchAllFollowers(): Promise<Set<string>> {
     }
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) break;
-    data.forEach((u: any) => followers.add(u.login.toLowerCase()));
+    data.forEach((u: any) => {
+      followers.set(u.login.toLowerCase(), {
+        id: u.id,
+        login: u.login,
+        html_url: u.html_url || `https://github.com/${u.login}`
+      });
+    });
     if (data.length < 100) break;
     page++;
     await new Promise(r => setTimeout(r, 200));
@@ -88,13 +100,13 @@ export async function POST() {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const [actualFollowing, actualFollowers, userProfile] = await Promise.all([
+    const [actualFollowing, actualFollowersMap, userProfile] = await Promise.all([
       fetchAllFollowing(),
       fetchAllFollowers(),
       fetchAuthenticatedUser()
     ]);
 
-    if (actualFollowing.size === 0 && actualFollowers.size === 0) {
+    if (actualFollowing.size === 0 && actualFollowersMap.size === 0) {
       return NextResponse.json({
         synced: false,
         warning: 'GitHub network response was empty or token missing. Aborted database sync to prevent accidental data loss.',
@@ -109,6 +121,13 @@ export async function POST() {
       'id, owner, followed, unfollowed, follow_back'
     );
 
+    const dbOwnerMap = new Map<string, Array<{ id: number; followed: boolean; unfollowed: boolean; follow_back: boolean }>>();
+    (allDbRepos || []).forEach(r => {
+      const o = r.owner.toLowerCase();
+      if (!dbOwnerMap.has(o)) dbOwnerMap.set(o, []);
+      dbOwnerMap.get(o)!.push(r);
+    });
+
     const toMarkUnfollowed = allDbRepos?.filter(
       (row) => row.followed === true && !actualFollowing.has(row.owner.toLowerCase())
     ) ?? [];
@@ -119,12 +138,37 @@ export async function POST() {
 
     // Mutuals calculation
     const toMarkFollowBack = allDbRepos?.filter(
-      (row) => actualFollowers.has(row.owner.toLowerCase()) && row.follow_back !== true
+      (row) => actualFollowersMap.has(row.owner.toLowerCase()) && row.follow_back !== true
     ) ?? [];
 
     const toUnmarkFollowBack = allDbRepos?.filter(
-      (row) => !actualFollowers.has(row.owner.toLowerCase()) && row.follow_back === true
+      (row) => !actualFollowersMap.has(row.owner.toLowerCase()) && row.follow_back === true
     ) ?? [];
+
+    // Identify organic / inbound followers who are not in repos table at all
+    const missingInboundRows: any[] = [];
+    for (const [lowerLogin, follower] of actualFollowersMap.entries()) {
+      if (!dbOwnerMap.has(lowerLogin)) {
+        const isFollowedByUs = actualFollowing.has(lowerLogin);
+        missingInboundRows.push({
+          id: 1000000000000 + follower.id,
+          github_url: follower.html_url,
+          owner: follower.login,
+          name: `${follower.login}`,
+          stars: 0,
+          language: 'Profile',
+          topics: [],
+          grade: 5,
+          graded_at: new Date().toISOString(),
+          followed: isFollowedByUs,
+          starred: false,
+          followed_at: isFollowedByUs ? new Date().toISOString() : null,
+          follow_back: true,
+          unfollowed: false,
+          follow_skipped: false,
+        });
+      }
+    }
 
     if (toMarkUnfollowed.length > 0) {
       const ids = toMarkUnfollowed.map((r) => r.id);
@@ -170,13 +214,23 @@ export async function POST() {
       }
     }
 
+    if (missingInboundRows.length > 0) {
+      for (let i = 0; i < missingInboundRows.length; i += 200) {
+        const chunk = missingInboundRows.slice(i, i + 200);
+        await supabase
+          .from('repos')
+          .upsert(chunk, { onConflict: 'id' });
+      }
+    }
+
     return NextResponse.json({
       synced: true,
       liveFollowingCount: actualFollowing.size,
-      liveFollowersCount: actualFollowers.size,
+      liveFollowersCount: actualFollowersMap.size,
       unfollowedCount: toMarkUnfollowed.length,
       restoredCount: toRestoreFollowed.length,
       followBackUpdated: toMarkFollowBack.length,
+      inboundFollowersInserted: missingInboundRows.length,
       userProfile
     });
   } catch (err: any) {
