@@ -696,14 +696,14 @@ export default function DashboardView({
     const darkActive = document.documentElement.classList.contains('dark');
     setIsDark(darkActive);
 
-    const saved = localStorage.getItem('savedSettings');
-    if (saved) {
+    const localSaved = localStorage.getItem('savedSettings');
+    if (localSaved && !initialSettings) {
       try {
-        const parsed = JSON.parse(saved);
+        const parsed = JSON.parse(localSaved);
         setSavedSettings(parsed);
       } catch (e) {}
     }
-  }, []);
+  }, [initialSettings]);
 
   const toggleDarkMode = () => {
     const isCurrentlyDark = document.documentElement.classList.contains('dark');
@@ -730,7 +730,7 @@ export default function DashboardView({
     unfollowGracePeriod: 7,
     autoUnfollowNonMutuals: true,
     excludeOrgAccounts: true,
-    llmModel: 'Gemini 2.5 Flash',
+    llmModel: 'llama-3.3-70b-versatile',
     systemPrompt: 'Focus heavily on README quality, code architecture, commit frequency, and active open-source contribution patterns.',
     enableEmailDigest: false,
     recipientEmail: userProfile?.email || (userProfile?.login ? `${userProfile.login}@example.com` : 'user@example.com'),
@@ -1139,7 +1139,7 @@ export default function DashboardView({
       followStatus: { followed: boolean; unfollowed: boolean; follow_skipped: boolean; follow_back: boolean; reason: string | null; followed_at: string | null };
     }>();
 
-    const sorted = [...repos].sort((a, b) => new Date(a.graded_at || 0).getTime() - new Date(b.graded_at || 0).getTime());
+    const sorted = [...repos].sort((a, b) => (b.grade || 0) - (a.grade || 0) || new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime());
 
     sorted.forEach(repo => {
       const ownerLower = repo.owner.toLowerCase();
@@ -1158,16 +1158,26 @@ export default function DashboardView({
         profilesMap.set(ownerLower, {
           owner: repo.owner,
           reposCount: 1,
-          totalGrade: repo.grade || 0,
-          avgGrade: repo.grade || 0,
+          totalGrade: (repo.grade || 0),
+          avgGrade: (repo.grade || 0),
           repos: [repo],
           followStatus: ownerStatus,
         });
       } else {
         existing.reposCount += 1;
-        existing.totalGrade += (repo.grade || 0);
-        existing.avgGrade = existing.totalGrade / existing.reposCount;
         existing.repos.push(repo);
+
+        // Sort repos so best graded project is first
+        existing.repos.sort((a, b) => (b.grade || 0) - (a.grade || 0) || (b.stars || 0) - (a.stars || 0));
+
+        const realGradedRepos = existing.repos.filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile');
+        if (realGradedRepos.length > 0) {
+          existing.avgGrade = Number((realGradedRepos.reduce((acc, r) => acc + (r.grade || 0), 0) / realGradedRepos.length).toFixed(1));
+          existing.totalGrade = realGradedRepos.reduce((acc, r) => acc + (r.grade || 0), 0);
+        } else {
+          existing.avgGrade = existing.repos[0]?.grade || 0;
+          existing.totalGrade = existing.avgGrade;
+        }
 
         const isFollowed = existing.followStatus.followed || ownerStatus.followed;
         const isFollowBack = existing.followStatus.follow_back || ownerStatus.follow_back;
@@ -1196,6 +1206,7 @@ export default function DashboardView({
     let unfollowed = 0;
     let skipped = 0;
     let mutuals = 0;
+    let inbound = 0;
 
     allProfiles.forEach((profile) => {
       const status = profile.followStatus;
@@ -1203,12 +1214,13 @@ export default function DashboardView({
       if (status.unfollowed) unfollowed++;
       if (status.follow_skipped) skipped++;
       if (status.followed && !status.unfollowed && status.follow_back) mutuals++;
+      if (!status.followed && status.follow_back) inbound++;
     });
 
     const totalGrade = repos.reduce((acc, r) => acc + (r.grade || 0), 0);
     const avgGrade = total > 0 ? (totalGrade / total) : 0;
 
-    return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals };
+    return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals, inbound, totalProfiles: allProfiles.length };
   }, [repos, allProfiles]);
 
   const relationshipMatrix = useMemo(() => {
@@ -1226,11 +1238,12 @@ export default function DashboardView({
       if (status.followed && !status.unfollowed && status.follow_back) {
         mutuals.push(profile);
       } else if (status.followed && !status.unfollowed && !status.follow_back) {
-        gracePeriod.push(profile);
         if (status.followed_at) {
           const elapsed = Date.now() - new Date(status.followed_at).getTime();
           if (elapsed >= cutoffMs) {
             graceEnded.push(profile);
+          } else {
+            gracePeriod.push(profile);
           }
         } else {
           // If no timestamp is present, it is considered past grace
@@ -1254,27 +1267,29 @@ export default function DashboardView({
 
   const topProfile = useMemo(() => {
     if (allProfiles.length === 0) return null;
-    return [...allProfiles].sort((a, b) => b.avgGrade - a.avgGrade)[0];
+    return [...allProfiles]
+      .filter(p => p.avgGrade > 0 && !p.followStatus.follow_skipped)
+      .sort((a, b) => b.avgGrade - a.avgGrade)[0] || allProfiles[0];
   }, [allProfiles]);
 
   const topRepo = useMemo(() => {
     if (repos.length === 0) return null;
-    return [...repos].sort((a, b) => b.stars - a.stars || b.grade - a.grade)[0];
+    return [...repos]
+      .filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile')
+      .sort((a, b) => (b.grade || 0) - (a.grade || 0) || (b.stars || 0) - (a.stars || 0))[0] || repos[0];
   }, [repos]);
 
   const sumSummary = useMemo(() => {
     let evaluated = 0;
     let followed = 0;
     let unfollowed = 0;
-    let mutuals = 0;
     runSummary.forEach(r => {
       evaluated += (r.profiles_evaluated || 0);
       followed += (r.profiles_followed || 0);
       unfollowed += (r.profiles_unfollowed || 0);
-      mutuals += (r.mutuals_found || 0);
     });
-    return { evaluated, followed, unfollowed, mutuals };
-  }, [runSummary]);
+    return { evaluated, followed, unfollowed, mutuals: stats.mutuals };
+  }, [runSummary, stats.mutuals]);
 
   const narration = useMemo(() => {
     let lastRunTimeStr = "Never";
@@ -1332,10 +1347,6 @@ export default function DashboardView({
       unfollowedCount = lastRunLogs.filter(l => (l.action === 'UNFOLLOW' || l.action === 'UNFOLLOW_RATIO') && l.status === 'SUCCESS').length;
     }
 
-    if (evaluatedCount === 0) evaluatedCount = followedCount + unfollowedCount + 5; 
-    if (followedCount === 0) followedCount = 3;
-    if (unfollowedCount === 0) unfollowedCount = 2;
-
     let nextRunTimeStr = "in 1h";
     if (workerStatus?.nextRun) {
       const dt = new Date(workerStatus.nextRun);
@@ -1353,8 +1364,8 @@ export default function DashboardView({
       }
     }
 
-    return `Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.total} graded profiles. Next run ${nextRunTimeStr}.`;
-  }, [runSummary, logs, workerStatus, stats]);
+    return `Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.totalProfiles || allProfiles.length} graded profiles. Next run ${nextRunTimeStr}.`;
+  }, [runSummary, logs, workerStatus, stats, allProfiles.length]);
 
   const lastRunTask = useMemo(() => {
     return runSummary.find(r => r.run_type !== 'sync_following' && r.run_type !== 'cleanup') || null;
@@ -1374,32 +1385,30 @@ export default function DashboardView({
 
   const top5Profiles = useMemo(() => {
     if (allProfiles.length === 0) return [];
-    if (!hasMounted) {
-      return [...allProfiles].sort((a, b) => b.avgGrade - a.avgGrade).slice(0, 5);
-    }
-    const shuffled = [...allProfiles].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 5);
-  }, [allProfiles, shuffleSeed, hasMounted]);
+    return [...allProfiles]
+      .filter(p => p.avgGrade > 0 && !p.followStatus.follow_skipped)
+      .sort((a, b) => b.avgGrade - a.avgGrade)
+      .slice(0, 5);
+  }, [allProfiles]);
 
   const top3Repos = useMemo(() => {
     if (repos.length === 0) return [];
-    if (!hasMounted) {
-      return [...repos].sort((a, b) => b.grade - a.grade).slice(0, 8);
-    }
-    const shuffled = [...repos].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 8);
-  }, [repos, shuffleSeed, hasMounted]);
+    return [...repos]
+      .filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile')
+      .sort((a, b) => (b.grade || 0) - (a.grade || 0) || (b.stars || 0) - (a.stars || 0))
+      .slice(0, 8);
+  }, [repos]);
 
   const last3Insights = useMemo(() => {
     const lastRunFollowed = lastRunTask?.profiles_followed || 0;
     const lastRunUnfollowed = lastRunTask?.profiles_unfollowed || 0;
 
-    const msg1 = `Evaluated ${stats.total} total developer profiles, with ${stats.followed} high-graded developers targeted and followed.`;
+    const msg1 = `Evaluated ${stats.totalProfiles || allProfiles.length} total developer profiles, with ${stats.followed} high-graded developers targeted and followed.`;
     const msg2 = `In the last run, followed ${lastRunFollowed} new developers and unfollowed ${lastRunUnfollowed} inactive profiles.`;
     const msg3 = `System health status is ${workerStatus?.isJobRunning ? 'Active (Running Job)' : 'Healthy & Operational'}. Next run scheduled ${getFutureRelativeTime(workerStatus?.nextRun)}.`;
 
     return [msg1, msg2, msg3];
-  }, [lastRunTask, stats.total, stats.followed, workerStatus]);
+  }, [lastRunTask, stats.totalProfiles, stats.followed, workerStatus, allProfiles.length]);
 
 
   // Auto-rotate Top Profile Spotlight every 4 seconds
@@ -1432,12 +1441,22 @@ export default function DashboardView({
       const isFollowed = profile.followStatus.followed && !profile.followStatus.unfollowed;
       const isSkipped = profile.followStatus.follow_skipped;
 
-      if (isSkipped && !isFollowed && !isStarred && activeFilter !== 'skipped') {
+      if (isSkipped && !isFollowed && !isStarred && activeFilter !== 'skipped' && activeFilter !== null) {
         return false;
       }
 
-      if (activeFilter === 'followed' || activeFilter === 'grace_period') {
+      if (activeFilter === 'starred') {
+        return isStarred;
+      }
+      if (activeFilter === 'followed') {
         return profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_back;
+      }
+      if (activeFilter === 'grace_period') {
+        if (!profile.followStatus.followed || profile.followStatus.unfollowed || profile.followStatus.follow_back) return false;
+        if (!profile.followStatus.followed_at) return false;
+        const elapsed = Date.now() - new Date(profile.followStatus.followed_at).getTime();
+        const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
+        return elapsed < graceDays * 24 * 60 * 60 * 1000;
       }
       if (activeFilter === 'grace_ended') {
         if (!profile.followStatus.followed || profile.followStatus.unfollowed || profile.followStatus.follow_back) return false;
@@ -1719,7 +1738,6 @@ export default function DashboardView({
   };
 
   const handleFollowUser = async (username: string) => {
-    const previousRepos = [...repos];
     setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false, followed_at: new Date().toISOString() } : r));
     setIsActionLoading(true);
     try {
@@ -1728,11 +1746,11 @@ export default function DashboardView({
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
       } else {
-        setRepos(previousRepos);
+        setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false } : r));
         alert(`Failed to follow: ${res.error}`);
       }
     } catch (err: any) {
-      setRepos(previousRepos);
+      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false } : r));
       alert(`Failed to follow: ${err.message || err}`);
     } finally {
       setIsActionLoading(false);
@@ -1740,7 +1758,6 @@ export default function DashboardView({
   };
 
   const handleUnfollowUser = async (username: string) => {
-    const previousRepos = [...repos];
     setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false, unfollowed: true } : r));
     setIsActionLoading(true);
     try {
@@ -1749,11 +1766,11 @@ export default function DashboardView({
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
       } else {
-        setRepos(previousRepos);
+        setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false } : r));
         alert(`Failed to unfollow: ${res.error}`);
       }
     } catch (err: any) {
-      setRepos(previousRepos);
+      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false } : r));
       alert(`Failed to unfollow: ${err.message || err}`);
     } finally {
       setIsActionLoading(false);
@@ -1761,7 +1778,6 @@ export default function DashboardView({
   };
 
   const handleStar = async (owner: string, name: string) => {
-    const previousRepos = [...repos];
     setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
     try {
       const res = await triggerStar(owner, name);
@@ -1769,17 +1785,16 @@ export default function DashboardView({
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
       } else {
-        setRepos(previousRepos);
+        setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
         alert(`Failed to star: ${res.error}`);
       }
     } catch (err: any) {
-      setRepos(previousRepos);
+      setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
       alert(`Failed to star: ${err.message || err}`);
     }
   };
 
   const handleUnstar = async (owner: string, name: string) => {
-    const previousRepos = [...repos];
     setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
     try {
       const res = await triggerUnstar(owner, name);
@@ -1787,11 +1802,11 @@ export default function DashboardView({
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
       } else {
-        setRepos(previousRepos);
+        setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
         alert(`Failed to unstar: ${res.error}`);
       }
     } catch (err: any) {
-      setRepos(previousRepos);
+      setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
       alert(`Failed to unstar: ${err.message || err}`);
     }
   };
@@ -1800,7 +1815,6 @@ export default function DashboardView({
     if (!confirm(`Are you sure you want to permanently delete @${username} and all of their repositories from the database?`)) {
       return;
     }
-    const previousRepos = [...repos];
     setRepos(prev => prev.filter(r => r.owner.toLowerCase() !== username.toLowerCase()));
     setIsActionLoading(true);
     try {
@@ -1809,11 +1823,13 @@ export default function DashboardView({
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
       } else {
-        setRepos(previousRepos);
+        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+        if (freshRepos) setRepos(freshRepos);
         alert(`Failed to delete profile: ${res.error}`);
       }
     } catch (err: any) {
-      setRepos(previousRepos);
+      const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+      if (freshRepos) setRepos(freshRepos);
       alert(`Failed to delete profile: ${err.message || err}`);
     } finally {
       setIsActionLoading(false);
@@ -1828,7 +1844,7 @@ export default function DashboardView({
 
   // Process historical data for Recharts based on timeRange (TODAY / 7D / 30D / ALL)
   const chartData = useMemo(() => {
-    const dailyMap = new Map<string, { date: string; dateObj: Date; follows: number; unfollows: number; evaluations: number; totalGrade: number; gradeCount: number }>();
+    const dailyMap = new Map<string, { date: string; dateObj: Date; follows: number; unfollows: number; evaluations: number; mutuals: number; totalGrade: number; gradeCount: number }>();
 
     const now = new Date();
     const formatLocalDateKey = (d: Date) => {
@@ -1852,14 +1868,14 @@ export default function DashboardView({
 
     if (timeRange === 'TODAY') {
       const label = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      dailyMap.set(todayStr, { date: label, dateObj: now, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
+      dailyMap.set(todayStr, { date: label, dateObj: now, follows: 0, unfollows: 0, evaluations: 0, mutuals: 0, totalGrade: 0, gradeCount: 0 });
     } else if (timeRange !== 'ALL') {
       const daysToInclude = timeRange === '7D' ? 7 : 30;
       for (let i = daysToInclude - 1; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
         const key = formatLocalDateKey(d);
         const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        dailyMap.set(key, { date: label, dateObj: d, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
+        dailyMap.set(key, { date: label, dateObj: d, follows: 0, unfollows: 0, evaluations: 0, mutuals: 0, totalGrade: 0, gradeCount: 0 });
       }
     }
 
@@ -1873,12 +1889,13 @@ export default function DashboardView({
 
       if (!dailyMap.has(runDateStr)) {
         const label = runDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        dailyMap.set(runDateStr, { date: label, dateObj: runDateObj, follows: 0, unfollows: 0, evaluations: 0, totalGrade: 0, gradeCount: 0 });
+        dailyMap.set(runDateStr, { date: label, dateObj: runDateObj, follows: 0, unfollows: 0, evaluations: 0, mutuals: 0, totalGrade: 0, gradeCount: 0 });
       }
       const dayData = dailyMap.get(runDateStr)!;
       dayData.follows += (run.profiles_followed || 0);
       dayData.unfollows += (run.profiles_unfollowed || 0);
       dayData.evaluations += (run.profiles_evaluated || 0);
+      dayData.mutuals += (run.mutuals_found || 0);
     });
 
     repos.forEach(repo => {
@@ -1903,6 +1920,7 @@ export default function DashboardView({
           follows: dayData.follows,
           unfollows: dayData.unfollows,
           evaluations: dayData.evaluations,
+          mutuals: dayData.mutuals,
           avgScore,
           followingGrowth: 0
         };
@@ -1913,7 +1931,7 @@ export default function DashboardView({
       runningTotal += (item.follows - item.unfollows);
       return {
         ...item,
-        followingGrowth: Math.max(0, runningTotal)
+        followingGrowth: runningTotal
       };
     });
 
@@ -1922,37 +1940,44 @@ export default function DashboardView({
 
   // Compute filtered totals for the Metrics tab cards in perfect sync with Donut graph & Line chart
   const filteredSummary = useMemo(() => {
-    if (timeRange === 'ALL') {
-      return {
-        evaluated: stats.total,
-        followed: stats.followed,
-        unfollowed: stats.unfollowed,
-        mutuals: stats.mutuals
-      };
-    }
     let evaluated = 0;
     let followed = 0;
     let unfollowed = 0;
+    let mutuals = 0;
+
+    if (timeRange === 'ALL') {
+      runSummary.forEach(run => {
+        evaluated += (run.profiles_evaluated || 0);
+        followed += (run.profiles_followed || 0);
+        unfollowed += (run.profiles_unfollowed || 0);
+      });
+      if (evaluated === 0 && (stats.totalProfiles || allProfiles.length) > 0) {
+        evaluated = stats.totalProfiles || allProfiles.length;
+        followed = stats.followed + stats.mutuals;
+        unfollowed = stats.unfollowed;
+      }
+      mutuals = stats.mutuals;
+      return { evaluated, followed, unfollowed, mutuals };
+    }
+
     chartData.forEach(item => {
       evaluated += item.evaluations;
       followed += item.follows;
       unfollowed += item.unfollows;
+      mutuals += (item.mutuals || 0);
     });
-    // Mutuals is a state snapshot metric (active reciprocal connections)
-    const mutuals = stats.mutuals;
+
     return { evaluated, followed, unfollowed, mutuals };
-  }, [chartData, stats, timeRange]);
-
-
+  }, [chartData, runSummary, stats, timeRange, allProfiles.length]);
 
   const statusDistribution = useMemo(() => {
     const acc = '#e60023';
     return [
-      { name: 'Followed', value: stats.followed, color: `color-mix(in srgb, ${acc} 80%, black)` },
       { name: 'Mutuals', value: stats.mutuals, color: acc },
+      { name: 'Grace Period', value: stats.followed, color: `color-mix(in srgb, ${acc} 80%, black)` },
+      { name: 'Inbound', value: stats.inbound, color: '#3b82f6' },
       { name: 'Unfollowed', value: stats.unfollowed, color: `color-mix(in srgb, ${acc} 50%, white)` },
-      { name: 'Skipped', value: stats.skipped, color: `color-mix(in srgb, ${acc} 25%, white)` },
-      { name: 'Starred', value: stats.starred, color: `color-mix(in srgb, ${acc} 60%, black)` }
+      { name: 'Skipped', value: stats.skipped, color: `color-mix(in srgb, ${acc} 25%, white)` }
     ].filter(item => item.value > 0);
   }, [stats]);
 
@@ -2075,6 +2100,7 @@ export default function DashboardView({
                   <button
                     onClick={() => {
                       setIsProfileMenuOpen(false);
+                      setTempSettings(savedSettings);
                       setIsSettingsOpen(true);
                     }}
                     className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] rounded-xl transition cursor-pointer font-geist"
@@ -2917,10 +2943,10 @@ export default function DashboardView({
 
                     
                     <div className="grid grid-cols-2 gap-3.5">
-                      {/* GRADED */}
+                      {/* EVALUATED PROFILES */}
                       <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
-                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.total}</span>
-                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Graded</span>
+                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.totalProfiles || allProfiles.length}</span>
+                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Evaluated</span>
                       </div>
                       {/* FOLLOWED */}
                       <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
@@ -3155,8 +3181,8 @@ export default function DashboardView({
                                 <h3 className="text-xl font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate">{repo.name}</h3>
                               </div>
                             </div>
-                            <span className={getGradeColor(repo.grade)}>
-                              {repo.grade.toFixed(1)}/10
+                            <span className={getGradeColor(repo.grade || 0)}>
+                              {(repo.grade ?? 0).toFixed(1)}/10
                             </span>
                           </div>
 
