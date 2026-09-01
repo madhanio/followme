@@ -139,10 +139,10 @@ export async function GET(request: Request) {
     const userData = await userRes.json();
     const authorizedUsername = process.env.GITHUB_USERNAME;
 
-    // 3. Security check: if GITHUB_USERNAME is configured, ensure only the owner can log in
-    if (authorizedUsername && userData.login.toLowerCase() !== authorizedUsername.toLowerCase()) {
-      console.warn(`Unauthorized login attempt by GitHub user: ${userData.login}. Expected: ${authorizedUsername}`);
-      return renderHtmlResponse(false, `Unauthorized account (@${userData.login}). Expected @${authorizedUsername}.`, `${appUrl}/login?error=Unauthorized%20account`);
+    // 3. Security check: ensure only the configured dashboard owner can log in via GitHub OAuth
+    if (!authorizedUsername || userData.login.toLowerCase() !== authorizedUsername.toLowerCase()) {
+      console.warn(`Unauthorized login attempt by GitHub user: ${userData.login}. Expected: ${authorizedUsername || '(none configured)'}`);
+      return renderHtmlResponse(false, `Unauthorized account (@${userData.login}). Only the owner can sign in.`, `${appUrl}/login?error=Unauthorized%20account`);
     }
 
     // 4. Set session cookies
