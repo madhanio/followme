@@ -79,9 +79,13 @@ async function tryGradeWithClient(client, model, prompt, providerName) {
     if (!content) {
         throw new Error(`${providerName} (${model}) returned an empty response.`);
     }
-    // Clean up possible markdown code block wrappers
-    let cleanedContent = content;
-    if (cleanedContent.startsWith('```')) {
+    // Resilient JSON extraction: strip <think>...</think> tags and find outermost { ... }
+    let cleanedContent = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        cleanedContent = jsonMatch[0];
+    }
+    else if (cleanedContent.startsWith('```')) {
         cleanedContent = cleanedContent.replace(/^```(json)?/, '').replace(/```$/, '').trim();
     }
     const result = JSON.parse(cleanedContent);
@@ -177,7 +181,6 @@ Return your evaluation EXACTLY in the following JSON format. Do not add any conv
             'llama-3.1-8b-instant',
             'qwen-2.5-coder-32b',
             'deepseek-r1-distill-llama-70b',
-            'meta-llama/llama-guard-3-8b',
         ];
         // First attempt dynamic discovered model
         try {
