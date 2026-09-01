@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Exclude /login, /api/ (and other API routes), and static assets from protection
+  // Exclude /login, /api/auth, static files, and Next.js internal assets
   if (
     pathname.startsWith('/login') ||
-    pathname.startsWith('/api') ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/test-webhook') ||
     pathname.includes('.') ||
     pathname.startsWith('/_next')
   ) {
