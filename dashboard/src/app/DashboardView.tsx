@@ -527,9 +527,13 @@ export default function DashboardView({
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const [dismissedWarningIds, setDismissedWarningIds] = useState<string[]>([]);
 
-  // GitHub Rate Limit live data state with 60-second client-side caching & SSR data
   const [rateLimitData, setRateLimitData] = useState<GitHubRateLimitData | null>(globalRateLimitCache?.data || initialRateLimitData || null);
   const [rateLimitLoading, setRateLimitLoading] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Proactive Backend Health & Incident Monitoring
   const systemWarnings = useMemo(() => {
@@ -601,7 +605,13 @@ export default function DashboardView({
       );
     });
 
-    if (latestRunError) {
+    const latestSuccess = logs.find(l => 
+      l.status === 'SUCCESS' && 
+      (l.action === 'EVALUATION' || l.action === 'DISCOVER' || l.action === 'GRADE' || l.action === 'SYSTEM' || l.action === 'MUTUAL_SYNC')
+    );
+    const isErrorResolved = latestRunError && latestSuccess && new Date(latestSuccess.timestamp).getTime() > new Date(latestRunError.timestamp).getTime();
+
+    if (latestRunError && !isErrorResolved) {
       const msgLower = latestRunError.message.toLowerCase();
       const isAiIssue =
         msgLower.includes('failed to evaluate') ||
@@ -1158,7 +1168,20 @@ export default function DashboardView({
         existing.totalGrade += (repo.grade || 0);
         existing.avgGrade = existing.totalGrade / existing.reposCount;
         existing.repos.push(repo);
-        existing.followStatus = ownerStatus;
+
+        const isFollowed = existing.followStatus.followed || ownerStatus.followed;
+        const isFollowBack = existing.followStatus.follow_back || ownerStatus.follow_back;
+        const isUnfollowed = !isFollowed && (existing.followStatus.unfollowed || ownerStatus.unfollowed);
+        const isSkipped = !isFollowed && !isUnfollowed && (existing.followStatus.follow_skipped || ownerStatus.follow_skipped);
+
+        existing.followStatus = {
+          followed: isFollowed,
+          unfollowed: isUnfollowed,
+          follow_skipped: isSkipped,
+          follow_back: isFollowBack,
+          reason: ownerStatus.reason || existing.followStatus.reason,
+          followed_at: ownerStatus.followed_at || existing.followStatus.followed_at,
+        };
       }
     });
 
@@ -1351,17 +1374,21 @@ export default function DashboardView({
 
   const top5Profiles = useMemo(() => {
     if (allProfiles.length === 0) return [];
-    // Randomize profiles
+    if (!hasMounted) {
+      return [...allProfiles].sort((a, b) => b.avgGrade - a.avgGrade).slice(0, 5);
+    }
     const shuffled = [...allProfiles].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 5);
-  }, [allProfiles, shuffleSeed]);
+  }, [allProfiles, shuffleSeed, hasMounted]);
 
   const top3Repos = useMemo(() => {
     if (repos.length === 0) return [];
-    // Randomize repos (take up to 8 so scroll works beautifully)
+    if (!hasMounted) {
+      return [...repos].sort((a, b) => b.grade - a.grade).slice(0, 8);
+    }
     const shuffled = [...repos].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 8);
-  }, [repos, shuffleSeed]);
+  }, [repos, shuffleSeed, hasMounted]);
 
   const last3Insights = useMemo(() => {
     const lastRunFollowed = lastRunTask?.profiles_followed || 0;
@@ -1566,12 +1593,26 @@ export default function DashboardView({
 
   const handleExportCSV = () => {
     const headers = ['Owner', 'ReposCount', 'AvgGrade', 'FollowStatus'];
-    const rows = allProfiles.map(p => [
-      `"${p.owner}"`,
-      p.reposCount,
-      p.avgGrade.toFixed(1),
-      `"${p.followStatus.followed ? (p.followStatus.follow_back ? 'Mutual' : 'Followed') : (p.followStatus.unfollowed ? 'Unfollowed' : 'Pending')}"`
-    ]);
+    const rows = allProfiles.map(p => {
+      let statusLabel = 'Pending';
+      if (p.followStatus.followed && p.followStatus.follow_back) {
+        statusLabel = 'Mutual';
+      } else if (p.followStatus.followed && !p.followStatus.unfollowed) {
+        statusLabel = 'Followed';
+      } else if (!p.followStatus.followed && p.followStatus.follow_back) {
+        statusLabel = 'Inbound';
+      } else if (p.followStatus.unfollowed) {
+        statusLabel = 'Unfollowed';
+      } else if (p.followStatus.follow_skipped) {
+        statusLabel = 'Skipped';
+      }
+      return [
+        `"${p.owner}"`,
+        p.reposCount,
+        p.avgGrade.toFixed(1),
+        `"${statusLabel}"`
+      ];
+    });
     const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     setExportPreview({
       filename: `followme_profiles_${new Date().toISOString().split('T')[0]}.csv`,
@@ -1892,24 +1933,15 @@ export default function DashboardView({
     let evaluated = 0;
     let followed = 0;
     let unfollowed = 0;
-    let mutuals = 0;
     chartData.forEach(item => {
       evaluated += item.evaluations;
       followed += item.follows;
       unfollowed += item.unfollows;
     });
-    const chartKeys = new Set(chartData.map(c => c.key));
-    runSummary.forEach(r => {
-      if (r.ran_at) {
-        const localKey = `${new Date(r.ran_at).getFullYear()}-${String(new Date(r.ran_at).getMonth()+1).padStart(2,'0')}-${String(new Date(r.ran_at).getDate()).padStart(2,'0')}`;
-        if (chartKeys.has(localKey)) {
-          mutuals += (r.mutuals_found || 0);
-        }
-      }
-    });
-    if (mutuals === 0 && stats.mutuals > 0) mutuals = stats.mutuals;
+    // Mutuals is a state snapshot metric (active reciprocal connections)
+    const mutuals = stats.mutuals;
     return { evaluated, followed, unfollowed, mutuals };
-  }, [chartData, runSummary, stats, timeRange]);
+  }, [chartData, stats, timeRange]);
 
 
 
