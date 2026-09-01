@@ -13,6 +13,7 @@ exports.unfollowUser = unfollowUser;
 exports.checkIfFollowsBack = checkIfFollowsBack;
 exports.unstarRepo = unstarRepo;
 exports.getGitHubFollowing = getGitHubFollowing;
+exports.getGitHubFollowersDetails = getGitHubFollowersDetails;
 exports.getGitHubFollowers = getGitHubFollowers;
 exports.getAuthenticatedUserStats = getAuthenticatedUserStats;
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -133,8 +134,11 @@ async function checkOwnerProfile(username, config) {
         if (ratio < 0.1 || ratio > 5.0) {
             return { shouldFollow: false, skipReason: `ratio-mismatch (ratio: ${ratio.toFixed(2)})` };
         }
-        if (accountAgeDays < 180) {
-            return { shouldFollow: false, skipReason: 'account-too-new (< 6 months)' };
+        if (accountAgeDays < 30) {
+            return { shouldFollow: false, skipReason: 'account-too-new (< 30 days)' };
+        }
+        if (MAX_OWNER_AGE_DAYS > 0 && accountAgeDays > MAX_OWNER_AGE_DAYS) {
+            return { shouldFollow: false, skipReason: `account-too-old (> ${MAX_OWNER_AGE_DAYS} days)` };
         }
         // Passed all filters — good follow candidate
         return { shouldFollow: true, skipReason: null };
@@ -145,17 +149,18 @@ async function checkOwnerProfile(username, config) {
     }
 }
 /**
- * Searches repositories created in the last 14 days with specific topics, sorted by updated descending.
+ * Searches repositories created or updated in the last 14 days with specific topics, sorted by updated descending.
  */
-async function searchRecentRepos(topics) {
+async function searchRecentRepos(topics, page = 1) {
     const allReposMap = new Map();
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const dateString = fourteenDaysAgo.toISOString().split('T')[0];
     for (const topic of topics) {
         try {
             const q = `topic:${topic} stars:1..50 pushed:>${dateString}`;
-            const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=15`;
-            console.log(`Searching GitHub repos for topic ${topic}...`);
+            const searchPage = Math.max(1, page);
+            const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=30&page=${searchPage}`;
+            console.log(`Searching GitHub repos for topic ${topic} (page ${searchPage})...`);
             const res = await fetchGitHub(url);
             if (!res.ok) {
                 const errMsg = await res.text();
@@ -387,9 +392,9 @@ async function getGitHubFollowing() {
     return following;
 }
 /**
- * Fetches the entire list of followers for the authenticated user (paginated).
+ * Fetches the entire list of followers for the authenticated user with details (paginated).
  */
-async function getGitHubFollowers() {
+async function getGitHubFollowersDetails() {
     if (!GITHUB_TOKEN) {
         console.warn('Cannot fetch followers: GITHUB_TOKEN is missing');
         return [];
@@ -408,7 +413,12 @@ async function getGitHubFollowers() {
             if (!data || data.length === 0) {
                 break;
             }
-            followers.push(...data.map(user => user.login));
+            followers.push(...data.map(u => ({
+                id: u.id,
+                login: u.login,
+                html_url: u.html_url || `https://github.com/${u.login}`,
+                avatar_url: u.avatar_url || `https://github.com/${u.login}.png`
+            })));
             if (data.length < 100) {
                 break;
             }
@@ -422,6 +432,13 @@ async function getGitHubFollowers() {
         }
     }
     return followers;
+}
+/**
+ * Fetches the entire list of followers for the authenticated user (paginated).
+ */
+async function getGitHubFollowers() {
+    const details = await getGitHubFollowersDetails();
+    return details.map(u => u.login);
 }
 /**
  * Fetches live followers and following counts for the authenticated user.
