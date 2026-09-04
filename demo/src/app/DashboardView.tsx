@@ -1523,6 +1523,49 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           to   { opacity: 1; transform: translateY(0); }
         }
         .insight-fadein { animation: fadein-insight 0.4s ease; }
+
+        /* Ghost Mascot Floating Animation */
+        @keyframes ghost-bob {
+          0%, 100% {
+            transform: translateY(0px);
+          }
+          50% {
+            transform: translateY(-7px);
+          }
+        }
+        .animate-ghost-bob {
+          animation: ghost-bob 3.2s ease-in-out infinite;
+        }
+
+        @keyframes ghost-shadow-pulse {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 0.6;
+          }
+          50% {
+            transform: scale(0.85);
+            opacity: 0.35;
+          }
+        }
+        .animate-ghost-shadow {
+          animation: ghost-shadow-pulse 3.2s ease-in-out infinite;
+        }
+
+        /* Pixel-rendering for retro icons */
+        .pixelated {
+          image-rendering: pixelated;
+          image-rendering: crisp-edges;
+        }
+
+        /* Subtle dot-matrix cyber grid texture */
+        .cyber-dots {
+          background-image: radial-gradient(rgba(120, 120, 120, 0.12) 1px, transparent 1px);
+          background-size: 16px 16px;
+        }
+        .dark .cyber-dots {
+          background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+          background-size: 16px 16px;
+        }
       ` }} />
 
       <div className="flex flex-1 flex-col md:flex-row relative">
@@ -1540,16 +1583,12 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             onClick={() => setActiveTab('home')}
             className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90 absolute left-1/2 -translate-x-1/2"
           >
-            <div className="h-7 w-7 rounded-lg bg-[#e60023] flex items-center justify-center text-white shadow-sm shrink-0">
-              <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
-                <circle cx="5" cy="10" r="2.5" fill="white" />
-                <circle cx="15" cy="5" r="2" fill="white" fillOpacity="0.9" />
-                <circle cx="15" cy="15" r="2" fill="white" fillOpacity="0.9" />
-                <path d="M7.5 9L13 5.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-                <path d="M7.5 11L13 14.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-                <path d="M13 5.5L11.5 4M13 5.5L11.5 7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-                <path d="M13 14.5L11.5 13M13 14.5L11.5 16" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+            <div className="h-8 w-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center p-1 shadow-xs shrink-0 overflow-hidden relative group">
+              <img
+                src="/ghost_avatar.png"
+                alt="FollowMe Ghost"
+                className="h-full w-full object-contain pixelated"
+              />
             </div>
             <span className="font-bold tracking-tight font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] text-sm">FollowMe</span>
           </div>
@@ -1645,24 +1684,24 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             {/* Title / Brand */}
             <div 
               onClick={() => setActiveTab('home')}
-              className="flex items-center space-x-3 px-2 cursor-pointer hover:opacity-90 active:scale-95 transition-all"
+              className="flex items-center space-x-3 px-2 cursor-pointer hover:opacity-95 active:scale-95 transition-all group"
             >
-              <div className="h-9 w-9 rounded-xl bg-[#e60023] flex items-center justify-center text-white shadow-sm shrink-0">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <circle cx="5" cy="10" r="2.5" fill="white" />
-                  <circle cx="15" cy="5" r="2" fill="white" fillOpacity="0.85" />
-                  <circle cx="15" cy="15" r="2" fill="white" fillOpacity="0.85" />
-                  <path d="M7.5 9L13 5.5" stroke="white" strokeWidth="1.25" strokeLinecap="round"/>
-                  <path d="M7.5 11L13 14.5" stroke="white" strokeWidth="1.25" strokeLinecap="round"/>
-                  <path d="M13 5.5L11.5 4M13 5.5L11.5 7" stroke="white" strokeWidth="1.25" strokeLinecap="round"/>
-                  <path d="M13 14.5L11.5 13M13 14.5L11.5 16" stroke="white" strokeWidth="1.25" strokeLinecap="round"/>
-                </svg>
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-zinc-900 to-black border border-zinc-700/80 flex items-center justify-center p-1.5 shadow-md shrink-0 relative overflow-hidden group-hover:border-[#e60023]/60 transition-colors">
+                {/* Subtle internal aura glow */}
+                <div className="absolute inset-0 bg-[#e60023]/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
+                <img
+                  src="/ghost_avatar.png"
+                  alt="FollowMe Ghost"
+                  className="h-full w-full object-contain pixelated relative z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]"
+                />
               </div>
               <div>
-                <h1 className="text-lg font-bold font-jakarta tracking-tight leading-none text-[#1a1c1c] dark:text-[#f0f0f0]">FollowMe</h1>
-                <span className="text-[9px] uppercase font-mono font-semibold tracking-wider text-slate-400 dark:text-zinc-500 mt-1 flex items-center gap-1.5">
-                  AI Agent Control
-                  <span className="px-1 py-0.2 rounded bg-zinc-100 dark:bg-zinc-800 text-[8px] font-bold text-zinc-400 border border-zinc-200 dark:border-zinc-700/60">v2.4</span>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-lg font-bold font-jakarta tracking-tight leading-none text-[#1a1c1c] dark:text-[#f0f0f0]">FollowMe</h1>
+                </div>
+                <span className="text-[9px] uppercase font-mono font-semibold tracking-wider text-slate-400 dark:text-zinc-400 mt-1 flex items-center gap-1.5">
+                  Ghost Protocol
+                  <span className="px-1 py-0.2 rounded bg-zinc-100 dark:bg-zinc-800 text-[8px] font-bold text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700/60 font-mono">v2.4</span>
                 </span>
               </div>
             </div>
@@ -2290,32 +2329,48 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     </div>
                   </div>
 
-                  {/* Card 5: AI Narrator Card */}
-                  <div className="masonry-item bg-gradient-to-br from-rose-50/60 via-white to-white dark:from-rose-950/20 dark:via-[#111111] dark:to-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-default">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-1.5 text-[#e60023]">
-                        <Zap className="h-4 w-4 fill-current" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider font-jakarta">Agent Insight</span>
+                  {/* Card 5: AI Narrator Card with Animated Floating Pixel Ghost */}
+                  <div className="masonry-item bg-gradient-to-br from-rose-50/70 via-white to-white dark:from-rose-950/20 dark:via-[#111111] dark:to-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-default relative overflow-hidden cyber-dots">
+                    <div className="flex items-center justify-between relative z-10">
+                      <div className="flex items-center space-x-2 text-[#e60023]">
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-[9px] font-mono font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
+                          Ghost Protocol
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0]">Agent Insight</span>
                       </div>
                       <span className="text-[9px] font-mono text-zinc-400 flex items-center gap-1.5 select-none">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
                         {lastRunTaskFormattedTime}
                       </span>
                     </div>
 
-                    {/* Speech-bubble block styling */}
-                    <div className="relative p-4 rounded-[20px] bg-rose-50 border border-rose-100 dark:bg-rose-950/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-455 font-sans text-xs leading-relaxed transition-all duration-500">
-                      <div className="absolute top-[-6px] left-6 w-3 h-3 bg-rose-50 border-t border-l border-rose-100 dark:bg-[#281116] dark:border-rose-900/30 transform rotate-45" />
-                      "{last3Insights[insightIndex]}"
+                    {/* Mascot and Speech-bubble layout */}
+                    <div className="flex items-center gap-4 py-1 relative z-10">
+                      {/* Animated Floating Pixel Ghost with Drop Shadow */}
+                      <div className="flex flex-col items-center justify-center shrink-0 w-16 select-none">
+                        <div className="animate-ghost-bob">
+                          <img
+                            src="/ghost_transparent.png"
+                            alt="FollowMe Ghost Mascot"
+                            className="w-14 h-auto object-contain pixelated drop-shadow-[0_4px_8px_rgba(0,0,0,0.18)]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Speech bubble */}
+                      <div className="relative flex-1 p-4 rounded-[20px] bg-white dark:bg-[#18181b] border border-rose-100 dark:border-rose-900/30 text-rose-800 dark:text-rose-300 font-sans text-xs leading-relaxed shadow-xs">
+                        <div className="absolute top-1/2 -left-2 -translate-y-1/2 w-3 h-3 bg-white dark:bg-[#18181b] border-t border-l border-rose-100 dark:border-rose-900/30 transform -rotate-45" />
+                        "{last3Insights[insightIndex]}"
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center justify-between pt-1 border-t border-zinc-100 dark:border-zinc-800/80 relative z-10">
                       <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676]">
-                        <span className="h-2 w-2 rounded-full bg-[#e60023] animate-pulse" />
-                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">FollowMe · AI Core</span>
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">Ghost Agent Daemon</span>
                       </div>
-                      <span className="text-[8px] font-mono px-2 py-0.5 rounded-full bg-white dark:bg-[#1c1c1f] text-zinc-400 border border-[#dadada] dark:border-[#2a2a2a]">
-                        Auto-narrated
+                      <span className="text-[8px] font-mono px-2 py-0.5 rounded-full bg-white dark:bg-[#18181b] text-zinc-400 border border-[#dadada] dark:border-[#2a2a2a]">
+                        Shadow telemetry
                       </span>
                     </div>
                   </div>
@@ -2330,11 +2385,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       {[1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)}
                     </div>
                   ) : filteredProfiles.length === 0 ? (
-                    <div className="w-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl text-center text-xs font-mono text-[#767676] space-y-4 aura-shadow my-2">
-                      <div className="w-28 h-28 flex items-center justify-center overflow-hidden shrink-0">
-                        <Lottie animationData={mainCharacter} loop={true} className="w-full h-full object-contain" />
+                    <div className="w-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-3xl text-center text-xs font-mono text-[#767676] space-y-4 aura-shadow my-2 cyber-dots relative overflow-hidden">
+                      <div className="w-24 h-24 flex flex-col items-center justify-center relative select-none">
+                        <div className="animate-ghost-bob">
+                          <img
+                            src="/ghost_transparent.png"
+                            alt="No Profiles Found"
+                            className="w-16 h-auto object-contain pixelated drop-shadow-md"
+                          />
+                        </div>
                       </div>
-                      <p className="font-semibold text-zinc-600 dark:text-zinc-400">No profiles found matching search query/filters.</p>
+                      <div className="space-y-1 z-10">
+                        <p className="font-bold text-sm text-zinc-800 dark:text-zinc-200 font-jakarta">No developer profiles materialized</p>
+                        <p className="text-[11px] text-zinc-500 font-mono">The ghost daemon found 0 candidate profiles matching your query.</p>
+                      </div>
                     </div>
                   ) : (
                     <div className="masonry-grid">
@@ -2374,11 +2438,20 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       {[1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)}
                     </div>
                   ) : filteredRepos.length === 0 ? (
-                    <div className="w-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl text-center text-xs font-mono text-[#767676] space-y-4 aura-shadow my-2">
-                      <div className="w-28 h-28 flex items-center justify-center overflow-hidden shrink-0">
-                        <Lottie animationData={mainCharacter} loop={true} className="w-full h-full object-contain" />
+                    <div className="w-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-3xl text-center text-xs font-mono text-[#767676] space-y-4 aura-shadow my-2 cyber-dots relative overflow-hidden">
+                      <div className="w-24 h-24 flex flex-col items-center justify-center relative select-none">
+                        <div className="animate-ghost-bob">
+                          <img
+                            src="/ghost_transparent.png"
+                            alt="No Repositories Found"
+                            className="w-16 h-auto object-contain pixelated drop-shadow-md"
+                          />
+                        </div>
                       </div>
-                      <p className="font-semibold text-zinc-600 dark:text-zinc-400">No repositories found matching search query/filters.</p>
+                      <div className="space-y-1 z-10">
+                        <p className="font-bold text-sm text-zinc-800 dark:text-zinc-200 font-jakarta">No repositories discovered</p>
+                        <p className="text-[11px] text-zinc-500 font-mono">The ghost daemon hasn't scouted any repositories matching this search filter.</p>
+                      </div>
                     </div>
                   ) : (
                     <div className="masonry-grid">
@@ -2504,7 +2577,13 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                           <span className="h-3 w-3 rounded-full bg-[#f59e0b] border border-[#dc8f0a]" />
                           <span className="h-3 w-3 rounded-full bg-[#10b981] border border-[#0ea26b]" />
                         </div>
-                        <span className="font-bold text-zinc-350 tracking-tight">SYSTEM_MONITOR_V4.2.LOG</span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700/70 text-[9px] font-mono text-emerald-400 font-bold flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            GHOST_DAEMON: ONLINE
+                          </span>
+                          <span className="font-bold text-zinc-350 tracking-tight hidden sm:inline">PID#8042.LOG</span>
+                        </div>
                         <span className="text-[10px] opacity-60">UTC -05:00</span>
                       </div>
 
@@ -2818,17 +2897,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           <footer className="mt-auto border-t border-[#dadada] dark:border-[#2a2a2a] px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-[#111111] transition-colors duration-200">
             {/* Left: Brand Identity */}
             <div className="flex items-center gap-2 text-[10px] font-mono text-[#767676]">
-              <div className="h-5 w-5 rounded-md bg-[#e60023] flex items-center justify-center text-white shrink-0">
-                <svg width="12" height="12" viewBox="0 0 20 20" fill="none">
-                  <circle cx="5" cy="10" r="2.5" fill="white" />
-                  <circle cx="15" cy="5" r="2" fill="white" />
-                  <circle cx="15" cy="15" r="2" fill="white" />
-                  <path d="M7.5 9L13 5.5M7.5 11L13 14.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
+              <div className="h-6 w-6 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center p-0.5 text-white shrink-0">
+                <img
+                  src="/ghost_avatar.png"
+                  alt="FollowMe Ghost"
+                  className="h-full w-full object-contain pixelated"
+                />
               </div>
               <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">FollowMe</span>
               <span className="opacity-40">&bull;</span>
-              <span className="hidden md:inline">AI-powered GitHub relationship automation engine</span>
+              <span className="hidden md:inline">Ghost Protocol &bull; AI GitHub Relationship Engine</span>
             </div>
 
             {/* Center: Live verification pulse */}
