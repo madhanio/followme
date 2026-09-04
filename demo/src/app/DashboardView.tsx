@@ -1432,13 +1432,22 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#f9f9f9] text-[#1a1c1c] dark:bg-[#0d0d0d] dark:text-[#f0f0f0] font-sans transition-colors duration-200 selection:bg-zinc-200 dark:selection:bg-zinc-800 antialiased">
       {/* DEMO MODE TOP BANNER */}
-      <div className="bg-gradient-to-r from-amber-500/20 via-indigo-600/20 to-emerald-500/20 border-b border-amber-500/30 px-4 py-2 text-center text-xs font-medium flex items-center justify-center gap-2">
-        <span className="bg-amber-500/20 text-amber-600 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-500/40 text-[11px] font-mono font-bold tracking-wide uppercase">
-          DEMO PREVIEW MODE
-        </span>
-        <span className="text-zinc-700 dark:text-zinc-300 font-medium">
-          Viewing live interactive preview with simulated developer profiles, repos, stats, and graphs.
-        </span>
+      <div className="bg-gradient-to-r from-zinc-950 via-[#18181b] to-zinc-900 text-white border-b border-zinc-800/80 px-4 py-2 flex items-center justify-between gap-3 text-xs shadow-sm z-30">
+        <div className="flex items-center gap-2.5">
+          <span className="flex items-center gap-1.5 bg-[#e60023] text-white px-2.5 py-0.5 rounded-full text-[10px] font-mono font-extrabold tracking-wider uppercase shadow-xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+            Live Demo
+          </span>
+          <span className="text-zinc-300 font-sans text-xs hidden sm:inline">
+            Interactive showcase preview &bull; Simulated agent runs, live telemetry, and repository intelligence
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
+          <span className="hidden md:inline">Safe sandbox environment</span>
+          <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60 font-bold text-[10px]">
+            ReadOnly
+          </span>
+        </div>
       </div>
       <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&family=Geist:wght@100..900&family=Inter:ital,wght@0,100..900;1,100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
@@ -1504,6 +1513,16 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
           background-color: var(--accent-color) !important;
           color: white !important;
         }
+
+        /* Sidebar active icon & badge tint */
+        .sidebar-nav-active svg { color: var(--accent-color); }
+
+        /* Smooth insight card fade transition */
+        @keyframes fadein-insight {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .insight-fadein { animation: fadein-insight 0.4s ease; }
       ` }} />
 
       <div className="flex flex-1 flex-col md:flex-row relative">
@@ -1521,7 +1540,17 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             onClick={() => setActiveTab('home')}
             className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90 absolute left-1/2 -translate-x-1/2"
           >
-            <div className="h-7 w-7 rounded-lg bg-[#e60023] flex items-center justify-center text-white font-bold text-sm font-jakarta">F</div>
+            <div className="h-7 w-7 rounded-lg bg-[#e60023] flex items-center justify-center text-white shadow-sm shrink-0">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+                <circle cx="5" cy="10" r="2.5" fill="white" />
+                <circle cx="15" cy="5" r="2" fill="white" fillOpacity="0.9" />
+                <circle cx="15" cy="15" r="2" fill="white" fillOpacity="0.9" />
+                <path d="M7.5 9L13 5.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                <path d="M7.5 11L13 14.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                <path d="M13 5.5L11.5 4M13 5.5L11.5 7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                <path d="M13 14.5L11.5 13M13 14.5L11.5 16" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
             <span className="font-bold tracking-tight font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] text-sm">FollowMe</span>
           </div>
 
@@ -1618,12 +1647,23 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               onClick={() => setActiveTab('home')}
               className="flex items-center space-x-3 px-2 cursor-pointer hover:opacity-90 active:scale-95 transition-all"
             >
-              <div className="h-9 w-9 rounded-xl bg-[#e60023] flex items-center justify-center text-white font-bold text-lg font-jakarta shadow-sm">
-                F
+              <div className="h-9 w-9 rounded-xl bg-[#e60023] flex items-center justify-center text-white shadow-sm shrink-0">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <circle cx="5" cy="10" r="2.5" fill="white" />
+                  <circle cx="15" cy="5" r="2" fill="white" fillOpacity="0.85" />
+                  <circle cx="15" cy="15" r="2" fill="white" fillOpacity="0.85" />
+                  <path d="M7.5 9L13 5.5" stroke="white" strokeWidth="1.25" strokeLinecap="round"/>
+                  <path d="M7.5 11L13 14.5" stroke="white" strokeWidth="1.25" strokeLinecap="round"/>
+                  <path d="M13 5.5L11.5 4M13 5.5L11.5 7" stroke="white" strokeWidth="1.25" strokeLinecap="round"/>
+                  <path d="M13 14.5L11.5 13M13 14.5L11.5 16" stroke="white" strokeWidth="1.25" strokeLinecap="round"/>
+                </svg>
               </div>
               <div>
                 <h1 className="text-lg font-bold font-jakarta tracking-tight leading-none text-[#1a1c1c] dark:text-[#f0f0f0]">FollowMe</h1>
-                <span className="text-[9px] uppercase font-mono font-semibold tracking-wider text-slate-400 dark:text-zinc-500 mt-1 block">AI Agent Control</span>
+                <span className="text-[9px] uppercase font-mono font-semibold tracking-wider text-slate-400 dark:text-zinc-500 mt-1 flex items-center gap-1.5">
+                  AI Agent Control
+                  <span className="px-1 py-0.2 rounded bg-zinc-100 dark:bg-zinc-800 text-[8px] font-bold text-zinc-400 border border-zinc-200 dark:border-zinc-700/60">v2.4</span>
+                </span>
               </div>
             </div>
 
@@ -1645,18 +1685,22 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       handleTabChange(item.tab as any);
                       setIsSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer relative ${
                       isActive 
-                        ? 'bg-[#f3f3f3] dark:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0]' 
+                        ? 'bg-[#f3f3f3] dark:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] shadow-xs' 
                         : 'text-[#767676] hover:bg-[#f9f9f9] dark:hover:bg-[#151515] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
                     }`}
                   >
                     <div className="flex items-center space-x-3">
-                      <Icon className="h-4 w-4" />
+                      <Icon className={`h-4 w-4 transition-colors ${isActive ? 'text-[#e60023]' : ''}`} />
                       <span>{item.label}</span>
                     </div>
                     {item.count !== null && (
-                      <span className="px-2 py-0.5 rounded-full bg-[#f3f3f3] dark:bg-[#2a2a2a] text-xs font-mono font-bold text-[#767676] dark:text-zinc-400">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-bold transition-colors ${
+                        isActive 
+                          ? 'bg-[#e60023]/10 text-[#e60023] dark:bg-[#e60023]/20 dark:text-[#ff3b56]' 
+                          : 'bg-[#f3f3f3] dark:bg-[#2a2a2a] text-[#767676] dark:text-zinc-400'
+                      }`}>
                         {item.count}
                       </span>
                     )}
@@ -1665,6 +1709,40 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
               })}
             </nav>
 
+          </div>
+
+          {/* SIDEBAR FOOTER: Status Heartbeat & Studio Profile */}
+          <div className="space-y-2 pt-4 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+            {/* Realtime Agent Heartbeat */}
+            <div className="flex items-center justify-between px-2 py-1">
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${workerStatus?.isJobRunning ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'}`} />
+                <span className="text-[10px] font-mono font-medium text-zinc-500 dark:text-zinc-400">
+                  {workerStatus?.isJobRunning ? 'Agent Running' : 'Core Engine Online'}
+                </span>
+              </div>
+              <span className="text-[9px] font-mono text-zinc-400">
+                {workerStatus?.nextRun ? `next ${getFutureRelativeTime(workerStatus.nextRun)}` : 'scheduled'}
+              </span>
+            </div>
+
+            {/* Studio Identity Badge */}
+            <div className="flex items-center gap-2.5 px-2 py-2 rounded-2xl bg-[#f5f5f7] dark:bg-[#18181b] border border-[#e5e5e7] dark:border-[#27272a]/60">
+              <div className="h-7 w-7 rounded-full bg-[#e60023]/10 border border-[#e60023]/30 flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-[#e60023] font-jakarta">M</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate leading-none">
+                    Madhan
+                  </p>
+                  <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                    Lead Dev
+                  </span>
+                </div>
+                <p className="text-[9px] font-mono text-zinc-400 truncate mt-0.5">@madhanio</p>
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -1877,6 +1955,30 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                     {activeTab === 'logs' && "Real-time execution log console"}
                     {activeTab === 'stats' && "Historical analytics and performance stats"}
                   </p>
+
+                  {/* Live Status Indicators for Home Tab */}
+                  {activeTab === 'home' && (
+                    <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold font-mono border ${
+                        workerStatus?.isJobRunning
+                          ? 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${workerStatus?.isJobRunning ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'}`} />
+                        {workerStatus?.isJobRunning ? 'Agent Running' : 'Core Engine Operational'}
+                      </span>
+
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold font-mono bg-white dark:bg-[#18181b] border border-[#dadada] dark:border-[#2a2a2a] text-[#767676] dark:text-zinc-300 shadow-2xs">
+                        <span className="text-[#e60023] font-black">{allProfiles.length}</span> profiles indexed
+                      </span>
+
+                      {lastRunTaskFormattedTime !== 'Never' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-mono bg-white dark:bg-[#18181b] border border-[#dadada] dark:border-[#2a2a2a] text-[#767676] dark:text-zinc-400 shadow-2xs">
+                          Last cycle: {lastRunTaskFormattedTime}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Filter Pills for Profiles Tab */}
@@ -2165,31 +2267,31 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
 
                     
                     <div className="grid grid-cols-2 gap-3.5">
-                      {/* GRADED */}
+                      {/* GRADED — Primary Red */}
                       <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
                         <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.total}</span>
                         <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Graded</span>
                       </div>
-                      {/* FOLLOWED */}
+                      {/* FOLLOWED — Cool Blue */}
                       <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
-                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.followed}</span>
+                        <span className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 font-mono leading-none">{stats.followed}</span>
                         <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Followed</span>
                       </div>
-                      {/* MUTUALS */}
+                      {/* MUTUALS — Emerald Success */}
                       <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
-                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.mutuals}</span>
+                        <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono leading-none">{stats.mutuals}</span>
                         <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Mutuals</span>
                       </div>
-                      {/* SKIPPED */}
+                      {/* SKIPPED — Amber Filtered */}
                       <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
-                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.skipped}</span>
+                        <span className="text-3xl font-extrabold text-amber-500 dark:text-amber-400 font-mono leading-none">{stats.skipped}</span>
                         <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Skipped</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Card 5: AI Narrator Card */}
-                  <div className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-default">
+                  <div className="masonry-item bg-gradient-to-br from-rose-50/60 via-white to-white dark:from-rose-950/20 dark:via-[#111111] dark:to-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-default">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-1.5 text-[#e60023]">
                         <Zap className="h-4 w-4 fill-current" />
@@ -2207,9 +2309,14 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
                       "{last3Insights[insightIndex]}"
                     </div>
 
-                    <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676]">
-                      <span className="h-2 w-2 rounded-full bg-[#e60023] animate-pulse" />
-                      <span>GitAuto Agent Alpha</span>
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676]">
+                        <span className="h-2 w-2 rounded-full bg-[#e60023] animate-pulse" />
+                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">FollowMe · AI Core</span>
+                      </div>
+                      <span className="text-[8px] font-mono px-2 py-0.5 rounded-full bg-white dark:bg-[#1c1c1f] text-zinc-400 border border-[#dadada] dark:border-[#2a2a2a]">
+                        Auto-narrated
+                      </span>
                     </div>
                   </div>
 
@@ -2708,8 +2815,40 @@ export default function DashboardView({ initialRepos, initialLogs, initialRunSum
             </div>
           </div>
 
-          <footer className="mt-auto border-t border-[#dadada] dark:border-[#2a2a2a] py-6 text-center text-[10px] font-mono text-[#767676] bg-white dark:bg-[#111111] transition-colors duration-200">
-            <p>FollowMe Dashboard &bull; Verified evaluation runs logged in real time</p>
+          <footer className="mt-auto border-t border-[#dadada] dark:border-[#2a2a2a] px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-[#111111] transition-colors duration-200">
+            {/* Left: Brand Identity */}
+            <div className="flex items-center gap-2 text-[10px] font-mono text-[#767676]">
+              <div className="h-5 w-5 rounded-md bg-[#e60023] flex items-center justify-center text-white shrink-0">
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none">
+                  <circle cx="5" cy="10" r="2.5" fill="white" />
+                  <circle cx="15" cy="5" r="2" fill="white" />
+                  <circle cx="15" cy="15" r="2" fill="white" />
+                  <path d="M7.5 9L13 5.5M7.5 11L13 14.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">FollowMe</span>
+              <span className="opacity-40">&bull;</span>
+              <span className="hidden md:inline">AI-powered GitHub relationship automation engine</span>
+            </div>
+
+            {/* Center: Live verification pulse */}
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#767676]">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Verified evaluation runs recorded live</span>
+            </div>
+
+            {/* Right: Portfolio attribution */}
+            <div className="text-[10px] font-mono text-[#767676] flex items-center gap-1.5">
+              <span>Crafted by</span>
+              <a
+                href="https://github.com/madhanio"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#e60023] hover:underline font-bold transition-colors"
+              >
+                @madhanio
+              </a>
+            </div>
           </footer>
         </main>
       </div>
