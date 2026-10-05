@@ -53,6 +53,17 @@ CREATE TABLE IF NOT EXISTS run_summary (
   run_type text DEFAULT 'evaluation'
 );
 
+-- Create incident_log table for deduplication and incident tracking
+CREATE TABLE IF NOT EXISTS incident_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  incident_type text UNIQUE NOT NULL,
+  last_sent_at timestamptz DEFAULT now(),
+  status text NOT NULL DEFAULT 'ACTIVE', -- 'ACTIVE', 'RESOLVED'
+  metadata jsonb DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_incident_log_type ON incident_log(incident_type);
+
 -- Create settings table as single source of truth for runtime config
 CREATE TABLE IF NOT EXISTS settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -64,9 +75,18 @@ CREATE TABLE IF NOT EXISTS settings (
 ALTER TABLE repos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE run_summary ENABLE ROW LEVEL SECURITY;
+ALTER TABLE incident_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow select" ON repos FOR SELECT USING (true);
 CREATE POLICY "Allow select" ON logs FOR SELECT USING (true);
 CREATE POLICY "Allow select" ON run_summary FOR SELECT USING (true);
-CREATE POLICY "Allow select" ON settings FOR SELECT USING (true);
+
+-- Protect sensitive keys in settings: anon client cannot read github_token or resend_api_key
+CREATE POLICY "Allow select non-sensitive settings" ON settings FOR SELECT USING (
+  key NOT IN ('github_token', 'resend_api_key', 'dashboard_password')
+);
+
+-- incident_log is service-role only, but allow select if needed for diagnostic views
+CREATE POLICY "Allow select incident_log" ON incident_log FOR SELECT USING (true);
+
