@@ -19,7 +19,9 @@ import {
   triggerSyncFollowing,
   saveSystemSettings,
   getGitHubRateLimit,
-  GitHubRateLimitData
+  GitHubRateLimitData,
+  sendTestAlertEmail,
+  SystemHealthState
 } from './actions';
 
 // Recharts components for Stats Tab
@@ -495,6 +497,7 @@ interface DashboardViewProps {
   initialSettings?: Record<string, any>;
   initialTab?: 'home' | 'profiles' | 'repos' | 'logs' | 'stats';
   initialRateLimitData?: GitHubRateLimitData;
+  initialHealthState?: SystemHealthState;
 }
 
 export default function DashboardView({ 
@@ -504,11 +507,13 @@ export default function DashboardView({
   initialUserProfile = null, 
   initialSettings,
   initialTab = 'home',
-  initialRateLimitData
+  initialRateLimitData,
+  initialHealthState,
 }: DashboardViewProps) {
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
+  const [healthState, setHealthState] = useState<SystemHealthState | null>(initialHealthState || null);
   const [repos, setRepos] = useState<Repo[]>(initialRepos);
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [runSummary, setRunSummary] = useState<RunSummary[]>(initialRunSummary);
@@ -742,7 +747,9 @@ export default function DashboardView({
     },
     digestDeliveryTime: '09:00 AM',
     webhookUrl: process.env.NEXT_PUBLIC_DEFAULT_WEBHOOK_URL ?? '',
-    webhookSecret: crypto.randomUUID()
+    webhookSecret: crypto.randomUUID(),
+    resendApiKey: '',
+    githubToken: '',
   }), []);
 
   // Settings State: Saved Master vs Temp Draft
@@ -765,7 +772,9 @@ export default function DashboardView({
   const [secKeySuccess, setSecKeySuccess] = useState<string | null>(null);
   const [isSecKeySubmitting, setIsSecKeySubmitting] = useState(false);
 
-  // Webhook integration & trigger states
+  // Email test & Webhook integration states
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState<{ success?: boolean; message?: string } | null>(null);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [webhookTestStatus, setWebhookTestStatus] = useState<{ success?: boolean; message?: string } | null>(null);
   const [isTriggeringAgent, setIsTriggeringAgent] = useState(false);
@@ -1517,6 +1526,10 @@ export default function DashboardView({
 
   // Action handlings
   const handleSync = async () => {
+    if (healthState?.isGitHubValid === false) {
+      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
+      return;
+    }
     setIsSyncing(true);
     try {
       const res = await triggerSyncFollowing();
@@ -1738,6 +1751,10 @@ export default function DashboardView({
   };
 
   const handleFollowUser = async (username: string) => {
+    if (healthState?.isGitHubValid === false) {
+      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
+      return;
+    }
     setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false, followed_at: new Date().toISOString() } : r));
     setIsActionLoading(true);
     try {
@@ -1758,6 +1775,10 @@ export default function DashboardView({
   };
 
   const handleUnfollowUser = async (username: string) => {
+    if (healthState?.isGitHubValid === false) {
+      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
+      return;
+    }
     setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false, unfollowed: true } : r));
     setIsActionLoading(true);
     try {
@@ -1778,6 +1799,10 @@ export default function DashboardView({
   };
 
   const handleStar = async (owner: string, name: string) => {
+    if (healthState?.isGitHubValid === false) {
+      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
+      return;
+    }
     setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
     try {
       const res = await triggerStar(owner, name);
@@ -2268,8 +2293,9 @@ export default function DashboardView({
 
               <button 
                 onClick={handleTrigger}
-                disabled={isTriggering || workerStatus?.isJobRunning}
-                className="min-h-[36px] px-4 flex items-center space-x-1.5 bg-[#e60023] hover:bg-[#c0001b] disabled:bg-slate-350 text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-40"
+                disabled={isTriggering || workerStatus?.isJobRunning || healthState?.isGitHubValid === false}
+                className="min-h-[36px] px-4 flex items-center space-x-1.5 bg-[#e60023] hover:bg-[#c0001b] disabled:bg-slate-350 disabled:opacity-40 text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 disabled:cursor-not-allowed"
+                title={healthState?.isGitHubValid === false ? 'Disabled: GitHub PAT is expired or invalid. Please update your token in Settings.' : 'Run Automation Task'}
               >
                 <Play className="h-3.5 w-3.5 fill-current shrink-0" />
                 <span>{isTriggering ? 'Running...' : 'Run Task'}</span>
@@ -2379,6 +2405,75 @@ export default function DashboardView({
           {/* MAIN PAGE BODY */}
           <div className="flex-1 p-6 space-y-6 overflow-y-auto">
 
+            {/* CRITICAL INCIDENT BANNER: GITHUB AUTH EXPIRED (Option A: Informative & Safe Offline Snapshot Mode) */}
+            {healthState && healthState.isGitHubValid === false && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in shadow-sm">
+                <div className="flex items-start space-x-3.5">
+                  <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
+                    <ShieldAlert className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-jakarta font-bold text-sm text-[#1a1c1c] dark:text-[#fef3c7]">
+                        GitHub Personal Access Token Expired
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                        Historical Snapshot Mode
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-800 dark:text-amber-300/80 leading-relaxed font-sans max-w-3xl">
+                      Live GitHub authentication failed (401 Bad credentials). FollowMe is showing your last-known database snapshot. Background automation and live mutations (follow, star, sync) are safely paused to prevent errors.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0 w-full md:w-auto">
+                  <button
+                    onClick={() => {
+                      setTempSettings(savedSettings);
+                      setSettingsTab('github');
+                      setIsSettingsOpen(true);
+                    }}
+                    className="flex-1 md:flex-none px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Key className="h-3.5 w-3.5" />
+                    <span>Update Token</span>
+                  </button>
+                  <a
+                    href="https://github.com/settings/tokens/new"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-2 border border-amber-500/40 hover:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-xs font-mono rounded-xl transition flex items-center gap-1"
+                  >
+                    <span>New PAT</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* WORKER OFFLINE ADVISORY BANNER */}
+            {healthState && healthState.isWorkerOnline === false && (
+              <div className="p-3.5 rounded-2xl bg-zinc-100 dark:bg-[#151518] border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 flex items-center justify-between text-xs font-sans">
+                <div className="flex items-center space-x-2.5">
+                  <div className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span>
+                    <strong>Worker Service Offline:</strong> The background worker service is unreachable. Scheduled runs may be delayed.
+                  </span>
+                </div>
+                <button
+                  onClick={async () => {
+                    const { checkSystemHealth } = await import('./actions');
+                    const fresh = await checkSystemHealth();
+                    setHealthState(fresh);
+                  }}
+                  className="font-mono text-[10px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline cursor-pointer"
+                >
+                  Retry Ping
+                </button>
+              </div>
+            )}
+
             {triggerStatus && (
               <div className="p-4 rounded-xl border flex items-center justify-between font-mono text-xs animate-startup-logo bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400">
                 <div className="flex items-center space-x-2.5">
@@ -2394,19 +2489,25 @@ export default function DashboardView({
               </div>
             )}
 
-
             {/* TAB CONTENT GRID CONTAINER */}
             <div className="space-y-6">
                             {/* TAB OPTIONS HEADER */}
               <div className="pb-4 border-b border-[#dadada] dark:border-[#2a2a2a] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-extrabold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
-                    {activeTab === 'home' && `Welcome back, ${userProfile?.name?.split(' ')[0] || userProfile?.login || 'Developer'}!`}
-                    {activeTab === 'profiles' && "Developer Profiles"}
-                    {activeTab === 'repos' && "Repository Pins"}
-                    {activeTab === 'logs' && "Activity Logs"}
-                    {activeTab === 'stats' && "Evaluation Metrics"}
-                  </h2>
+                  <div className="flex items-center space-x-2.5">
+                    <h2 className="text-xl font-extrabold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
+                      {activeTab === 'home' && `Welcome back, ${userProfile?.name?.split(' ')[0] || userProfile?.login || 'Developer'}!`}
+                      {activeTab === 'profiles' && "Developer Profiles"}
+                      {activeTab === 'repos' && "Repository Pins"}
+                      {activeTab === 'logs' && "Activity Logs"}
+                      {activeTab === 'stats' && "Evaluation Metrics"}
+                    </h2>
+                    {healthState && healthState.isGitHubValid === false && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                        Historical / Offline Snapshot
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-zinc-500 font-mono mt-0.5">
                     {activeTab === 'home' && "AI Automated Follow & Graded Repositories Control Center"}
                     {activeTab === 'profiles' && "Evaluated developers & status classifications"}
@@ -4139,9 +4240,25 @@ export default function DashboardView({
                         />
                       </div>
 
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">
+                          Resend API Key (for Automated Incident & Health Reports)
+                        </label>
+                        <input
+                          type="password"
+                          value={tempSettings.resendApiKey || ''}
+                          onChange={(e) => setTempSettings({ ...tempSettings, resendApiKey: e.target.value })}
+                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                          placeholder="re_xxxxxxxxxxxx"
+                        />
+                        <p className="text-[9px] text-zinc-500 mt-1 font-mono">
+                          Stored securely server-side. Used to send zero-spam executive incident alerts directly to your inbox.
+                        </p>
+                      </div>
+
                       <div className="border-t border-[#eeeeee] dark:border-[#2a2a2a] pt-3 space-y-3">
                         <div>
-                          <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Webhook Endpoint URL</label>
+                          <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Webhook Endpoint URL (Optional)</label>
                           <input
                             type="text"
                             value={tempSettings.webhookUrl || ''}
@@ -4150,51 +4267,50 @@ export default function DashboardView({
                             placeholder="e.g. https://api.yoursite.com/webhook"
                           />
                         </div>
-
-                        <div>
-                          <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Webhook Secret Key</label>
-                          <input
-                            type="password"
-                            value={tempSettings.webhookSecret || ''}
-                            onChange={(e) => setTempSettings({ ...tempSettings, webhookSecret: e.target.value })}
-                            className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                            placeholder="••••••••••••••••"
-                          />
-                        </div>
                       </div>
 
                       {/* Setup Guide */}
-                      <div className="p-3 bg-amber-50 dark:bg-[#1f1e18] border border-amber-250 dark:border-amber-900/40 rounded-xl space-y-2 text-[10px] font-sans">
-                        <span className="font-bold text-amber-850 dark:text-amber-400 block flex items-center gap-1">
-                          💡 Understanding Email Digests & Webhooks
+                      <div className="p-3 bg-emerald-50 dark:bg-[#15231c] border border-emerald-200 dark:border-emerald-800/40 rounded-xl space-y-1.5 text-[10px] font-sans">
+                        <span className="font-bold text-emerald-800 dark:text-emerald-300 block flex items-center gap-1">
+                          🛡️ Resend High-Priority Incident Pipeline
                         </span>
-                        <p className="text-zinc-650 dark:text-zinc-405 leading-normal">
-                          Because the FollowMe dashboard runs locally in your browser, it cannot send emails directly. To receive daily digests:
+                        <p className="text-zinc-600 dark:text-zinc-400 leading-normal">
+                          When your GitHub PAT expires, NVIDIA NIM credits deplete, or rate limits are reached, FollowMe sends a crisp executive report with direct resolution links.
                         </p>
-                        <ul className="list-disc list-inside space-y-1 text-zinc-500 dark:text-zinc-400 pl-1 leading-normal">
-                          <li>You must host a simple webhook receiver endpoint (e.g. on Vercel, Netlify, or your server).</li>
-                          <li>FollowMe automatically posts the execution payload to your configured URL below upon run completion.</li>
-                          <li>Your receiver endpoint must then call an email provider API (like Resend, SendGrid, or Mailgun) to dispatch the formatted summary to <span className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 rounded text-zinc-700 dark:text-zinc-300">{tempSettings.recipientEmail}</span>.</li>
-                        </ul>
                       </div>
 
-                      {/* Webhook & Trigger Controls */}
-                      <div className="flex gap-2.5 pt-1">
+                      {/* Action Controls */}
+                      <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
                         <button
                           type="button"
-                          onClick={handleTestWebhook}
-                          disabled={isTestingWebhook}
-                          className="flex-1 py-2 border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] text-[10px] font-bold rounded-xl transition cursor-pointer font-geist flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                          onClick={async () => {
+                            setIsSendingTestEmail(true);
+                            setTestEmailStatus(null);
+                            try {
+                              const res = await sendTestAlertEmail(tempSettings.recipientEmail, tempSettings.resendApiKey);
+                              if (res.success) {
+                                setTestEmailStatus({ success: true, message: `Test email dispatched to ${tempSettings.recipientEmail}!` });
+                              } else {
+                                setTestEmailStatus({ success: false, message: res.error || 'Failed to dispatch test email' });
+                              }
+                            } catch (err: any) {
+                              setTestEmailStatus({ success: false, message: err.message || 'Error sending test email' });
+                            } finally {
+                              setIsSendingTestEmail(false);
+                            }
+                          }}
+                          disabled={isSendingTestEmail}
+                          className="flex-1 py-2 bg-zinc-900 hover:bg-black dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white text-[10px] font-bold rounded-xl transition cursor-pointer font-geist flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
                         >
-                          {isTestingWebhook ? (
+                          {isSendingTestEmail ? (
                             <>
-                              <span className="h-3 w-3 border-2 border-zinc-400 border-t-zinc-850 rounded-full animate-spin" />
-                              <span>Testing...</span>
+                              <span className="h-3 w-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              <span>Dispatching...</span>
                             </>
                           ) : (
                             <>
-                              <Send className="h-3 w-3 text-blue-500" />
-                              <span>Test Webhook</span>
+                              <Mail className="h-3 w-3 text-emerald-400" />
+                              <span>Send Test Alert Email</span>
                             </>
                           )}
                         </button>
@@ -4202,8 +4318,8 @@ export default function DashboardView({
                         <button
                           type="button"
                           onClick={handleTriggerAgent}
-                          disabled={isTriggeringAgent}
-                          className="flex-1 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-[10px] font-bold rounded-xl transition cursor-pointer font-geist flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                          disabled={isTriggeringAgent || healthState?.isGitHubValid === false}
+                          className="flex-1 py-2 bg-[#e60023] hover:bg-[#c0001b] disabled:opacity-50 text-white text-[10px] font-bold rounded-xl transition cursor-pointer font-geist flex items-center justify-center gap-1.5 active:scale-95"
                         >
                           {isTriggeringAgent ? (
                             <>
@@ -4220,13 +4336,13 @@ export default function DashboardView({
                       </div>
 
                       {/* Status banners */}
-                      {webhookTestStatus && (
+                      {testEmailStatus && (
                         <div className={`p-2.5 rounded-xl border text-[10px] font-mono font-medium animate-in slide-in-from-top-2 ${
-                          webhookTestStatus.success 
+                          testEmailStatus.success 
                             ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
-                            : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-455'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
                         }`}>
-                          {webhookTestStatus.message}
+                          {testEmailStatus.message}
                         </div>
                       )}
 
@@ -4248,7 +4364,7 @@ export default function DashboardView({
               {settingsTab === 'github' && (
                 <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-4 animate-in fade-in">
                   <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                    <GithubIcon className="h-4 w-4 text-[#e60023]" /> GitHub Account Integration
+                    <GithubIcon className="h-4 w-4 text-[#e60023]" /> GitHub Account & Credentials
                   </h4>
 
                   <div className="p-4 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -4269,13 +4385,13 @@ export default function DashboardView({
                           <span className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">
                             {userProfile?.login ? `@${userProfile.login}` : 'Not Connected'}
                           </span>
-                          {userProfile?.login ? (
+                          {healthState?.isGitHubValid ? (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                              Active
+                              Connected & Healthy
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                              Setup Needed
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                              Authentication Expired / Invalid
                             </span>
                           )}
                         </div>
@@ -4299,10 +4415,37 @@ export default function DashboardView({
                     </button>
                   </div>
 
+                  {/* Manual PAT Configuration */}
+                  <div className="p-4 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] flex items-center gap-1.5 font-jakarta">
+                        <Key className="h-3.5 w-3.5 text-[#e60023]" /> Personal Access Token (PAT)
+                      </label>
+                      <a
+                        href="https://github.com/settings/tokens/new"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[#e60023] hover:underline font-mono flex items-center gap-1"
+                      >
+                        Generate on GitHub <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      value={tempSettings.githubToken || ''}
+                      onChange={(e) => setTempSettings({ ...tempSettings, githubToken: e.target.value })}
+                      className="w-full bg-zinc-50 dark:bg-[#151518] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    />
+                    <p className="text-[10px] text-zinc-500 font-mono">
+                      Required scopes: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">public_repo</code>, <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">user:follow</code>, <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">read:user</code>.
+                    </p>
+                  </div>
+
                   <div className="p-3 bg-zinc-50 dark:bg-[#151518] border border-zinc-200 dark:border-zinc-800 rounded-xl text-[11px] font-sans text-zinc-600 dark:text-zinc-400 space-y-1">
-                    <p className="font-bold text-zinc-800 dark:text-zinc-200">ℹ️ How Account Connection Works</p>
+                    <p className="font-bold text-zinc-800 dark:text-zinc-200">ℹ️ Updating Your Token</p>
                     <p className="leading-relaxed text-[10px]">
-                      FollowMe uses GitHub OAuth solely to authorize API actions (follow, star, and fetch repo details). Daily dashboard access is protected by your Master Password.
+                      Pasting a new PAT here and clicking "Save Settings" immediately restores live connection, clears the offline snapshot banner, and re-enables all background tasks.
                     </p>
                   </div>
                 </div>
@@ -4337,6 +4480,12 @@ export default function DashboardView({
                     localStorage.setItem('savedSettings', JSON.stringify(tempSettings));
                     setIsSettingsOpen(false);
                     await saveSystemSettings(tempSettings);
+                    try {
+                      const { checkSystemHealth } = await import('./actions');
+                      const freshHealth = await checkSystemHealth();
+                      setHealthState(freshHealth);
+                    } catch (_) {}
+                    router.refresh();
                   }}
                   className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm"
                 >
