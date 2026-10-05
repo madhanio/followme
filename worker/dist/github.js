@@ -3,6 +3,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.FatalGitHubRateLimitError = exports.FatalGitHubAuthError = exports.getGitHubUsername = exports.getGitHubToken = void 0;
+exports.setRuntimeGitHubCredentials = setRuntimeGitHubCredentials;
+exports.getRuntimeGitHubToken = getRuntimeGitHubToken;
 exports.fetchGitHub = fetchGitHub;
 exports.checkOwnerProfile = checkOwnerProfile;
 exports.searchRecentRepos = searchRecentRepos;
@@ -18,30 +21,73 @@ exports.getGitHubFollowers = getGitHubFollowers;
 exports.getAuthenticatedUserStats = getAuthenticatedUserStats;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_USERNAME = process.env.GITHUB_USERNAME;
-const DEFAULT_HEADERS = {
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'FollowMe-Automation-Worker',
-};
-if (GITHUB_TOKEN) {
-    DEFAULT_HEADERS['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+let currentGitHubToken = process.env.GITHUB_TOKEN;
+let currentGitHubUsername = process.env.GITHUB_USERNAME;
+// Backward-compatible accessors
+const getGitHubToken = () => currentGitHubToken;
+exports.getGitHubToken = getGitHubToken;
+const getGitHubUsername = () => currentGitHubUsername;
+exports.getGitHubUsername = getGitHubUsername;
+Object.defineProperty(globalThis, '__GITHUB_TOKEN__', { get: () => currentGitHubToken });
+Object.defineProperty(globalThis, '__GITHUB_USERNAME__', { get: () => currentGitHubUsername });
+function setRuntimeGitHubCredentials(token, username) {
+    if (token) {
+        currentGitHubToken = token;
+    }
+    if (username) {
+        currentGitHubUsername = username;
+    }
 }
-else {
-    console.warn('Missing GITHUB_TOKEN. GitHub API rate limits will be highly restricted.');
+function getRuntimeGitHubToken() {
+    return currentGitHubToken;
+}
+class FatalGitHubAuthError extends Error {
+    statusCode = 401;
+    constructor(message = 'GitHub Personal Access Token is expired, invalid, or revoked.') {
+        super(message);
+        this.name = 'FatalGitHubAuthError';
+    }
+}
+exports.FatalGitHubAuthError = FatalGitHubAuthError;
+class FatalGitHubRateLimitError extends Error {
+    statusCode;
+    resetTime;
+    constructor(message, statusCode = 403, resetTime) {
+        super(message);
+        this.name = 'FatalGitHubRateLimitError';
+        this.statusCode = statusCode;
+        this.resetTime = resetTime;
+    }
+}
+exports.FatalGitHubRateLimitError = FatalGitHubRateLimitError;
+function getHeaders() {
+    const headers = {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'FollowMe-Automation-Worker',
+    };
+    if (currentGitHubToken) {
+        headers['Authorization'] = `Bearer ${currentGitHubToken}`;
+    }
+    return headers;
 }
 /**
  * Robust fetch wrapper for GitHub API with rate limit detection, retry with backoff,
- * and header inspection (x-ratelimit-remaining, retry-after, x-ratelimit-reset).
+ * immediate 401 fail-fast, and header inspection.
  */
 async function fetchGitHub(url, options = {}, maxRetries = 3) {
     const headers = {
-        ...DEFAULT_HEADERS,
+        ...getHeaders(),
         ...(options.headers || {}),
     };
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             const res = await fetch(url, { ...options, headers });
+            // Immediate fail-fast on 401 (token expired/invalid) - DO NOT RETRY
+            if (res.status === 401) {
+                const bodyText = await res.clone().text().catch(() => '');
+                console.error(`[GitHub Auth] 401 Unauthorized received for ${url}: ${bodyText}`);
+                throw new FatalGitHubAuthError(`GitHub authentication failed (401 Bad credentials): ${bodyText}`);
+            }
             // Inspect rate limit headers
             const remaining = res.headers.get('x-ratelimit-remaining');
             const resetTime = res.headers.get('x-ratelimit-reset');
@@ -57,7 +103,10 @@ async function fetchGitHub(url, options = {}, maxRetries = 3) {
                     bodyText.toLowerCase().includes('rate limit') ||
                     bodyText.toLowerCase().includes('secondary rate limit') ||
                     bodyText.toLowerCase().includes('abuse');
-                if (isRateLimit && attempt < maxRetries) {
+                if (isRateLimit) {
+                    if (attempt >= maxRetries) {
+                        throw new FatalGitHubRateLimitError(`GitHub rate limit or abuse detection triggered (${res.status}): ${bodyText}`, res.status, resetTime);
+                    }
                     let waitMs = 3000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 1000);
                     if (retryAfter) {
                         waitMs = Math.max(waitMs, parseInt(retryAfter, 10) * 1000);
@@ -217,7 +266,7 @@ async function fetchRepoReadme(owner, name) {
  * Stars a repository for the authenticated user.
  */
 async function starRepo(owner, name) {
-    if (!GITHUB_TOKEN) {
+    if (!currentGitHubToken) {
         console.warn('Cannot star repository: GITHUB_TOKEN is missing');
         return false;
     }
@@ -248,7 +297,7 @@ async function starRepo(owner, name) {
  * Follows a GitHub user.
  */
 async function followUser(username) {
-    if (!GITHUB_TOKEN) {
+    if (!currentGitHubToken) {
         console.warn('Cannot follow user: GITHUB_TOKEN is missing');
         return false;
     }
@@ -279,7 +328,7 @@ async function followUser(username) {
  * Unfollows a GitHub user.
  */
 async function unfollowUser(username) {
-    if (!GITHUB_TOKEN) {
+    if (!currentGitHubToken) {
         console.warn('Cannot unfollow user: GITHUB_TOKEN is missing');
         return false;
     }
@@ -307,16 +356,16 @@ async function unfollowUser(username) {
  * Checks if another user follows the authenticated user.
  */
 async function checkIfFollowsBack(username) {
-    if (!GITHUB_TOKEN || !GITHUB_USERNAME) {
+    if (!currentGitHubToken || !currentGitHubUsername) {
         console.warn('Cannot check follow-back status: GITHUB_TOKEN or GITHUB_USERNAME is missing');
         return false;
     }
     try {
-        const url = `https://api.github.com/users/${username}/following/${GITHUB_USERNAME}`;
+        const url = `https://api.github.com/users/${username}/following/${currentGitHubUsername}`;
         const res = await fetchGitHub(url);
-        // 204 means username follows GITHUB_USERNAME, 404 means they don't
+        // 204 means username follows currentGitHubUsername, 404 means they don't
         if (res.status === 204) {
-            console.log(`User ${username} follows back ${GITHUB_USERNAME}`);
+            console.log(`User ${username} follows back ${currentGitHubUsername}`);
             return true;
         }
         return false;
@@ -330,7 +379,7 @@ async function checkIfFollowsBack(username) {
  * Unstars a repository for the authenticated user.
  */
 async function unstarRepo(owner, name) {
-    if (!GITHUB_TOKEN) {
+    if (!currentGitHubToken) {
         console.warn('Cannot unstar repository: GITHUB_TOKEN is missing');
         return false;
     }
@@ -358,7 +407,7 @@ async function unstarRepo(owner, name) {
  * Fetches the entire list of users the authenticated user is following (paginated).
  */
 async function getGitHubFollowing() {
-    if (!GITHUB_TOKEN) {
+    if (!currentGitHubToken) {
         console.warn('Cannot fetch following: GITHUB_TOKEN is missing');
         return [];
     }
@@ -395,7 +444,7 @@ async function getGitHubFollowing() {
  * Fetches the entire list of followers for the authenticated user with details (paginated).
  */
 async function getGitHubFollowersDetails() {
-    if (!GITHUB_TOKEN) {
+    if (!currentGitHubToken) {
         console.warn('Cannot fetch followers: GITHUB_TOKEN is missing');
         return [];
     }
@@ -444,7 +493,7 @@ async function getGitHubFollowers() {
  * Fetches live followers and following counts for the authenticated user.
  */
 async function getAuthenticatedUserStats() {
-    if (!GITHUB_TOKEN) {
+    if (!currentGitHubToken) {
         return null;
     }
     try {

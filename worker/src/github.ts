@@ -3,23 +3,61 @@ import { RepoMetadata } from './types';
 
 dotenv.config();
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_USERNAME = process.env.GITHUB_USERNAME;
+let currentGitHubToken = process.env.GITHUB_TOKEN;
+let currentGitHubUsername = process.env.GITHUB_USERNAME;
 
-const DEFAULT_HEADERS: Record<string, string> = {
-  Accept: 'application/vnd.github+json',
-  'User-Agent': 'FollowMe-Automation-Worker',
-};
+// Backward-compatible accessors
+export const getGitHubToken = () => currentGitHubToken;
+export const getGitHubUsername = () => currentGitHubUsername;
+Object.defineProperty(globalThis, '__GITHUB_TOKEN__', { get: () => currentGitHubToken });
+Object.defineProperty(globalThis, '__GITHUB_USERNAME__', { get: () => currentGitHubUsername });
 
-if (GITHUB_TOKEN) {
-  DEFAULT_HEADERS['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
-} else {
-  console.warn('Missing GITHUB_TOKEN. GitHub API rate limits will be highly restricted.');
+export function setRuntimeGitHubCredentials(token?: string, username?: string) {
+  if (token) {
+    currentGitHubToken = token;
+  }
+  if (username) {
+    currentGitHubUsername = username;
+  }
+}
+
+export function getRuntimeGitHubToken(): string | undefined {
+  return currentGitHubToken;
+}
+
+export class FatalGitHubAuthError extends Error {
+  public statusCode: number = 401;
+  constructor(message: string = 'GitHub Personal Access Token is expired, invalid, or revoked.') {
+    super(message);
+    this.name = 'FatalGitHubAuthError';
+  }
+}
+
+export class FatalGitHubRateLimitError extends Error {
+  public statusCode: number;
+  public resetTime?: string | null;
+  constructor(message: string, statusCode: number = 403, resetTime?: string | null) {
+    super(message);
+    this.name = 'FatalGitHubRateLimitError';
+    this.statusCode = statusCode;
+    this.resetTime = resetTime;
+  }
+}
+
+function getHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'FollowMe-Automation-Worker',
+  };
+  if (currentGitHubToken) {
+    headers['Authorization'] = `Bearer ${currentGitHubToken}`;
+  }
+  return headers;
 }
 
 /**
  * Robust fetch wrapper for GitHub API with rate limit detection, retry with backoff,
- * and header inspection (x-ratelimit-remaining, retry-after, x-ratelimit-reset).
+ * immediate 401 fail-fast, and header inspection.
  */
 export async function fetchGitHub(
   url: string,
@@ -27,13 +65,20 @@ export async function fetchGitHub(
   maxRetries: number = 3
 ): Promise<Response> {
   const headers = {
-    ...DEFAULT_HEADERS,
+    ...getHeaders(),
     ...(options.headers as Record<string, string> || {}),
   };
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(url, { ...options, headers });
+
+      // Immediate fail-fast on 401 (token expired/invalid) - DO NOT RETRY
+      if (res.status === 401) {
+        const bodyText = await res.clone().text().catch(() => '');
+        console.error(`[GitHub Auth] 401 Unauthorized received for ${url}: ${bodyText}`);
+        throw new FatalGitHubAuthError(`GitHub authentication failed (401 Bad credentials): ${bodyText}`);
+      }
 
       // Inspect rate limit headers
       const remaining = res.headers.get('x-ratelimit-remaining');
@@ -54,8 +99,12 @@ export async function fetchGitHub(
           bodyText.toLowerCase().includes('secondary rate limit') ||
           bodyText.toLowerCase().includes('abuse');
 
-        if (isRateLimit && attempt < maxRetries) {
+        if (isRateLimit) {
+          if (attempt >= maxRetries) {
+            throw new FatalGitHubRateLimitError(`GitHub rate limit or abuse detection triggered (${res.status}): ${bodyText}`, res.status, resetTime);
+          }
           let waitMs = 3000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 1000);
+
 
           if (retryAfter) {
             waitMs = Math.max(waitMs, parseInt(retryAfter, 10) * 1000);
@@ -242,7 +291,7 @@ export async function fetchRepoReadme(owner: string, name: string): Promise<stri
  * Stars a repository for the authenticated user.
  */
 export async function starRepo(owner: string, name: string): Promise<boolean> {
-  if (!GITHUB_TOKEN) {
+  if (!currentGitHubToken) {
     console.warn('Cannot star repository: GITHUB_TOKEN is missing');
     return false;
   }
@@ -273,7 +322,7 @@ export async function starRepo(owner: string, name: string): Promise<boolean> {
  * Follows a GitHub user.
  */
 export async function followUser(username: string): Promise<boolean> {
-  if (!GITHUB_TOKEN) {
+  if (!currentGitHubToken) {
     console.warn('Cannot follow user: GITHUB_TOKEN is missing');
     return false;
   }
@@ -304,7 +353,7 @@ export async function followUser(username: string): Promise<boolean> {
  * Unfollows a GitHub user.
  */
 export async function unfollowUser(username: string): Promise<boolean> {
-  if (!GITHUB_TOKEN) {
+  if (!currentGitHubToken) {
     console.warn('Cannot unfollow user: GITHUB_TOKEN is missing');
     return false;
   }
@@ -332,17 +381,17 @@ export async function unfollowUser(username: string): Promise<boolean> {
  * Checks if another user follows the authenticated user.
  */
 export async function checkIfFollowsBack(username: string): Promise<boolean> {
-  if (!GITHUB_TOKEN || !GITHUB_USERNAME) {
+  if (!currentGitHubToken || !currentGitHubUsername) {
     console.warn('Cannot check follow-back status: GITHUB_TOKEN or GITHUB_USERNAME is missing');
     return false;
   }
   try {
-    const url = `https://api.github.com/users/${username}/following/${GITHUB_USERNAME}`;
+    const url = `https://api.github.com/users/${username}/following/${currentGitHubUsername}`;
     const res = await fetchGitHub(url);
     
-    // 204 means username follows GITHUB_USERNAME, 404 means they don't
+    // 204 means username follows currentGitHubUsername, 404 means they don't
     if (res.status === 204) {
-      console.log(`User ${username} follows back ${GITHUB_USERNAME}`);
+      console.log(`User ${username} follows back ${currentGitHubUsername}`);
       return true;
     }
     
@@ -357,7 +406,7 @@ export async function checkIfFollowsBack(username: string): Promise<boolean> {
  * Unstars a repository for the authenticated user.
  */
 export async function unstarRepo(owner: string, name: string): Promise<boolean> {
-  if (!GITHUB_TOKEN) {
+  if (!currentGitHubToken) {
     console.warn('Cannot unstar repository: GITHUB_TOKEN is missing');
     return false;
   }
@@ -385,7 +434,7 @@ export async function unstarRepo(owner: string, name: string): Promise<boolean> 
  * Fetches the entire list of users the authenticated user is following (paginated).
  */
 export async function getGitHubFollowing(): Promise<string[]> {
-  if (!GITHUB_TOKEN) {
+  if (!currentGitHubToken) {
     console.warn('Cannot fetch following: GITHUB_TOKEN is missing');
     return [];
   }
@@ -429,7 +478,7 @@ export interface GitHubFollowerDetails {
  * Fetches the entire list of followers for the authenticated user with details (paginated).
  */
 export async function getGitHubFollowersDetails(): Promise<GitHubFollowerDetails[]> {
-  if (!GITHUB_TOKEN) {
+  if (!currentGitHubToken) {
     console.warn('Cannot fetch followers: GITHUB_TOKEN is missing');
     return [];
   }
@@ -479,7 +528,7 @@ export async function getGitHubFollowers(): Promise<string[]> {
  * Fetches live followers and following counts for the authenticated user.
  */
 export async function getAuthenticatedUserStats(): Promise<{ followers: number; following: number; ratio: number } | null> {
-  if (!GITHUB_TOKEN) {
+  if (!currentGitHubToken) {
     return null;
   }
   try {
