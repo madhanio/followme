@@ -156,7 +156,7 @@ export async function checkSystemHealth(): Promise<SystemHealthState> {
 /**
  * Sends a test alert email to verify Resend delivery
  */
-export async function sendTestAlertEmail(targetEmail?: string, customApiKey?: string) {
+export async function sendTestAlertEmail(targetEmail?: string, customApiKey?: string, customSenderName?: string) {
   const isAuth = await verifyAuthSession();
   if (!isAuth) {
     return { success: false, error: 'Unauthorized: Please log in to perform this action.' };
@@ -173,6 +173,20 @@ export async function sendTestAlertEmail(targetEmail?: string, customApiKey?: st
     return { success: false, error: 'No Resend API Key configured. Please enter your RESEND_API_KEY in Settings.' };
   }
 
+  // Dynamically inspect request host so the dashboard link always points to the live app
+  let appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl || appUrl.includes('localhost')) {
+    try {
+      const headerList = await headers();
+      const host = headerList.get('x-forwarded-host') || headerList.get('host');
+      const proto = headerList.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+      if (host) {
+        appUrl = `${proto}://${host}`;
+      }
+    } catch (_) {}
+  }
+  if (!appUrl) appUrl = 'http://localhost:3000';
+
   const result = await sendIncidentEmail({
     incidentType: 'TEST_ALERT',
     severity: 'INFO',
@@ -184,10 +198,11 @@ export async function sendTestAlertEmail(targetEmail?: string, customApiKey?: st
       'Target Recipient': recipient,
       'Environment': process.env.NODE_ENV || 'production',
     },
-    actionUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    actionUrl: appUrl,
     actionText: 'Return to Dashboard →',
     recipient,
     resendApiKey: apiKey,
+    senderName: customSenderName || settings?.senderName || process.env.EMAIL_SENDER_NAME,
   });
 
   return result;

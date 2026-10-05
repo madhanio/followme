@@ -1,4 +1,4 @@
-﻿/**
+/**
  * FollowMe Incident & Digest Email Service
  * Powered by Resend REST API (Zero external SDK dependencies for maximum reliability)
  */
@@ -14,6 +14,7 @@ export interface IncidentEmailOptions {
   recipient: string;
   resendApiKey?: string;
   fromDomain?: string; // Optional custom verified domain
+  senderName?: string; // Customizable display name (default: FollowMe System)
   supabaseClient?: any; // If provided, checks incident_log for dedup
 }
 
@@ -242,11 +243,11 @@ export async function sendIncidentEmail(options: IncidentEmailOptions): Promise<
     return { success: true, skipped: true };
   }
 
-  // Use custom domain if configured, or default to standard verified sender
-  // TODO: Update 'fromDomain' to your custom verified domain in Resend (e.g. notifications@yourdomain.com)
+  // Use customizable sender name and domain
+  const senderDisplayName = (options.senderName || process.env.EMAIL_SENDER_NAME || 'FollowMe System').trim();
   const fromEmail = options.fromDomain 
-    ? `FollowMe System <notifications@${options.fromDomain}>` 
-    : 'FollowMe System <onboarding@resend.dev>';
+    ? `${senderDisplayName} <notifications@${options.fromDomain}>` 
+    : `${senderDisplayName} <onboarding@resend.dev>`;
 
   try {
     const res = await fetch('https://api.resend.com/emails', {

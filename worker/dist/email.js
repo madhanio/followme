@@ -203,11 +203,11 @@ async function sendIncidentEmail(options) {
     if (!shouldSend) {
         return { success: true, skipped: true };
     }
-    // Use custom domain if configured, or default to standard verified sender
-    // TODO: Update 'fromDomain' to your custom verified domain in Resend (e.g. notifications@yourdomain.com)
+    // Use customizable sender name and domain
+    const senderDisplayName = (options.senderName || process.env.EMAIL_SENDER_NAME || 'FollowMe System').trim();
     const fromEmail = options.fromDomain
-        ? `FollowMe System <notifications@${options.fromDomain}>`
-        : 'FollowMe System <onboarding@resend.dev>';
+        ? `${senderDisplayName} <notifications@${options.fromDomain}>`
+        : `${senderDisplayName} <onboarding@resend.dev>`;
     try {
         const res = await fetch('https://api.resend.com/emails', {
             method: 'POST',

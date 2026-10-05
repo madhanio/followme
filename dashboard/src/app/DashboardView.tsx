@@ -750,6 +750,7 @@ export default function DashboardView({
     webhookSecret: crypto.randomUUID(),
     resendApiKey: '',
     githubToken: '',
+    senderName: 'FollowMe System',
   }), []);
 
   // Settings State: Saved Master vs Temp Draft
@@ -4256,6 +4257,22 @@ export default function DashboardView({
                         </p>
                       </div>
 
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">
+                          Email Sender Display Name
+                        </label>
+                        <input
+                          type="text"
+                          value={tempSettings.senderName || ''}
+                          onChange={(e) => setTempSettings({ ...tempSettings, senderName: e.target.value })}
+                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
+                          placeholder="e.g. FollowMe Ops, My Custom Bot"
+                        />
+                        <p className="text-[9px] text-zinc-500 mt-1 font-mono">
+                          The sender name displayed in your inbox (defaults to FollowMe System).
+                        </p>
+                      </div>
+
                       <div className="border-t border-[#eeeeee] dark:border-[#2a2a2a] pt-3 space-y-3">
                         <div>
                           <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Webhook Endpoint URL (Optional)</label>
@@ -4287,7 +4304,7 @@ export default function DashboardView({
                             setIsSendingTestEmail(true);
                             setTestEmailStatus(null);
                             try {
-                              const res = await sendTestAlertEmail(tempSettings.recipientEmail, tempSettings.resendApiKey);
+                              const res = await sendTestAlertEmail(tempSettings.recipientEmail, tempSettings.resendApiKey, tempSettings.senderName);
                               if (res.success) {
                                 setTestEmailStatus({ success: true, message: `Test email dispatched to ${tempSettings.recipientEmail}!` });
                               } else {
