@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo, getGitHubFollowing, getGitHubFollowers, getGitHubFollowersDetails, getAuthenticatedUserStats } from './github';
+import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo, getGitHubFollowing, getGitHubFollowers, getGitHubFollowersDetails, getAuthenticatedUserStats, FatalGitHubAuthError, FatalGitHubRateLimitError, setRuntimeGitHubCredentials } from './github';
 import { gradeRepository, FatalAiQuotaError, isAiQuotaOrAuthError } from './nvidia';
-import { supabase, isRepoGraded, saveRepo, logAction, fetchSystemSettings, SystemRuntimeConfig, fetchAllRows } from './supabase';
+import { supabase, isRepoGraded, saveRepo, logAction, fetchSystemSettings, SystemRuntimeConfig, fetchAllRows, DEFAULT_RUNTIME_CONFIG } from './supabase';
+import { sendIncidentEmail } from './email';
 
 dotenv.config();
 
@@ -102,6 +103,11 @@ async function runAutomationJob(isManual: boolean = false) {
     const config = await fetchSystemSettings();
     console.log(`Loaded runtime settings: maxProfilesPerRun=${config.maxProfilesPerRun}, gradeThreshold=${config.gradeThreshold}, activeWorkingHours=${config.activeWorkingHours}`);
 
+    // Synchronize dynamic credentials from DB settings if provided
+    if (config.githubToken) {
+      setRuntimeGitHubCredentials(config.githubToken);
+    }
+
     // Enforce active working hours check if defined (format: "HH:MM - HH:MM"), unless triggered manually by user
     if (!isManual && config.activeWorkingHours && config.activeWorkingHours !== '00:00 - 24:00') {
       const match = config.activeWorkingHours.match(/^(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})$/);
@@ -125,7 +131,10 @@ async function runAutomationJob(isManual: boolean = false) {
 
     await logAction('SYSTEM', null, 'SUCCESS', `Automation job started (${isManual ? 'Manual' : 'Scheduled'})`);
 
-    const liveFollowingList = await getGitHubFollowing().catch(() => []);
+    const liveFollowingList = await getGitHubFollowing().catch((err: any) => {
+      if (err instanceof FatalGitHubAuthError) throw err;
+      return [];
+    });
     const liveFollowingSet = new Set(liveFollowingList.map(u => u.toLowerCase()));
 
     const repos = await searchRecentRepos(TOPICS);
@@ -423,9 +432,98 @@ async function runAutomationJob(isManual: boolean = false) {
     }
   } catch (err: any) {
     stats.failed++;
-    consecutiveFailures++;
-    console.error('Fatal error during automated run:', err.message || err);
+    console.error('Error during automated run:', err.message || err);
 
+    const config = await fetchSystemSettings().catch(() => DEFAULT_RUNTIME_CONFIG);
+    const recipient = config.recipientEmail || process.env.NOTIFICATION_EMAIL || process.env.RECIPIENT_EMAIL;
+
+    // SCENARIO 1: GITHUB PAT EXPIRED OR INVALID (401 Bad credentials)
+    if (err instanceof FatalGitHubAuthError || (err.message && err.message.toLowerCase().includes('bad credentials')) || err.statusCode === 401) {
+      console.error('[CRITICAL] GitHub Personal Access Token expired or invalid. Exiting run cleanly without retrying.');
+      await logFatalErrorOrWarn(`GitHub PAT expired/invalid: ${err.message}`, 'ERROR');
+
+      if (recipient) {
+        await sendIncidentEmail({
+          incidentType: 'GITHUB_AUTH_EXPIRED',
+          severity: 'CRITICAL',
+          title: 'GitHub Personal Access Token Expired',
+          summary: 'FollowMe has detected that your configured GitHub Personal Access Token (PAT) has expired or been revoked. As a defensive measure, all automated background actions (repository discovery, grading, starring, and following) have been immediately suspended to prevent errors.',
+          details: {
+            'Service Status': 'Suspended (Awaiting Valid Credentials)',
+            'HTTP Response': '401 Unauthorized / Bad credentials',
+            'Worker Host': process.env.RENDER_SERVICE_NAME || 'Render Worker',
+            'Action Needed': 'Regenerate token with scopes: public_repo, user:follow, read:user',
+          },
+          actionUrl: 'https://github.com/settings/tokens/new',
+          actionText: 'Generate New GitHub Token →',
+          recipient,
+          resendApiKey: config.resendApiKey,
+          fromDomain: config.fromDomain,
+          supabaseClient: supabase,
+        });
+      }
+
+      // Exit cleanly: no retry storm, no crash
+      return { status: 'failed_auth', error: 'GitHub PAT expired' };
+    }
+
+    // SCENARIO 2: AI MODEL QUOTA OR CREDITS EXHAUSTED (402, 429, FatalAiQuotaError)
+    if (err instanceof FatalAiQuotaError || isAiQuotaOrAuthError(err)) {
+      console.error('[CRITICAL] AI Model credits exhausted or quota exceeded. Ceasing AI operations cleanly.');
+      await logFatalErrorOrWarn(`AI Quota/Auth exhausted: ${err.message}`, 'ERROR');
+
+      if (recipient) {
+        await sendIncidentEmail({
+          incidentType: 'AI_QUOTA_EXHAUSTED',
+          severity: 'CRITICAL',
+          title: 'AI LLM API Quota Exhausted',
+          summary: 'FollowMe was unable to grade repositories because your NVIDIA NIM or Groq API key has run out of credits, exceeded its rate limit, or expired. Background evaluation has been safely paused.',
+          details: {
+            'Service Status': 'Grading Paused (Quota Exceeded)',
+            'Error Detail': err.message,
+            'Provider': process.env.NVIDIA_API_KEY ? 'NVIDIA NIM' : 'Groq',
+          },
+          actionUrl: 'https://build.nvidia.com/',
+          actionText: 'Review NVIDIA NIM Quota →',
+          recipient,
+          resendApiKey: config.resendApiKey,
+          fromDomain: config.fromDomain,
+          supabaseClient: supabase,
+        });
+      }
+
+      // Exit cleanly: no infinite retry storm
+      return { status: 'failed_ai_quota', error: 'AI credits exhausted' };
+    }
+
+    // SCENARIO 3: GITHUB RATE LIMIT REACHED (403 Abuse / Secondary rate limit)
+    if (err instanceof FatalGitHubRateLimitError || (err.message && err.message.toLowerCase().includes('rate limit'))) {
+      console.warn('[WARNING] GitHub secondary rate limit hit. Pausing worker until reset.');
+      await logFatalErrorOrWarn(`GitHub rate limit hit: ${err.message}`, 'WARN');
+
+      if (recipient) {
+        await sendIncidentEmail({
+          incidentType: 'GITHUB_RATE_LIMITED',
+          severity: 'WARNING',
+          title: 'GitHub API Rate Limit Wall Hit',
+          summary: 'FollowMe has reached the GitHub API rate limit threshold or encountered a secondary anti-abuse restriction. Background calls have been throttled until the quota window resets.',
+          details: {
+            'Service Status': 'Throttled (Temporary)',
+            'Reset Epoch': err.resetTime || 'Within 60 minutes',
+            'Recommendation': 'Ensure maxProfilesPerRun and dailyFollowLimit are within safe thresholds.',
+          },
+          recipient,
+          resendApiKey: config.resendApiKey,
+          fromDomain: config.fromDomain,
+          supabaseClient: supabase,
+        });
+      }
+
+      return { status: 'rate_limited', error: 'GitHub rate limit exceeded' };
+    }
+
+    // GENERAL RECOVERABLE ERROR (Network blip, DB blip)
+    consecutiveFailures++;
     const isRecoverable = isRecoverableError(err);
     if (isRecoverable && consecutiveFailures < 3) {
       console.warn(`Recoverable error encountered (${consecutiveFailures}/3). Scheduling retry in 30 minutes.`);
