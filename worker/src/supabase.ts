@@ -184,6 +184,10 @@ export interface SystemRuntimeConfig {
   maxOwnerFollowers: number;
   minOwnerFollowing: number;
   maxOwnerAgeDays: number;
+  recipientEmail?: string;
+  resendApiKey?: string;
+  githubToken?: string;
+  fromDomain?: string;
 }
 
 export const DEFAULT_RUNTIME_CONFIG: SystemRuntimeConfig = {
@@ -198,6 +202,10 @@ export const DEFAULT_RUNTIME_CONFIG: SystemRuntimeConfig = {
   maxOwnerFollowers: parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10),
   minOwnerFollowing: parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10),
   maxOwnerAgeDays: parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10),
+  recipientEmail: process.env.NOTIFICATION_EMAIL || process.env.RECIPIENT_EMAIL,
+  resendApiKey: process.env.RESEND_API_KEY,
+  githubToken: process.env.GITHUB_TOKEN,
+  fromDomain: process.env.RESEND_FROM_DOMAIN,
 };
 
 export async function fetchSystemSettings(): Promise<SystemRuntimeConfig> {
@@ -226,6 +234,10 @@ export async function fetchSystemSettings(): Promise<SystemRuntimeConfig> {
       maxOwnerFollowers: settingsMap.maxOwnerFollowers != null ? Number(settingsMap.maxOwnerFollowers) : DEFAULT_RUNTIME_CONFIG.maxOwnerFollowers,
       minOwnerFollowing: settingsMap.minOwnerFollowing != null ? Number(settingsMap.minOwnerFollowing) : DEFAULT_RUNTIME_CONFIG.minOwnerFollowing,
       maxOwnerAgeDays: settingsMap.maxOwnerAgeDays != null ? Number(settingsMap.maxOwnerAgeDays) : DEFAULT_RUNTIME_CONFIG.maxOwnerAgeDays,
+      recipientEmail: settingsMap.recipientEmail || DEFAULT_RUNTIME_CONFIG.recipientEmail,
+      resendApiKey: settingsMap.resend_api_key || settingsMap.resendApiKey || DEFAULT_RUNTIME_CONFIG.resendApiKey,
+      githubToken: settingsMap.github_token || DEFAULT_RUNTIME_CONFIG.githubToken,
+      fromDomain: settingsMap.fromDomain || DEFAULT_RUNTIME_CONFIG.fromDomain,
     };
   } catch (err: any) {
     console.warn('Failed to fetch settings from Supabase:', err.message || err);

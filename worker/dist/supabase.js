@@ -149,6 +149,10 @@ exports.DEFAULT_RUNTIME_CONFIG = {
     maxOwnerFollowers: parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10),
     minOwnerFollowing: parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10),
     maxOwnerAgeDays: parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10),
+    recipientEmail: process.env.NOTIFICATION_EMAIL || process.env.RECIPIENT_EMAIL,
+    resendApiKey: process.env.RESEND_API_KEY,
+    githubToken: process.env.GITHUB_TOKEN,
+    fromDomain: process.env.RESEND_FROM_DOMAIN,
 };
 async function fetchSystemSettings() {
     try {
@@ -175,6 +179,10 @@ async function fetchSystemSettings() {
             maxOwnerFollowers: settingsMap.maxOwnerFollowers != null ? Number(settingsMap.maxOwnerFollowers) : exports.DEFAULT_RUNTIME_CONFIG.maxOwnerFollowers,
             minOwnerFollowing: settingsMap.minOwnerFollowing != null ? Number(settingsMap.minOwnerFollowing) : exports.DEFAULT_RUNTIME_CONFIG.minOwnerFollowing,
             maxOwnerAgeDays: settingsMap.maxOwnerAgeDays != null ? Number(settingsMap.maxOwnerAgeDays) : exports.DEFAULT_RUNTIME_CONFIG.maxOwnerAgeDays,
+            recipientEmail: settingsMap.recipientEmail || exports.DEFAULT_RUNTIME_CONFIG.recipientEmail,
+            resendApiKey: settingsMap.resend_api_key || settingsMap.resendApiKey || exports.DEFAULT_RUNTIME_CONFIG.resendApiKey,
+            githubToken: settingsMap.github_token || exports.DEFAULT_RUNTIME_CONFIG.githubToken,
+            fromDomain: settingsMap.fromDomain || exports.DEFAULT_RUNTIME_CONFIG.fromDomain,
         };
     }
     catch (err) {
