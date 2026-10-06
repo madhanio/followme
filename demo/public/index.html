@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FollowMe (demo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FBFBFC; --surface:#FFFFFF; --ink:#16181D; --muted:#6A7080; --faint:#9AA0AE;
+  --line:#E7E9EE; --line-strong:#D5D8E0; --hover:#F4F5F8;
+  --accent:#12804A; --accent-tint:#E4F4EB; --warn:#9A5B00; --warn-tint:#FBF0DC;
+  --r:8px;
+  --shadow-sm:0 1px 2px rgba(22,24,29,0.04);
+  --shadow-hover:0 6px 16px -2px rgba(22,24,29,0.07);
+}
+[data-theme="dark"]{
+  --bg:#0B0C0E; --surface:#121418; --ink:#F0F2F5; --muted:#8B92A0; --faint:#555B68;
+  --line:#20232A; --line-strong:#2D323C; --hover:#181B21;
+  --accent:#22C55E; --accent-tint:#0F291E; --warn:#F59E0B; --warn-tint:#2E200C;
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.3);
+  --shadow-hover:0 6px 16px -2px rgba(0,0,0,0.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;
+  transition:background 0.25s ease, color 0.25s ease;
+}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+
+/* header */
+header{border-bottom:1px solid var(--line);background:var(--surface);transition:background 0.25s ease, border-color 0.25s ease}
+.bar{display:flex;align-items:center;justify-content:space-between;height:56px;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:-.01em}
+.mark-svg{width:22px;height:22px;border-radius:6px;background:var(--ink);display:grid;place-items:center;transition:transform 0.2s cubic-bezier(0.16,1,0.3,1)}
+.mark-svg:hover{transform:scale(1.08)}
+.status{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:13px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:6px;box-shadow:0 0 0 3px var(--accent-tint);transition:box-shadow 0.25s ease, background 0.25s ease}
+.demo{font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;border:1px solid var(--line-strong);color:var(--ink)}
+
+/* theme toggle button */
+.theme-btn{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--line-strong);
+  display:grid;place-items:center;color:var(--muted);background:var(--surface);
+  transition:all 0.18s cubic-bezier(0.16,1,0.3,1);
+}
+.theme-btn:hover{color:var(--ink);background:var(--hover);transform:scale(1.06)}
+.theme-btn:active{transform:scale(0.94)}
+
+/* welcome */
+.welcome{margin-top:24px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.welcome h1{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+.welcome p{color:var(--muted);margin-top:6px;max-width:62ch;font-size:14px}
+.welcome .cta{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.welcome a.btn{text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.how{margin-top:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:14px 18px;max-width:640px;font-size:13.5px;color:var(--muted);box-shadow:var(--shadow-sm);animation:slideDown 0.22s cubic-bezier(0.16,1,0.3,1)}
+.how ol{margin:8px 0 0 18px;display:flex;flex-direction:column;gap:4px}
+.how b{color:var(--ink);font-weight:600}
+
+@keyframes slideDown{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* fake-data notice + identicon avatars */
+.notice{background:var(--hover);border-bottom:1px solid var(--line);color:var(--muted);font-size:13px;padding:8px 0;transition:background 0.25s ease}
+.notice a{color:var(--ink);font-weight:600;text-underline-offset:2px;margin-left:4px}
+.av{background:var(--hover);overflow:hidden;border:1px solid var(--line)}
+.av svg{display:block;width:100%;height:100%}
+
+/* two-up row + band chart */
+.two{display:grid;grid-template-columns:1.7fr 1fr;gap:16px;margin-top:16px}
+.two .panel{margin-top:0}
+.bands{padding:14px 18px 6px;display:flex;flex-direction:column;gap:14px}
+.band{display:grid;grid-template-columns:44px 1fr 40px;grid-template-areas:"l t v" ". n .";gap:2px 10px;align-items:center;font-size:13px}
+.bl{grid-area:l;color:var(--muted)}
+.bt{grid-area:t;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.bt i{display:block;height:100%;border-radius:4px;background:var(--accent);transition:width 0.4s cubic-bezier(0.16,1,0.3,1)}
+.bv{grid-area:v;text-align:right;font-weight:600}
+.bn{grid-area:n;color:var(--faint);font-size:12px}
+.bnote{padding:6px 18px 16px;color:var(--muted);font-size:12.5px}
+
+/* drawer evidence + repos */
+.evi{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.ev-chip{font-size:12.5px;border:1px solid var(--line-strong);border-radius:6px;padding:2px 8px;color:var(--ink)}
+.ev-chip.good{background:var(--accent-tint);border-color:transparent;color:var(--accent);font-weight:600}
+.ev-chip.warn{background:var(--warn-tint);border-color:transparent;color:var(--warn);font-weight:600}
+.repos{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r)}
+.repo{padding:11px 13px}
+.repo + .repo{border-top:1px solid var(--line)}
+.rn{display:flex;justify-content:space-between;gap:10px;font-weight:600}
+.rs{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font-weight:500;font-size:12.5px}
+.rd{color:var(--muted);font-size:13px;margin-top:2px}
+.rm{color:var(--faint);font-size:12px;margin-top:3px}
+.lbar{height:6px;border-radius:3px;background:var(--line-strong);overflow:hidden}
+.lbar i{display:block;height:100%;background:var(--ink);transition:width 0.35s ease}
+.lleg{display:flex;gap:14px;margin-top:6px;color:var(--muted);font-size:12.5px}
+
+/* stats strip */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-top:24px;box-shadow:var(--shadow-sm);transition:background 0.25s ease, border-color 0.25s ease}
+.stat{padding:16px 18px;display:flex;flex-direction:column;gap:2px;min-width:0;transition:background 0.18s ease}
+.stat:hover{background:var(--hover)}
+.stat + .stat{border-left:1px solid var(--line)}
+.stat .label{color:var(--muted);font-size:13px}
+.stat .num{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.stat .row{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.stat svg{width:84px;height:28px;flex:none}
+.stat .note{color:var(--faint);font-size:12px}
+
+/* chart */
+.panel{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-top:16px;box-shadow:var(--shadow-sm);transition:background 0.25s ease, border-color 0.25s ease}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 0;gap:12px;flex-wrap:wrap}
+.panel-head h2{font-size:14px;font-weight:600}
+.legend{display:flex;gap:16px;color:var(--muted);font-size:12.5px}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:6px}
+.chart{position:relative;padding:6px 10px 10px}
+.chart svg{width:100%;height:auto;display:block}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12px;padding:6px 9px;border-radius:6px;white-space:nowrap;opacity:0;transform:translate(-50%,-110%);transition:opacity 0.12s ease, transform 0.12s ease;box-shadow:0 4px 12px rgba(0,0,0,0.18)}
+.tip b{font-weight:600}
+
+/* candidates */
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.seg-wrap{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;padding:2px;background:var(--bg)}
+.seg button{padding:5px 11px;border-radius:6px;font-size:13px;color:var(--muted);font-weight:500;transition:all 0.16s cubic-bezier(0.16,1,0.3,1)}
+.seg button .c{color:var(--faint);margin-left:5px;font-weight:400}
+.seg button:hover:not([aria-pressed="true"]){color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line-strong)}
+.seg button[aria-pressed="true"] .c{color:var(--muted)}
+
+/* quick evidence filter pills */
+.pills{display:inline-flex;gap:6px;flex-wrap:wrap}
+.pill{
+  font-size:12px;font-weight:500;padding:4px 9px;border-radius:6px;
+  border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  transition:all 0.16s cubic-bezier(0.16,1,0.3,1);display:inline-flex;align-items:center;gap:4px;
+}
+.pill:hover{border-color:var(--line-strong);color:var(--ink);background:var(--hover)}
+.pill[aria-pressed="true"]{
+  background:var(--ink);color:var(--surface);border-color:var(--ink);box-shadow:var(--shadow-sm);
+}
+
+.search{border:1px solid var(--line-strong);border-radius:8px;padding:7px 11px;min-width:220px;background:var(--surface);font-size:13px;transition:border-color 0.18s ease, box-shadow 0.18s ease}
+.search:focus{border-color:var(--ink);box-shadow:0 0 0 3px var(--line);outline:none}
+.search::placeholder{color:var(--faint)}
+
+.head,.item{display:grid;grid-template-columns:minmax(190px,1.3fr) 110px minmax(180px,2fr) 96px 150px;align-items:center;gap:16px;padding:0 18px}
+.head{height:36px;color:var(--faint);font-size:12.5px;border-bottom:1px solid var(--line)}
+.item{min-height:60px;border-bottom:1px solid var(--line);cursor:pointer;transition:background 0.14s ease, transform 0.14s ease}
+.item:last-child{border-bottom:0}
+.item:hover,.item:focus-visible{background:var(--hover)}
+.who{display:flex;align-items:center;gap:11px;min-width:0}
+.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.who .n{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px}
+.who .u{color:var(--muted);font-size:12.5px}
+.who > div{min-width:0}
+.score{display:flex;align-items:center;gap:9px;font-weight:600}
+.bar-s{width:44px;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.bar-s i{display:block;height:100%;border-radius:2px;background:var(--ink);transition:width 0.3s ease}
+.reason{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-block;border:1px solid transparent;transition:all 0.18s ease}
+.chip.followed{background:var(--accent-tint);color:var(--accent)}
+.chip.queued{background:var(--hover);color:var(--muted);border-color:var(--line)}
+.chip.skipped{background:var(--warn-tint);color:var(--warn)}
+.acts{display:flex;gap:6px;justify-content:flex-end;opacity:0;transition:opacity 0.15s ease}
+.item:hover .acts,.item:focus-within .acts{opacity:1}
+
+.btn{
+  font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:7px;
+  border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);
+  transition:all 0.16s cubic-bezier(0.16,1,0.3,1);
+}
+.btn:hover{background:var(--hover);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.btn:active{transform:translateY(0) scale(0.97)}
+.btn.primary{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn.primary:hover{background:var(--ink);opacity:0.92;color:var(--surface)}
+.star{color:var(--ink);flex:none}
+.empty{padding:48px 18px;text-align:center;color:var(--muted)}
+.empty p{margin-bottom:12px}
+.more{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+
+details.feed{margin:16px 0 28px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-sm);transition:background 0.25s ease}
+details.feed summary{padding:13px 18px;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;transition:background 0.15s ease}
+details.feed summary:hover{background:var(--hover)}
+details.feed summary::-webkit-details-marker{display:none}
+details.feed summary span{color:var(--faint);font-weight:400;font-size:13px}
+.ev{display:flex;justify-content:space-between;gap:16px;padding:10px 18px;border-top:1px solid var(--line);color:var(--muted);transition:background 0.15s ease}
+.ev:hover{background:var(--hover)}
+.ev b{color:var(--ink);font-weight:600}
+.ev time{color:var(--faint);white-space:nowrap}
+
+/* footer credits and license */
+footer{border-top:1px solid var(--line);background:var(--surface);padding:32px 0 40px;margin-top:24px;color:var(--muted);font-size:13px;transition:background 0.25s ease, border-color 0.25s ease}
+.f-wrap{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.f-left{display:flex;flex-direction:column;gap:4px}
+.f-left b{color:var(--ink);font-weight:600}
+.f-left a:hover, .drawer-credit a:hover {
+  text-decoration: underline !important;
+}
+.f-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.f-right a{color:var(--muted);text-decoration:none;transition:color 0.16s ease;display:inline-flex;align-items:center;gap:6px;line-height:1}
+.f-right a:hover{color:var(--ink)}
+.license-badge{border:1px solid var(--line-strong);border-radius:6px;padding:4px 8px;font-size:11.5px;font-weight:600;color:var(--ink);background:var(--bg);display:inline-flex;align-items:center;line-height:1}
+
+/* hide injected vercel toolbar and badges */
+vercel-live-feedback, #__vercel-toolbar, [data-vercel-toolbar], [data-testid="vercel-toolbar"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(22,24,29,.4);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .22s cubic-bezier(0.16,1,0.3,1);z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--surface);border-left:1px solid var(--line-strong);transform:translateX(100%);transition:transform .24s cubic-bezier(.16,1,.3,1);z-index:30;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,0.12)}
+body.open .scrim{opacity:1;pointer-events:auto}
+body.open .drawer{transform:none}
+.d-head{display:flex;gap:14px;align-items:center;padding:20px 22px;border-bottom:1px solid var(--line)}
+.d-head .av{width:48px;height:48px;font-size:16px}
+.d-head h3{font-size:17px;letter-spacing:-.01em}
+.d-head .u{color:var(--muted)}
+.x{margin-left:auto;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted);transition:all 0.16s ease}
+.x:hover{background:var(--hover);color:var(--ink);transform:scale(1.06)}
+.x:active{transform:scale(0.94)}
+.d-body{padding:20px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:22px}
+.d-body h4{font-size:13px;color:var(--muted);font-weight:500;margin-bottom:8px}
+.big{display:flex;align-items:baseline;gap:8px}
+.big b{font-size:34px;letter-spacing:-.02em}
+.sub{display:grid;grid-template-columns:90px 1fr 28px;gap:10px;align-items:center;margin-top:7px;font-size:13px;color:var(--muted)}
+.sub .t{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.sub .t i{display:block;height:100%;background:var(--ink);border-radius:2px;transition:width 0.2s cubic-bezier(0.16,1,0.3,1)}
+.sub span:last-child{color:var(--ink);text-align:right;font-weight:600}
+.sub-slider{width:100%;accent-color:var(--ink);height:4px;cursor:pointer}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r)}
+.facts div{padding:11px 13px}
+.facts div + div{border-left:1px solid var(--line)}
+.facts b{display:block;font-size:17px}
+.facts span{font-size:12px;color:var(--muted)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:12.5px;border:1px solid var(--line-strong);border-radius:6px;padding:2px 8px}
+.drawer-credit{background:var(--hover);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.drawer-credit a{color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.drawer-credit a:hover{text-decoration:underline}
+.d-foot{display:flex;gap:8px;padding:16px 22px;border-top:1px solid var(--line)}
+.d-foot .btn{flex:1;padding:9px 12px;font-size:13.5px}
+
+/* mobile */
+@media (max-width:860px){
+  .stats{grid-template-columns:1fr 1fr}
+  .stat:nth-child(3){border-left:0}
+  .stat:nth-child(n+3){border-top:1px solid var(--line)}
+  .head{display:none}
+  .item{grid-template-columns:1fr auto;grid-template-areas:"who status" "reason reason";gap:6px 12px;padding:12px 16px}
+  .item .who{grid-area:who}.item .st{grid-area:status;justify-self:end}
+  .item .reason{grid-area:reason;white-space:normal}
+  .item .score,.item .acts{display:none}
+  .two{grid-template-columns:1fr}
+  .status .hide-m{display:none}
+  .wrap{padding:0 14px}
+  .toolbar{gap:10px;padding:12px 14px}
+  .seg-wrap{width:100%;flex-direction:column;align-items:stretch;gap:8px}
+  .seg{width:100%;display:grid;grid-template-columns:repeat(5,1fr);text-align:center}
+  .seg button{padding:6px 4px;font-size:12px;justify-content:center}
+  .seg button .c{margin-left:3px;font-size:11px}
+  .pills{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .pill{justify-content:center;padding:6px 4px;font-size:11.5px;text-align:center}
+  .search{width:100%;min-width:0;flex:none}
+  .drawer{top:auto;height:82vh;width:100%;border-left:0;border-top:1px solid var(--line-strong);border-radius:14px 14px 0 0;transform:translateY(100%)}
+  .f-wrap{flex-direction:column;align-items:flex-start}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <div class="brand">
+      <span class="mark-svg">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M3 2v8M3 2h6M3 6h4" stroke="var(--surface)" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </span>
+      FollowMe
+    </div>
+    <div class="status">
+      <span><span class="dot" id="dot"></span><span id="wstate">Worker idle</span></span>
+      <span class="hide-m" id="lastrun">Last run 2h ago, next in 4h</span>
+      <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" title="Toggle theme">
+        <svg id="themeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+      <span class="demo">Demo</span>
+    </div>
+  </div>
+</header>
+
+<div class="notice" role="note"><div class="wrap">This is a demo. Every developer shown here is fictional, and nothing connects to GitHub. <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">View the real project</a></div></div>
+
+<main class="wrap">
+  <section class="welcome" id="welcome" aria-label="Welcome"></section>
+  <section class="stats" id="stats" aria-label="Summary"></section>
+
+  <div class="two">
+    <section class="panel" aria-label="Last 30 days">
+      <div class="panel-head">
+        <h2>Last 30 days</h2>
+        <div class="legend">
+          <span><i style="border-color:var(--accent)"></i>Followed</span>
+          <span><i style="border-color:var(--ink);border-top-style:dashed"></i>Unfollowed</span>
+        </div>
+      </div>
+      <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
+    </section>
+    <section class="panel" id="bands" aria-label="Follow-back by score"></section>
+  </div>
+
+  <section class="panel" aria-label="Candidates">
+    <div class="toolbar">
+      <div class="seg-wrap">
+        <div class="seg" id="seg" role="group" aria-label="Filter"></div>
+        <div class="pills" id="pills" role="group" aria-label="Quick filters">
+          <button class="pill" data-pill="stars" aria-pressed="false">⭐ &gt;100 Stars</button>
+          <button class="pill" data-pill="active" aria-pressed="false">⚡ Active (&lt;14d)</button>
+          <button class="pill" data-pill="highvol" aria-pressed="false">🔥 High Commits</button>
+        </div>
+      </div>
+      <input class="search" id="q" type="search" placeholder="Search developers" aria-label="Search developers">
+    </div>
+    <div class="head"><span>Developer</span><span>Score</span><span>Why this score</span><span>Status</span><span></span></div>
+    <div id="list" role="list"></div>
+  </section>
+
+  <details class="feed">
+    <summary>Recent activity <span>Last 5 events</span></summary>
+    <div id="feed"></div>
+  </details>
+</main>
+
+<footer>
+  <div class="wrap f-wrap">
+    <div class="f-left">
+      <div><b>FollowMe</b> — Autonomous GitHub repository discovery &amp; networking agent.</div>
+      <div>Designed &amp; engineered by <a href="https://github.com/madhanio" target="_blank" rel="noopener" style="color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:3px;">Madhan (@madhanio) <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg></a>.</div>
+    </div>
+    <div class="f-right">
+      <span class="license-badge">MIT License</span>
+      <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        View Source on GitHub <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg>
+      </a>
+    </div>
+  </div>
+</footer>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Developer details" aria-hidden="true"></aside>
+
+<script>
+const $=s=>document.querySelector(s);
+
+/* ---------- theme management ---------- */
+const initTheme=()=>{
+  const saved=localStorage.getItem("theme");
+  const prefersDark=window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isDark=saved==="dark"||(!saved && prefersDark);
+  applyTheme(isDark);
+};
+const applyTheme=isDark=>{
+  document.documentElement.setAttribute("data-theme",isDark?"dark":"light");
+  localStorage.setItem("theme",isDark?"dark":"light");
+  const btn=$("#themeBtn");
+  if(btn){
+    btn.innerHTML=isDark
+      ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+      : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+  }
+};
+initTheme();
+$("#themeBtn").addEventListener("click",()=>{
+  const isDark=document.documentElement.getAttribute("data-theme")==="dark";
+  applyTheme(!isDark);
+});
+
+/* ---------- dynamic rolling dates & deterministic seeded generator ---------- */
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function h32(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+
+const today = new Date();
+const todayKey = `${today.getFullYear()}-${today.getMonth()+1}-${today.getDate()}`;
+const dailySeed = h32("followme-live-seed-" + todayKey);
+const rand = rng(dailySeed);
+
+// Generate 30 days dynamically up to today
+const days = Array.from({length:30},(_,i)=>{
+  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  d.setDate(d.getDate() - (29 - i));
+  return d;
+});
+const fol = days.map((_,i)=>Math.round(5 + i*0.12 + rand()*6));
+const unf = days.map((_,i)=>Math.round(1 + rand()*4));
+const fmt = d => d.toLocaleDateString("en-US", {month:"short", day:"numeric"});
+
+/* ---------- fake data (all names are made up) ---------- */
+const P = [
+ ["ananya-rao","Ananya Rao",94,"Ships production RAG tooling with steady commits and real stars.","followed",true,true,"Backend engineer building retrieval pipelines. Maintains a few small libraries.",["vecstore","chunkwise","rag-evals"],["Python","TypeScript"],1840,312],
+ ["leo-brandt","Leo Brandt",91,"Maintains a popular Rust CLI; consistent releases for two years.","followed",true,true,"Systems tinkerer. Rust, tooling, and slow coffee.",["fastgrep","tinyhttp","bench-kit"],["Rust","Go"],3120,148],
+ ["mei-tanaka","Mei Tanaka",88,"Strong full-stack portfolio; active in Next.js and Supabase repos.","queued",true,false,"Full-stack dev. Next.js, Postgres, and design systems.",["ledger-ui","pg-notes","dash-kit"],["TypeScript","SQL"],960,210],
+ ["omar-haddad","Omar Haddad",86,"ML engineer with reproducible training repos and clear docs.","followed",true,true,"Applied ML. Fine-tuning, evals, and boring infrastructure.",["tune-lab","eval-harness"],["Python","Jupyter"],2210,402],
+ ["priya-nair","Priya Nair",84,"Flutter plugin author with frequent merged community PRs.","queued",false,false,"Mobile engineer. Flutter and Dart, offline-first apps.",["flutter-sync","dart-queue","nav-sheet"],["Dart","Kotlin"],740,260],
+ ["sam-okafor","Sam Okafor",82,"Good open-source hygiene; tests and CI on every repo.","followed",false,true,"DevOps by day, hobby game dev by night.",["ci-recipes","tiny-roguelike"],["Go","Shell"],530,190],
+ ["julia-kovac","Julia Kovac",79,"Writes useful technical posts; two repos with 500+ stars.","queued",true,false,"Developer advocate who still ships code.",["notes-to-self","css-lab"],["TypeScript","CSS"],4100,520],
+ ["diego-alves","Diego Alves",77,"Growing contributor to data tooling; recent commits are frequent.","queued",false,false,"Data engineer. dbt, Airflow, and DuckDB.",["duck-etl","dbt-patterns"],["Python","SQL"],380,301],
+ ["hana-lee","Hana Lee",75,"Clean design-system repo, though activity has slowed recently.","followed",false,false,"UI engineer. Tokens, components, and accessibility.",["tokens-studio-kit","a11y-checks"],["TypeScript","CSS"],610,175],
+ ["tobias-wirth","Tobias Wirth",73,"Solid backend code; few external contributors so far.","queued",false,false,"Backend engineer. Distributed systems curiosity.",["raft-notes","queue-rs"],["Rust","Java"],290,240],
+ ["nadia-petrova","Nadia Petrova",71,"Interesting LLM agents repos; docs are thin.","queued",false,false,"Research engineer exploring agent loops.",["agent-scratch","tool-router"],["Python"],820,360],
+ ["kwame-asante","Kwame Asante",68,"Active student projects with decent structure.","followed",false,true,"CS student. Learning in public.",["campus-bus","study-timer"],["JavaScript","Python"],140,220],
+ ["ines-moreau","Ines Moreau",64,"Mostly forks and tutorials; few original commits.","skipped",false,false,"Bootcamp grad.",["react-tutorial-fork"],["JavaScript"],60,410],
+ ["ravi-menon","Ravi Menon",58,"Follows thousands of accounts; low original output.","skipped",false,false,"Open to work. Follows back everyone.",["hello-world","todo-app"],["JavaScript"],95,2800],
+ ["elin-berg","Elin Berg",52,"Mostly private activity; public repos are small.","skipped",false,false,"Engineer. Mostly works in private repos.",["dotfiles"],["Shell","Lua"],220,90],
+ ["chen-wu","Chen Wu",89,"Compiler hobbyist with beautifully documented repos.","queued",true,false,"Parsers, type systems, and small VMs.",["tiny-lang","vm-notes","pratt-ts"],["TypeScript","OCaml"],1530,170],
+ ["amara-diallo","Amara Diallo",81,"Consistent weekly commits across three useful repos.","followed",true,true,"Mobile and backend. Building tools for local businesses.",["shop-ledger","sms-bridge"],["Dart","Node.js"],670,205],
+ ["felix-ortega","Felix Ortega",66,"Decent activity; one popular repo carries the profile.","queued",false,false,"Game jams and tiny tools.",["pixel-jam","palette-pick"],["C#","JavaScript"],410,330],
+ ["sofia-lindqvist","Sofia Lindqvist",92,"Open-source maintainer with healthy contributor engagement.","followed",true,true,"Maintains an ORM plugin ecosystem.",["orm-plugins","schema-diff","migrate-kit"],["TypeScript","SQL"],5200,260],
+ ["yusuf-karim","Yusuf Karim",61,"Early-stage portfolio; shows promise in recent commits.","queued",false,false,"Second-year student building side projects.",["notes-app","weather-cli"],["Python","JavaScript"],85,150],
+ ["zoe-fischer","Zoe Fischer",47,"Spam-like follow patterns and no original repos.","skipped",false,false,"",["fork-1","fork-2"],["JavaScript"],12,3900],
+ ["arjun-sethi","Arjun Sethi",85,"Strong ML systems work with benchmarks and write-ups.","queued",true,false,"Inference optimization and serving.",["serve-bench","kv-cache-notes"],["Python","C++"],1980,310]
+].map(a=>({user:a[0],name:a[1],score:a[2],reason:a[3],status:a[4],starred:a[5],back:a[6],bio:a[7],repos:a[8],langs:a[9],followers:a[10],following:a[11]}));
+
+(function(){
+  const r=rng(dailySeed ^ 0xA5A5);
+  const F=["Aiko","Mateo","Isla","Rohan","Lena","Tariq","Maya","Jonas","Noor","Callum","Esha","Pablo","Sana","Viktor","Thea","Kenji","Layla","Idris","Freya","Nikhil","Camila","Anders","Zainab","Mira","Owen","Dalia","Hugo","Tessa","Arman","Ruth"];
+  const Lz=["Novak","Ibrahim","Larsen","Mehta","Costa","Abe","Rahman","Keller","Bose","Silva","Yamada","Ortiz","Haas","Singh","Moreno","Duarte","Nyberg","Ali","Fraser","Gupta","Lopez","Weber","Sato","Reddy","Park","Nguyen","Cohen","Mensah","Rossi","Kaya"];
+  const LG=["Python","TypeScript","Go","Rust","Dart","Java","SQL","C++","Kotlin","JavaScript","Swift","Ruby"];
+  const RP=["api-kit","dotfiles","cli-tools","ui-lab","data-notes","bot-starter","sync-engine","log-viewer","auth-demo","build-cache","schema-tools","chart-bits"];
+  const BIO=["Building small tools in the open.","Backend and infrastructure, mostly.","Learning in public and shipping often.","Open-source contributor.","Full-stack developer."];
+  const hi=["Ships steady, well-tested work with real community use.","Strong repos, clear docs, and frequent merged PRs.","Consistent commits and a repo that others actually depend on.","Thoughtful open-source maintainer with healthy engagement."];
+  const mid=["Decent activity, but most repos are small or early.","Good fundamentals; limited external contributions so far.","Some original work mixed with tutorials and forks.","Growing profile with promising recent commits."];
+  const lo=["Mostly forks with little original code.","Follows far more accounts than follow back.","Few public repos and no recent commits.","Follow pattern looks automated; no original work."];
+  const pick=a=>a[Math.floor(r()*a.length)];
+  const uniq=a=>a.filter((x,i)=>a.indexOf(x)===i);
+  const seen=new Set(P.map(p=>p.user));
+  for(let i=0;i<128;i++){
+    const f=pick(F),l=pick(Lz); let u=(f+"-"+l).toLowerCase(); if(seen.has(u)) u+=(10+Math.floor(r()*89)); seen.add(u);
+    const score=Math.round(35+Math.pow(r(),0.8)*62);
+    const status=score<60?"skipped":(r()<.45?"followed":"queued");
+    P.push({user:u,name:f+" "+l,score,reason:pick(score>=75?hi:score>=60?mid:lo),status,starred:false,back:status==="followed"&&r()<(score-40)/65,bio:pick(BIO),repos:uniq([pick(RP),pick(RP)]),langs:uniq([pick(LG),pick(LG)]),followers:Math.round(20+Math.pow(r(),3)*3000),following:Math.round(60+r()*(score<60?3000:500))});
+  }
+})();
+
+const SRC=["RAG and LLM tooling","Flutter and Dart","Rust CLI authors","Next.js and Supabase","Data engineering","ML systems"];
+const RDESC=["Small, well-tested library with clear docs.","Command-line tool used by a few hundred people.","Starter template with CI and examples.","Experiments and notes in code form.","Utility package published to the registry.","Reference implementation with benchmarks."];
+
+P.forEach(p=>{
+  p.starred = p.score>=90 && p.status!=="skipped";
+  const r=rng(h32(p.user));
+  p.src=SRC[Math.floor(r()*SRC.length)];
+  p.age=Math.max(1,Math.round(1+r()*8));
+  p.commits=Math.round((p.score<60?r()*12:12+r()*140)*(0.6+p.score/100));
+  const cap=p.score>=75?900:p.score>=60?120:15;
+  p.repoData=p.repos.slice(0,3).map((n,i)=>({n,stars:Math.round(Math.pow(r(),2.2)*cap*(i===0?1:.5)),lang:p.langs[i%p.langs.length],desc:RDESC[Math.floor(r()*RDESC.length)],pushed:Math.max(1,Math.round(Math.pow(r(),1.6)*(p.score>=60?40:300)))}));
+  const a=p.langs.length>1?Math.round(55+r()*30):100;
+  p.mix=p.langs.length>1?[a,100-a]:[100];
+  // Sub-scores derived deterministically
+  p.subs = {
+    activity: Math.max(20, Math.min(99, p.score + 8)),
+    codeQuality: Math.max(20, Math.min(99, p.score - 4)),
+    relevance: Math.max(20, Math.min(99, p.score + 3)),
+    reach: Math.max(20, Math.min(99, p.score - 11))
+  };
+});
+
+const state={filter:"picks",pill:null,q:"",limit:20,open:null,how:false};
+
+/* single source of truth for filtering */
+const matches=(p,f)=> f==="all" ? true : f==="picks" ? (p.starred && p.status!=="skipped") : p.status===f;
+const matchesPill=(p,pill)=>{
+  if(!pill) return true;
+  if(pill==="stars") return p.repoData.some(r=>r.stars>=100);
+  if(pill==="active") return Math.min(...p.repoData.map(r=>r.pushed))<=14;
+  if(pill==="highvol") return p.commits>=60;
+  return true;
+};
+const visible=()=>P.filter(p=>matches(p,state.filter) && matchesPill(p,state.pill) && (!state.q || (p.name+" "+p.user).toLowerCase().includes(state.q))).sort((a,b)=>b.score-a.score);
+
+function hue(s){let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h}
+const av=(p,cls="")=>{
+  const r=rng(h32(p.user+"x")); let cells="";
+  for(let y=0;y<5;y++)for(let x=0;x<3;x++){ if(r()>.5){ cells+=`<rect x="${x}" y="${y}" width="1" height="1"/>`; if(x<2) cells+=`<rect x="${4-x}" y="${y}" width="1" height="1"/>`; } }
+  return `<span class="av ${cls}" aria-hidden="true"><svg viewBox="-.75 -.75 6.5 6.5" fill="hsl(${hue(p.user)} 45% 48%)">${cells}</svg></span>`;
+};
+const label={followed:"Followed",queued:"Queued",skipped:"Skipped"};
+const starIcon='<svg class="star" width="12" height="13" viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="Top pick"><title>Top pick</title><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>';
+
+function spark(vals,color){
+  const w=84,h=28,mx=Math.max(...vals),mn=Math.min(...vals),r=mx-mn||1;
+  const pts=vals.map((v,i)=>`${(i/(vals.length-1)*w).toFixed(1)},${(h-3-((v-mn)/r)*(h-6)).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+const trend=(seed,up=true)=>{const r=rng(seed);return Array.from({length:14},(_,i)=>3+(up?i*.4:-i*.2)+r()*3)};
+
+function renderStats(){
+  const fo=P.filter(p=>matches(p,"followed")), mt=fo.filter(p=>!p.fresh), fb=mt.filter(p=>p.back).length;
+  const rate=mt.length?Math.round(fb/mt.length*100):0;
+  const items=[
+    ["Followed",fo.length,"+12 this week",trend(dailySeed+1),"var(--accent)"],
+    ["Follow-back rate",rate+"%",fb+" of "+mt.length,trend(dailySeed+2),"var(--ink)"],
+    ["In queue",P.filter(p=>matches(p,"queued")).length,"Next run in 4h",trend(dailySeed+3,false),"var(--ink)"],
+    ["Skipped",P.filter(p=>matches(p,"skipped")).length,"Below score 60",trend(dailySeed+4),"var(--faint)"]
+  ];
+  $("#stats").innerHTML=items.map(s=>`<div class="stat"><span class="label">${s[0]}</span><div class="row"><span class="num">${s[1]}</span>${spark(s[3],s[4])}</div><span class="note">${s[2]}</span></div>`).join("");
+}
+
+function renderSeg(){
+  const defs=[["picks","Top picks"],["queued","Queued"],["followed","Followed"],["skipped","Skipped"],["all","All"]];
+  $("#seg").innerHTML=defs.map(([k,t])=>`<button data-k="${k}" aria-pressed="${state.filter===k}">${t}<span class="c">${P.filter(p=>matches(p,k)).length}</span></button>`).join("");
+}
+
+function renderList(){
+  const all=visible(), L=all.slice(0,state.limit);
+  if(!L.length){
+    $("#list").innerHTML=`<div class="empty"><p>No developers match this view.</p><button class="btn" id="clear">Clear filters</button></div>`;
+    $("#clear").onclick=()=>{
+      state.filter="all";state.pill=null;state.q="";state.limit=20;$("#q").value="";
+      $("#pills").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed","false"));
+      renderAll();
+    };
+    return;
+  }
+  $("#list").innerHTML=L.map(p=>`
+   <div class="item" role="listitem" tabindex="0" data-u="${p.user}">
+     <div class="who">${av(p)}<div><div class="n">${p.name}${p.starred?starIcon:""}</div><div class="u">@${p.user}</div></div></div>
+     <div class="score"><span>${p.score}</span><span class="bar-s"><i style="width:${p.score}%"></i></span></div>
+     <div class="reason" title="${p.reason}">${p.reason}</div>
+     <div class="st"><span class="chip ${p.status}">${label[p.status]}</span></div>
+     <div class="acts">${p.status==="followed"?"":`<button class="btn primary" data-a="follow">Follow</button>`}${p.status==="skipped"?"":`<button class="btn" data-a="skip">Skip</button>`}</div>
+   </div>`).join("")+`<div class="more"><span>Showing ${L.length} of ${all.length}</span>${all.length>L.length?`<button class="btn" id="more">Show ${Math.min(20,all.length-L.length)} more</button>`:""}</div>`;
+  const mb=$("#more"); if(mb) mb.onclick=()=>{state.limit+=20;renderList()};
+}
+
+function renderFeed(){
+  const ev=[
+    ["Followed","sofia-lindqvist","12 min ago"],
+    ["Skipped","zoe-fischer","18 min ago"],
+    ["Scored","arjun-sethi (85)","42 min ago"],
+    ["Unfollowed","3 accounts that did not follow back","2h ago"],
+    ["Run finished","18 profiles reviewed","2h ago"]
+  ];
+  $("#feed").innerHTML=ev.map(e=>`<div class="ev"><span><b>${e[0]}</b> ${e[1]}</span><time>${e[2]}</time></div>`).join("");
+}
+
+/* chart */
+function renderChart(){
+  const W=720,H=210,L=34,R=12,T=14,B=26,max=14;
+  const x=i=>L+i/(29)*(W-L-R), y=v=>T+(1-v/max)*(H-T-B);
+  const line=a=>a.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join("");
+  const grid=[0,5,10].map(v=>`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--faint)">${v}</text>`).join("");
+  const xl=[0,7,14,21,29].map(i=>`<text x="${x(i)}" y="${H-6}" text-anchor="${i===0?"start":i===29?"end":"middle"}" font-size="11" fill="var(--faint)">${fmt(days[i])}</text>`).join("");
+  $("#chart").insertAdjacentHTML("afterbegin",`<svg viewBox="0 0 ${W} ${H}" id="svg" role="img" aria-label="Followed and unfollowed per day for the last 30 days">
+    ${grid}${xl}
+    <path d="${line(fol)} L${x(29)} ${y(0)} L${x(0)} ${y(0)} Z" fill="var(--accent-tint)"/>
+    <path d="${line(fol)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+    <path d="${line(unf)}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round"/>
+    <line id="guide" y1="${T}" y2="${H-B}" stroke="var(--line-strong)" opacity="0"/>
+    <circle id="d1" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" opacity="0"/>
+   </svg>`);
+  const svg=$("#svg"),tip=$("#tip");
+  svg.addEventListener("mousemove",e=>{
+    const r=svg.getBoundingClientRect(), px=(e.clientX-r.left)/r.width*W;
+    const i=Math.max(0,Math.min(29,Math.round((px-L)/(W-L-R)*29)));
+    $("#guide").setAttribute("x1",x(i));$("#guide").setAttribute("x2",x(i));$("#guide").setAttribute("opacity",1);
+    $("#d1").setAttribute("cx",x(i));$("#d1").setAttribute("cy",y(fol[i]));$("#d1").setAttribute("opacity",1);
+    tip.innerHTML=`<b>${fmt(days[i])}</b> &nbsp;${fol[i]} followed, ${unf[i]} unfollowed`;
+    tip.style.opacity=1;tip.style.left=(x(i)/W*r.width+10)+"px";tip.style.top=(y(fol[i])/H*r.height+6)+"px";
+  });
+  svg.addEventListener("mouseleave",()=>{tip.style.opacity=0;$("#guide").setAttribute("opacity",0);$("#d1").setAttribute("opacity",0)});
+}
+
+/* drawer & interactive sub-scores */
+function recalcScore(p){
+  p.score = Math.round((p.subs.activity * 0.3) + (p.subs.codeQuality * 0.35) + (p.subs.relevance * 0.2) + (p.subs.reach * 0.15));
+  p.starred = p.score >= 90 && p.status !== "skipped";
+}
+
+function openDrawer(u){
+  const p=P.find(x=>x.user===u); if(!p)return; state.open=u;
+  const ratio=(p.followers/Math.max(1,p.following)).toFixed(1);
+  
+  const renderDrawerBody = () => {
+    return `
+     <div class="d-head">${av(p)}<div><h3 style="display:flex;align-items:center;gap:6px">${p.name}${p.starred?starIcon:""}</h3><div class="u">@${p.user}</div></div><button class="x" id="close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
+     <div class="d-body">
+       <div>
+         <h4>AI Evaluation Breakdown <span style="font-weight:400;color:var(--faint)">(interactive)</span></h4>
+         <div class="big"><b id="dScore">${p.score}</b><span class="chip ${p.status}" id="dStatus">${label[p.status]}</span></div>
+         <div class="sub"><span>Activity</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.activity}" data-key="activity"><span id="v_activity">${p.subs.activity}</span></div>
+         <div class="sub"><span>Code quality</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.codeQuality}" data-key="codeQuality"><span id="v_codeQuality">${p.subs.codeQuality}</span></div>
+         <div class="sub"><span>Relevance</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.relevance}" data-key="relevance"><span id="v_relevance">${p.subs.relevance}</span></div>
+         <div class="sub"><span>Reach</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.reach}" data-key="reach"><span id="v_reach">${p.subs.reach}</span></div>
+       </div>
+       <div><h4>Why this score</h4><p>${p.reason}</p><div class="evi">${evidence(p).map(e=>`<span class="ev-chip ${e[0]}">${e[1]}</span>`).join("")}</div></div>
+       ${p.bio?`<div><h4>Bio</h4><p>${p.bio}</p></div>`:""}
+       <div><h4>Top repos</h4><div class="repos">${p.repoData.map(r=>`<div class="repo"><div class="rn"><span>${r.n}</span><span class="rs"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>${r.stars.toLocaleString()}</span></div><div class="rd">${r.desc}</div><div class="rm">${r.lang}, pushed ${r.pushed} day${r.pushed>1?"s":""} ago</div></div>`).join("")}</div></div>
+       <div class="facts"><div><b>${p.followers.toLocaleString()}</b><span>Followers</span></div><div><b>${p.following.toLocaleString()}</b><span>Following</span></div><div><b>${ratio}</b><span>Ratio</span></div></div>
+       <div><h4>Languages</h4><div class="lbar"><i style="width:${p.mix[0]}%"></i></div><div class="lleg">${p.langs.map((l,i)=>`<span>${l} ${p.mix[i]}%</span>`).join("")}</div></div>
+       <div><h4>Found by</h4><p>${p.src}, account is ${p.age} year${p.age>1?"s":""} old</p></div>
+       <div class="drawer-credit">
+         <span>Graded by FollowMe Agent by <a href="https://github.com/madhanio" target="_blank" rel="noopener" style="color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:3px;">@madhanio <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg></a>.</span>
+         <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;">Inspect Agent Source Code <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg></a>
+       </div>
+     </div>
+     <div class="d-foot">${p.status==="followed"?"":`<button class="btn primary" data-da="follow">Follow</button>`}${p.status==="skipped"?"":`<button class="btn" data-da="skip">Skip</button>`}</div>`;
+  };
+
+  $("#drawer").innerHTML = renderDrawerBody();
+  document.body.classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
+  $("#close").onclick=closeDrawer; $("#close").focus();
+  $("#drawer").querySelectorAll("[data-da]").forEach(b=>b.onclick=()=>{act(p.user,b.dataset.da);openDrawer(p.user)});
+  
+  // Real-time interactive sub-score slider event listeners
+  $("#drawer").querySelectorAll(".sub-slider").forEach(slider => {
+    slider.addEventListener("input", e => {
+      const k = e.target.dataset.key;
+      p.subs[k] = parseInt(e.target.value, 10);
+      $(`#v_${k}`).textContent = p.subs[k];
+      recalcScore(p);
+      $("#dScore").textContent = p.score;
+      renderAll();
+    });
+  });
+}
+function closeDrawer(){document.body.classList.remove("open");$("#drawer").setAttribute("aria-hidden","true");state.open=null}
+
+/* evidence chips */
+function evidence(p){
+  const out=[], big=p.repoData.filter(r=>r.stars>=100).length;
+  if(big) out.push(["good",`${big} repo${big>1?"s":""} with 100+ stars`]);
+  const last=Math.min(...p.repoData.map(r=>r.pushed));
+  out.push([last<=14?"good":last>90?"warn":"",`Last push ${last} day${last>1?"s":""} ago`]);
+  if(p.commits>=60) out.push(["good",`${p.commits} commits in 90 days`]);
+  else if(p.commits<10) out.push(["warn",`Only ${p.commits} commits in 90 days`]);
+  if(p.following>p.followers*8) out.push(["warn","Follows far more than follow back"]);
+  return out;
+}
+
+/* score vs follow-back band chart */
+function renderBands(){
+  const bands=[["60-69",60,69],["70-79",70,79],["80-89",80,89],["90+",90,100]];
+  const pool=P.filter(p=>p.status==="followed" && !p.fresh);
+  const rows=bands.map(([l,lo,hi])=>{const g=pool.filter(p=>p.score>=lo&&p.score<=hi);return {l,n:g.length,rate:g.length?Math.round(g.filter(p=>p.back).length/g.length*100):null}});
+  const first=rows.find(r=>r.rate!==null&&r.rate>0), last=[...rows].reverse().find(r=>r.rate!==null);
+  const note=(first&&last&&first!==last&&last.rate>first.rate)?`Profiles scoring ${last.l} follow back ${(last.rate/first.rate).toFixed(1)}x as often as ${first.l}.`:"Not enough data yet to compare bands.";
+  $("#bands").innerHTML=`<div class="panel-head"><h2>Follow-back by score</h2></div>
+   <div class="bands">${rows.map(r=>`<div class="band"><span class="bl">${r.l}</span><span class="bt"><i style="width:${r.rate||0}%"></i></span><span class="bv">${r.rate===null?"-":r.rate+"%"}</span><span class="bn">${r.n} followed</span></div>`).join("")}</div>
+   <p class="bnote">${note} Based on ${pool.length} followed profiles; new follows are left out until enough time has passed.</p>`;
+}
+
+function act(u,a){
+  const p=P.find(x=>x.user===u);
+  if(a==="follow"){p.status="followed";p.fresh=true;p.back=false}
+  if(a==="skip"){p.status="skipped";p.starred=false}
+  renderAll();
+}
+
+function renderWelcome(){
+  $("#welcome").innerHTML=`<div>
+    <h1>Find developers worth following, automatically</h1>
+    <p>FollowMe scores GitHub profiles with an LLM, follows the strong ones, and removes anyone who never follows back. Click around freely, nothing here is saved.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/madhanio/followme" target="_blank" rel="noopener">Star on GitHub</a>
+      <button class="btn" id="howbtn" aria-expanded="${state.how}">How scoring works</button>
+    </div>
+    ${state.how?`<div class="how"><b>Each profile gets a score from 0 to 100.</b>
+      <ol><li>The worker pulls recent activity, repos and follower patterns.</li><li>An LLM rates activity, code quality, relevance and reach, and writes a one-line reason.</li><li>Scores of 60 and above are queued to follow. Lower scores are skipped. Scores of 90 and above are marked as top picks.</li><li>Accounts that don't follow back are cleaned up on a schedule.</li></ol></div>`:""}
+  </div>`;
+  $("#howbtn").onclick=()=>{state.how=!state.how;renderWelcome()};
+}
+
+function renderAll(){renderStats();renderBands();renderSeg();renderList();}
+
+/* events */
+$("#seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.filter=b.dataset.k;state.limit=20;renderAll()});
+$("#pills").addEventListener("click",e=>{
+  const b=e.target.closest(".pill");if(!b)return;
+  const pill=b.dataset.pill;
+  if(state.pill===pill){
+    state.pill=null;
+    b.setAttribute("aria-pressed","false");
+  } else {
+    state.pill=pill;
+    $("#pills").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed",p===b));
+  }
+  state.limit=20;
+  renderList();
+});
+
+$("#q").addEventListener("input",e=>{state.q=e.target.value.trim().toLowerCase();state.limit=20;renderList()});
+$("#list").addEventListener("click",e=>{
+  const a=e.target.closest("[data-a]");
+  if(a){e.stopPropagation();act(a.closest(".item").dataset.u,a.dataset.a);return}
+  const it=e.target.closest(".item"); if(it) openDrawer(it.dataset.u);
+});
+$("#list").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.classList.contains("item"))openDrawer(e.target.dataset.u)});
+$("#scrim").onclick=closeDrawer;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();}});
+
+renderChart();renderFeed();renderWelcome();renderAll();
+</script>
+</body>
+</html>

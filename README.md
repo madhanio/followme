@@ -63,8 +63,8 @@ FollowMe continuously searches for recently created repositories across your tec
 
 ## Before You Begin
 
-> [!NOTE]
-> The `/demo` folder in this repository contains seed/mock data used for the reference demo deployment. It is not required for your own self-hosted instance and can safely be removed or ignored.
+> **Live demo →** [followme-demo.vercel.app](https://followme-demo.vercel.app)
+> The `/demo` folder is a self-contained static page with fictional data and no backend. Nothing connects to GitHub or Supabase. Not needed for self-hosting.
 
 ---
 
