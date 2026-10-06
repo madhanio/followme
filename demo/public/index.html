@@ -202,10 +202,20 @@ footer{border-top:1px solid var(--line);background:var(--surface);padding:32px 0
 .f-wrap{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
 .f-left{display:flex;flex-direction:column;gap:4px}
 .f-left b{color:var(--ink);font-weight:600}
-.f-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.f-left a:hover, .drawer-credit a:hover {
+  text-decoration: underline !important;
+}
 .f-right a{color:var(--muted);text-decoration:none;transition:color 0.16s ease;display:inline-flex;align-items:center;gap:4px}
 .f-right a:hover{color:var(--ink)}
 .license-badge{border:1px solid var(--line-strong);border-radius:6px;padding:2px 7px;font-size:11.5px;font-weight:600;color:var(--ink);background:var(--bg)}
+
+/* hide injected vercel toolbar and badges */
+vercel-live-feedback, #__vercel-toolbar, [data-vercel-toolbar], [data-testid="vercel-toolbar"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 
 /* drawer */
 .scrim{position:fixed;inset:0;background:rgba(22,24,29,.4);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .22s cubic-bezier(0.16,1,0.3,1);z-index:20}
@@ -254,8 +264,15 @@ body.open .drawer{transform:none}
   .two{grid-template-columns:1fr}
   .status .hide-m{display:none}
   .wrap{padding:0 14px}
+  .toolbar{gap:10px;padding:12px 14px}
+  .seg-wrap{width:100%;flex-direction:column;align-items:stretch;gap:8px}
+  .seg{width:100%;display:grid;grid-template-columns:repeat(5,1fr);text-align:center}
+  .seg button{padding:6px 4px;font-size:12px;justify-content:center}
+  .seg button .c{margin-left:3px;font-size:11px}
+  .pills{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .pill{justify-content:center;padding:6px 4px;font-size:11.5px;text-align:center}
+  .search{width:100%;min-width:0;flex:none}
   .drawer{top:auto;height:82vh;width:100%;border-left:0;border-top:1px solid var(--line-strong);border-radius:14px 14px 0 0;transform:translateY(100%)}
-  .search{min-width:0;flex:1}
   .f-wrap{flex-direction:column;align-items:flex-start}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -340,13 +357,13 @@ body.open .drawer{transform:none}
   <div class="wrap f-wrap">
     <div class="f-left">
       <div><b>FollowMe</b> — Autonomous GitHub repository discovery &amp; networking agent.</div>
-      <div>Designed &amp; engineered by <b>Madhan (@madhanio)</b>.</div>
+      <div>Designed &amp; engineered by <a href="https://github.com/madhanio" target="_blank" rel="noopener" style="color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:3px;">Madhan (@madhanio) <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg></a>.</div>
     </div>
     <div class="f-right">
       <span class="license-badge">MIT License</span>
       <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-        View Source on GitHub ↗
+        View Source on GitHub <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg>
       </a>
     </div>
   </div>
@@ -604,8 +621,8 @@ function openDrawer(u){
        <div><h4>Languages</h4><div class="lbar"><i style="width:${p.mix[0]}%"></i></div><div class="lleg">${p.langs.map((l,i)=>`<span>${l} ${p.mix[i]}%</span>`).join("")}</div></div>
        <div><h4>Found by</h4><p>${p.src}, account is ${p.age} year${p.age>1?"s":""} old</p></div>
        <div class="drawer-credit">
-         <span>Graded by FollowMe Agent by <b>@madhanio</b>.</span>
-         <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">Inspect Agent Source Code ↗</a>
+         <span>Graded by FollowMe Agent by <a href="https://github.com/madhanio" target="_blank" rel="noopener" style="color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:3px;">@madhanio <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg></a>.</span>
+         <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;">Inspect Agent Source Code <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg></a>
        </div>
      </div>
      <div class="d-foot">${p.status==="followed"?"":`<button class="btn primary" data-da="follow">Follow</button>`}${p.status==="skipped"?"":`<button class="btn" data-da="skip">Skip</button>`}</div>`;
