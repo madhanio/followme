@@ -63,8 +63,8 @@ FollowMe continuously searches for recently created repositories across your tec
 
 ## Before You Begin
 
-> [!NOTE]
-> The `/demo` folder is a static demo (one HTML file, fictional data, no backend) deployed at followme-demo.vercel.app. It is not needed for self-hosting.
+> **Live demo →** [followme-demo.vercel.app](https://followme-demo.vercel.app)
+> The `/demo` folder is a self-contained static page with fictional data and no backend. Nothing connects to GitHub or Supabase. Not needed for self-hosting.
 
 ---
 
