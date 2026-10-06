@@ -10,14 +10,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
+  --bg:#f5f7fb; --surface:#ffffff; --surface-2:#f0f4f8; --ink:#172235; --muted:#617089; --faint:#8a98ab;
+  --line:#dbe3ed; --line-strong:#b9c7d8; --hover:#edf3f8;
+  --accent:#087f68; --accent-tint:rgba(8,127,104,.11); --warn:#a66516; --warn-tint:rgba(166,101,22,.12);
+  --r:14px;
+}
+body.dark{
   --bg:#08111f; --surface:#101d31; --surface-2:#14243b; --ink:#f5f8ff; --muted:#9aabc3; --faint:#6f829e;
   --line:#223653; --line-strong:#34506f; --hover:#182b46;
   --accent:#43e0b5; --accent-tint:rgba(67,224,181,.13); --warn:#f1b96a; --warn-tint:rgba(241,185,106,.14);
-  --r:14px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
-body{font-family:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(circle at 80% -10%,#17345a 0,transparent 34%),var(--bg);color:var(--ink);font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+body{font-family:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(circle at 80% -10%,#dcefe9 0,transparent 34%),var(--bg);color:var(--ink);font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+body.dark{background:radial-gradient(circle at 80% -10%,#17345a 0,transparent 34%),var(--bg)}
+.theme-toggle{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font-size:12px;font-weight:600;color:var(--muted);transition:background .15s,color .15s,border-color .15s}
+.theme-toggle:hover{background:var(--hover);color:var(--ink)}
+.theme-toggle svg{width:14px;height:14px}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:4px}
@@ -102,7 +111,8 @@ header{border-bottom:1px solid var(--line);background:rgba(8,17,31,.84);backdrop
 .lleg{display:flex;gap:14px;margin-top:6px;color:var(--muted);font-size:12.5px}
 
 /* stats strip */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);background:rgba(16,29,49,.9);margin-top:28px;box-shadow:0 16px 38px rgba(0,0,0,.1)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-top:28px;box-shadow:0 16px 38px rgba(35,57,85,.08)}
+body.dark .stats{background:rgba(16,29,49,.9);box-shadow:0 16px 38px rgba(0,0,0,.1)}
 .stat{padding:16px 18px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .stat + .stat{border-left:1px solid var(--line)}
 .stat .label{color:var(--muted);font-size:13px}
@@ -112,7 +122,8 @@ header{border-bottom:1px solid var(--line);background:rgba(8,17,31,.84);backdrop
 .stat .note{color:var(--faint);font-size:12px}
 
 /* chart */
-.panel{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(145deg,rgba(20,36,59,.96),rgba(14,27,46,.96));margin-top:16px;box-shadow:0 16px 38px rgba(0,0,0,.12);overflow:hidden}
+.panel{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-top:16px;box-shadow:0 16px 38px rgba(35,57,85,.08);overflow:hidden}
+body.dark .panel{background:linear-gradient(145deg,rgba(20,36,59,.96),rgba(14,27,46,.96));box-shadow:0 16px 38px rgba(0,0,0,.12)}
 .panel-head{display:flex;align-items:center;justify-content:space-between;padding:20px 22px 4px;gap:12px;flex-wrap:wrap;background:linear-gradient(90deg,rgba(67,224,181,.08),transparent 55%)}
 .panel-head:before{content:"ACTIVITY OVERVIEW";color:var(--accent);font-size:10px;font-weight:700;letter-spacing:.14em;display:block;flex-basis:100%;order:-1}
 .panel-head h2{font-size:14px;font-weight:600}
@@ -124,7 +135,8 @@ header{border-bottom:1px solid var(--line);background:rgba(8,17,31,.84);backdrop
 .tip b{font-weight:600}
 
 /* candidates */
-.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:rgba(8,17,31,.2)}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:rgba(237,243,248,.55)}
+body.dark .toolbar{background:rgba(8,17,31,.2)}
 .seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;padding:2px;background:var(--bg)}
 .seg button{padding:5px 11px;border-radius:6px;font-size:13px;color:var(--muted);font-weight:500}
 .seg button .c{color:var(--faint);margin-left:5px;font-weight:400}
@@ -231,6 +243,7 @@ body.open .drawer{transform:none}
       <span class="hide-m" id="lastrun">Last run 2h ago, next in 4h</span>
       <span class="owner-tools" id="ownerTools"></span>
       <span class="mini" id="mode" role="group" aria-label="View as"><button data-m="visitor" aria-pressed="true">Visitor</button><button data-m="owner" aria-pressed="false">Owner</button></span>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false" aria-label="Switch to dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg><span>Dark</span></button>
       <span class="demo">Demo</span>
     </div>
   </div>
@@ -351,7 +364,16 @@ P.forEach(p=>{
 });
 
 const state={filter:"picks",q:"",limit:20,open:null,mode:"visitor",how:false};
-const $=s=>document.querySelector(s);
+  const $=s=>document.querySelector(s);
+  const themeToggle=$("#themeToggle");
+  function setTheme(dark){
+    document.body.classList.toggle("dark",dark);
+    themeToggle.setAttribute("aria-pressed",dark);
+    themeToggle.setAttribute("aria-label",dark?"Switch to light theme":"Switch to dark theme");
+    themeToggle.querySelector("span").textContent=dark?"Light":"Dark";
+  }
+  themeToggle.onclick=()=>setTheme(!document.body.classList.contains("dark"));
+  setTheme(false);
 
 /* single source of truth for filtering */
 const matches=(p,f)=> f==="all" ? true : f==="picks" ? (p.starred && p.status!=="skipped") : p.status===f;
