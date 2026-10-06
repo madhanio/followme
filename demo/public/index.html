@@ -205,9 +205,10 @@ footer{border-top:1px solid var(--line);background:var(--surface);padding:32px 0
 .f-left a:hover, .drawer-credit a:hover {
   text-decoration: underline !important;
 }
-.f-right a{color:var(--muted);text-decoration:none;transition:color 0.16s ease;display:inline-flex;align-items:center;gap:4px}
+.f-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.f-right a{color:var(--muted);text-decoration:none;transition:color 0.16s ease;display:inline-flex;align-items:center;gap:6px;line-height:1}
 .f-right a:hover{color:var(--ink)}
-.license-badge{border:1px solid var(--line-strong);border-radius:6px;padding:2px 7px;font-size:11.5px;font-weight:600;color:var(--ink);background:var(--bg)}
+.license-badge{border:1px solid var(--line-strong);border-radius:6px;padding:4px 8px;font-size:11.5px;font-weight:600;color:var(--ink);background:var(--bg);display:inline-flex;align-items:center;line-height:1}
 
 /* hide injected vercel toolbar and badges */
 vercel-live-feedback, #__vercel-toolbar, [data-vercel-toolbar], [data-testid="vercel-toolbar"] {
