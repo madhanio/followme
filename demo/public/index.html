@@ -128,12 +128,26 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
 
 /* candidates */
 .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.seg-wrap{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;padding:2px;background:var(--bg)}
 .seg button{padding:5px 11px;border-radius:6px;font-size:13px;color:var(--muted);font-weight:500;transition:all 0.16s cubic-bezier(0.16,1,0.3,1)}
 .seg button .c{color:var(--faint);margin-left:5px;font-weight:400}
 .seg button:hover:not([aria-pressed="true"]){color:var(--ink)}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line-strong)}
 .seg button[aria-pressed="true"] .c{color:var(--muted)}
+
+/* quick evidence filter pills */
+.pills{display:inline-flex;gap:6px;flex-wrap:wrap}
+.pill{
+  font-size:12px;font-weight:500;padding:4px 9px;border-radius:6px;
+  border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  transition:all 0.16s cubic-bezier(0.16,1,0.3,1);display:inline-flex;align-items:center;gap:4px;
+}
+.pill:hover{border-color:var(--line-strong);color:var(--ink);background:var(--hover)}
+.pill[aria-pressed="true"]{
+  background:var(--ink);color:var(--surface);border-color:var(--ink);box-shadow:var(--shadow-sm);
+}
+
 .search{border:1px solid var(--line-strong);border-radius:8px;padding:7px 11px;min-width:220px;background:var(--surface);font-size:13px;transition:border-color 0.18s ease, box-shadow 0.18s ease}
 .search:focus{border-color:var(--ink);box-shadow:0 0 0 3px var(--line);outline:none}
 .search::placeholder{color:var(--faint)}
@@ -173,7 +187,7 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
 .empty p{margin-bottom:12px}
 .more{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
 
-details.feed{margin:16px 0 48px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-sm);transition:background 0.25s ease}
+details.feed{margin:16px 0 28px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-sm);transition:background 0.25s ease}
 details.feed summary{padding:13px 18px;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;transition:background 0.15s ease}
 details.feed summary:hover{background:var(--hover)}
 details.feed summary::-webkit-details-marker{display:none}
@@ -182,6 +196,16 @@ details.feed summary span{color:var(--faint);font-weight:400;font-size:13px}
 .ev:hover{background:var(--hover)}
 .ev b{color:var(--ink);font-weight:600}
 .ev time{color:var(--faint);white-space:nowrap}
+
+/* footer credits and license */
+footer{border-top:1px solid var(--line);background:var(--surface);padding:32px 0 40px;margin-top:24px;color:var(--muted);font-size:13px;transition:background 0.25s ease, border-color 0.25s ease}
+.f-wrap{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.f-left{display:flex;flex-direction:column;gap:4px}
+.f-left b{color:var(--ink);font-weight:600}
+.f-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.f-right a{color:var(--muted);text-decoration:none;transition:color 0.16s ease;display:inline-flex;align-items:center;gap:4px}
+.f-right a:hover{color:var(--ink)}
+.license-badge{border:1px solid var(--line-strong);border-radius:6px;padding:2px 7px;font-size:11.5px;font-weight:600;color:var(--ink);background:var(--bg)}
 
 /* drawer */
 .scrim{position:fixed;inset:0;background:rgba(22,24,29,.4);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .22s cubic-bezier(0.16,1,0.3,1);z-index:20}
@@ -201,8 +225,9 @@ body.open .drawer{transform:none}
 .big b{font-size:34px;letter-spacing:-.02em}
 .sub{display:grid;grid-template-columns:90px 1fr 28px;gap:10px;align-items:center;margin-top:7px;font-size:13px;color:var(--muted)}
 .sub .t{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
-.sub .t i{display:block;height:100%;background:var(--ink);border-radius:2px;transition:width 0.35s ease}
+.sub .t i{display:block;height:100%;background:var(--ink);border-radius:2px;transition:width 0.2s cubic-bezier(0.16,1,0.3,1)}
 .sub span:last-child{color:var(--ink);text-align:right;font-weight:600}
+.sub-slider{width:100%;accent-color:var(--ink);height:4px;cursor:pointer}
 .facts{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r)}
 .facts div{padding:11px 13px}
 .facts div + div{border-left:1px solid var(--line)}
@@ -210,6 +235,9 @@ body.open .drawer{transform:none}
 .facts span{font-size:12px;color:var(--muted)}
 .tags{display:flex;gap:6px;flex-wrap:wrap}
 .tag{font-size:12.5px;border:1px solid var(--line-strong);border-radius:6px;padding:2px 8px}
+.drawer-credit{background:var(--hover);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.drawer-credit a{color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.drawer-credit a:hover{text-decoration:underline}
 .d-foot{display:flex;gap:8px;padding:16px 22px;border-top:1px solid var(--line)}
 .d-foot .btn{flex:1;padding:9px 12px;font-size:13.5px}
 
@@ -228,6 +256,7 @@ body.open .drawer{transform:none}
   .wrap{padding:0 14px}
   .drawer{top:auto;height:82vh;width:100%;border-left:0;border-top:1px solid var(--line-strong);border-radius:14px 14px 0 0;transform:translateY(100%)}
   .search{min-width:0;flex:1}
+  .f-wrap{flex-direction:column;align-items:flex-start}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -287,7 +316,14 @@ body.open .drawer{transform:none}
 
   <section class="panel" aria-label="Candidates">
     <div class="toolbar">
-      <div class="seg" id="seg" role="group" aria-label="Filter"></div>
+      <div class="seg-wrap">
+        <div class="seg" id="seg" role="group" aria-label="Filter"></div>
+        <div class="pills" id="pills" role="group" aria-label="Quick filters">
+          <button class="pill" data-pill="stars" aria-pressed="false">⭐ &gt;100 Stars</button>
+          <button class="pill" data-pill="active" aria-pressed="false">⚡ Active (&lt;14d)</button>
+          <button class="pill" data-pill="highvol" aria-pressed="false">🔥 High Commits</button>
+        </div>
+      </div>
       <input class="search" id="q" type="search" placeholder="Search developers" aria-label="Search developers">
     </div>
     <div class="head"><span>Developer</span><span>Score</span><span>Why this score</span><span>Status</span><span></span></div>
@@ -299,6 +335,22 @@ body.open .drawer{transform:none}
     <div id="feed"></div>
   </details>
 </main>
+
+<footer>
+  <div class="wrap f-wrap">
+    <div class="f-left">
+      <div><b>FollowMe</b> — Autonomous GitHub repository discovery &amp; networking agent.</div>
+      <div>Designed &amp; engineered by <b>Madhan (@madhanio)</b>.</div>
+    </div>
+    <div class="f-right">
+      <span class="license-badge">MIT License</span>
+      <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        View Source on GitHub ↗
+      </a>
+    </div>
+  </div>
+</footer>
 
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Developer details" aria-hidden="true"></aside>
@@ -329,6 +381,25 @@ $("#themeBtn").addEventListener("click",()=>{
   applyTheme(!isDark);
 });
 
+/* ---------- dynamic rolling dates & deterministic seeded generator ---------- */
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function h32(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+
+const today = new Date();
+const todayKey = `${today.getFullYear()}-${today.getMonth()+1}-${today.getDate()}`;
+const dailySeed = h32("followme-live-seed-" + todayKey);
+const rand = rng(dailySeed);
+
+// Generate 30 days dynamically up to today
+const days = Array.from({length:30},(_,i)=>{
+  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  d.setDate(d.getDate() - (29 - i));
+  return d;
+});
+const fol = days.map((_,i)=>Math.round(5 + i*0.12 + rand()*6));
+const unf = days.map((_,i)=>Math.round(1 + rand()*4));
+const fmt = d => d.toLocaleDateString("en-US", {month:"short", day:"numeric"});
+
 /* ---------- fake data (all names are made up) ---------- */
 const P = [
  ["ananya-rao","Ananya Rao",94,"Ships production RAG tooling with steady commits and real stars.","followed",true,true,"Backend engineer building retrieval pipelines. Maintains a few small libraries.",["vecstore","chunkwise","rag-evals"],["Python","TypeScript"],1840,312],
@@ -356,7 +427,7 @@ const P = [
 ].map(a=>({user:a[0],name:a[1],score:a[2],reason:a[3],status:a[4],starred:a[5],back:a[6],bio:a[7],repos:a[8],langs:a[9],followers:a[10],following:a[11]}));
 
 (function(){
-  const r=rng(42);
+  const r=rng(dailySeed ^ 0xA5A5);
   const F=["Aiko","Mateo","Isla","Rohan","Lena","Tariq","Maya","Jonas","Noor","Callum","Esha","Pablo","Sana","Viktor","Thea","Kenji","Layla","Idris","Freya","Nikhil","Camila","Anders","Zainab","Mira","Owen","Dalia","Hugo","Tessa","Arman","Ruth"];
   const Lz=["Novak","Ibrahim","Larsen","Mehta","Costa","Abe","Rahman","Keller","Bose","Silva","Yamada","Ortiz","Haas","Singh","Moreno","Duarte","Nyberg","Ali","Fraser","Gupta","Lopez","Weber","Sato","Reddy","Park","Nguyen","Cohen","Mensah","Rossi","Kaya"];
   const LG=["Python","TypeScript","Go","Rust","Dart","Java","SQL","C++","Kotlin","JavaScript","Swift","Ruby"];
@@ -376,10 +447,9 @@ const P = [
   }
 })();
 
-/* Top pick = score 90+, and a skipped profile can never be one */
 const SRC=["RAG and LLM tooling","Flutter and Dart","Rust CLI authors","Next.js and Supabase","Data engineering","ML systems"];
 const RDESC=["Small, well-tested library with clear docs.","Command-line tool used by a few hundred people.","Starter template with CI and examples.","Experiments and notes in code form.","Utility package published to the registry.","Reference implementation with benchmarks."];
-function h32(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+
 P.forEach(p=>{
   p.starred = p.score>=90 && p.status!=="skipped";
   const r=rng(h32(p.user));
@@ -390,21 +460,27 @@ P.forEach(p=>{
   p.repoData=p.repos.slice(0,3).map((n,i)=>({n,stars:Math.round(Math.pow(r(),2.2)*cap*(i===0?1:.5)),lang:p.langs[i%p.langs.length],desc:RDESC[Math.floor(r()*RDESC.length)],pushed:Math.max(1,Math.round(Math.pow(r(),1.6)*(p.score>=60?40:300)))}));
   const a=p.langs.length>1?Math.round(55+r()*30):100;
   p.mix=p.langs.length>1?[a,100-a]:[100];
+  // Sub-scores derived deterministically
+  p.subs = {
+    activity: Math.max(20, Math.min(99, p.score + 8)),
+    codeQuality: Math.max(20, Math.min(99, p.score - 4)),
+    relevance: Math.max(20, Math.min(99, p.score + 3)),
+    reach: Math.max(20, Math.min(99, p.score - 11))
+  };
 });
 
-const state={filter:"picks",q:"",limit:20,open:null,how:false};
+const state={filter:"picks",pill:null,q:"",limit:20,open:null,how:false};
 
 /* single source of truth for filtering */
 const matches=(p,f)=> f==="all" ? true : f==="picks" ? (p.starred && p.status!=="skipped") : p.status===f;
-const visible=()=>P.filter(p=>matches(p,state.filter) && (!state.q || (p.name+" "+p.user).toLowerCase().includes(state.q))).sort((a,b)=>b.score-a.score);
-
-/* seeded random for repeatable charts */
-function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-const rand=rng(7);
-const days=Array.from({length:30},(_,i)=>{const d=new Date(2026,9,6);d.setDate(d.getDate()-(29-i));return d});
-const fol=days.map((_,i)=>Math.round(5+i*.12+rand()*6));
-const unf=days.map((_,i)=>Math.round(1+rand()*4));
-const fmt=d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const matchesPill=(p,pill)=>{
+  if(!pill) return true;
+  if(pill==="stars") return p.repoData.some(r=>r.stars>=100);
+  if(pill==="active") return Math.min(...p.repoData.map(r=>r.pushed))<=14;
+  if(pill==="highvol") return p.commits>=60;
+  return true;
+};
+const visible=()=>P.filter(p=>matches(p,state.filter) && matchesPill(p,state.pill) && (!state.q || (p.name+" "+p.user).toLowerCase().includes(state.q))).sort((a,b)=>b.score-a.score);
 
 function hue(s){let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h}
 const av=(p,cls="")=>{
@@ -426,10 +502,10 @@ function renderStats(){
   const fo=P.filter(p=>matches(p,"followed")), mt=fo.filter(p=>!p.fresh), fb=mt.filter(p=>p.back).length;
   const rate=mt.length?Math.round(fb/mt.length*100):0;
   const items=[
-    ["Followed",fo.length,"+12 this week",trend(1),"var(--accent)"],
-    ["Follow-back rate",rate+"%",fb+" of "+mt.length,trend(2),"var(--ink)"],
-    ["In queue",P.filter(p=>matches(p,"queued")).length,"Next run in 4h",trend(3,false),"var(--ink)"],
-    ["Skipped",P.filter(p=>matches(p,"skipped")).length,"Below score 60",trend(4),"var(--faint)"]
+    ["Followed",fo.length,"+12 this week",trend(dailySeed+1),"var(--accent)"],
+    ["Follow-back rate",rate+"%",fb+" of "+mt.length,trend(dailySeed+2),"var(--ink)"],
+    ["In queue",P.filter(p=>matches(p,"queued")).length,"Next run in 4h",trend(dailySeed+3,false),"var(--ink)"],
+    ["Skipped",P.filter(p=>matches(p,"skipped")).length,"Below score 60",trend(dailySeed+4),"var(--faint)"]
   ];
   $("#stats").innerHTML=items.map(s=>`<div class="stat"><span class="label">${s[0]}</span><div class="row"><span class="num">${s[1]}</span>${spark(s[3],s[4])}</div><span class="note">${s[2]}</span></div>`).join("");
 }
@@ -442,8 +518,12 @@ function renderSeg(){
 function renderList(){
   const all=visible(), L=all.slice(0,state.limit);
   if(!L.length){
-    $("#list").innerHTML=`<div class="empty"><p>No developers match this view.</p><button class="btn" id="clear">Show all ${P.length}</button></div>`;
-    $("#clear").onclick=()=>{state.filter="all";state.q="";state.limit=20;$("#q").value="";renderAll()};
+    $("#list").innerHTML=`<div class="empty"><p>No developers match this view.</p><button class="btn" id="clear">Clear filters</button></div>`;
+    $("#clear").onclick=()=>{
+      state.filter="all";state.pill=null;state.q="";state.limit=20;$("#q").value="";
+      $("#pills").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed","false"));
+      renderAll();
+    };
     return;
   }
   $("#list").innerHTML=L.map(p=>`
@@ -458,7 +538,13 @@ function renderList(){
 }
 
 function renderFeed(){
-  const ev=[["Followed","sofia-lindqvist","12 min ago"],["Skipped","zoe-fischer","12 min ago"],["Scored","arjun-sethi (85)","12 min ago"],["Unfollowed","3 accounts that did not follow back","2h ago"],["Run finished","18 profiles reviewed","2h ago"]];
+  const ev=[
+    ["Followed","sofia-lindqvist","12 min ago"],
+    ["Skipped","zoe-fischer","18 min ago"],
+    ["Scored","arjun-sethi (85)","42 min ago"],
+    ["Unfollowed","3 accounts that did not follow back","2h ago"],
+    ["Run finished","18 profiles reviewed","2h ago"]
+  ];
   $("#feed").innerHTML=ev.map(e=>`<div class="ev"><span><b>${e[0]}</b> ${e[1]}</span><time>${e[2]}</time></div>`).join("");
 }
 
@@ -489,31 +575,62 @@ function renderChart(){
   svg.addEventListener("mouseleave",()=>{tip.style.opacity=0;$("#guide").setAttribute("opacity",0);$("#d1").setAttribute("opacity",0)});
 }
 
-/* drawer */
-function sub(p){const o=[["Activity",8],["Code quality",-4],["Relevance",3],["Reach",-11]];return o.map(([n,d])=>[n,Math.max(20,Math.min(99,p.score+d))])}
+/* drawer & interactive sub-scores */
+function recalcScore(p){
+  p.score = Math.round((p.subs.activity * 0.3) + (p.subs.codeQuality * 0.35) + (p.subs.relevance * 0.2) + (p.subs.reach * 0.15));
+  p.starred = p.score >= 90 && p.status !== "skipped";
+}
+
 function openDrawer(u){
   const p=P.find(x=>x.user===u); if(!p)return; state.open=u;
   const ratio=(p.followers/Math.max(1,p.following)).toFixed(1);
-  $("#drawer").innerHTML=`
-   <div class="d-head">${av(p)}<div><h3 style="display:flex;align-items:center;gap:6px">${p.name}${p.starred?starIcon:""}</h3><div class="u">@${p.user}</div></div><button class="x" id="close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
-   <div class="d-body">
-     <div><h4>Score</h4><div class="big"><b>${p.score}</b><span class="chip ${p.status}">${label[p.status]}</span></div>
-       ${sub(p).map(s=>`<div class="sub"><span>${s[0]}</span><span class="t"><i style="width:${s[1]}%"></i></span><span>${s[1]}</span></div>`).join("")}</div>
-     <div><h4>Why this score</h4><p>${p.reason}</p><div class="evi">${evidence(p).map(e=>`<span class="ev-chip ${e[0]}">${e[1]}</span>`).join("")}</div></div>
-     ${p.bio?`<div><h4>Bio</h4><p>${p.bio}</p></div>`:""}
-     <div><h4>Top repos</h4><div class="repos">${p.repoData.map(r=>`<div class="repo"><div class="rn"><span>${r.n}</span><span class="rs"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>${r.stars.toLocaleString()}</span></div><div class="rd">${r.desc}</div><div class="rm">${r.lang}, pushed ${r.pushed} day${r.pushed>1?"s":""} ago</div></div>`).join("")}</div></div>
-     <div class="facts"><div><b>${p.followers.toLocaleString()}</b><span>Followers</span></div><div><b>${p.following.toLocaleString()}</b><span>Following</span></div><div><b>${ratio}</b><span>Ratio</span></div></div>
-     <div><h4>Languages</h4><div class="lbar"><i style="width:${p.mix[0]}%"></i></div><div class="lleg">${p.langs.map((l,i)=>`<span>${l} ${p.mix[i]}%</span>`).join("")}</div></div>
-     <div><h4>Found by</h4><p>${p.src}, account is ${p.age} year${p.age>1?"s":""} old</p></div>
-   </div>
-   <div class="d-foot">${p.status==="followed"?"":`<button class="btn primary" data-da="follow">Follow</button>`}${p.status==="skipped"?"":`<button class="btn" data-da="skip">Skip</button>`}</div>`;
+  
+  const renderDrawerBody = () => {
+    return `
+     <div class="d-head">${av(p)}<div><h3 style="display:flex;align-items:center;gap:6px">${p.name}${p.starred?starIcon:""}</h3><div class="u">@${p.user}</div></div><button class="x" id="close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
+     <div class="d-body">
+       <div>
+         <h4>AI Evaluation Breakdown <span style="font-weight:400;color:var(--faint)">(interactive)</span></h4>
+         <div class="big"><b id="dScore">${p.score}</b><span class="chip ${p.status}" id="dStatus">${label[p.status]}</span></div>
+         <div class="sub"><span>Activity</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.activity}" data-key="activity"><span id="v_activity">${p.subs.activity}</span></div>
+         <div class="sub"><span>Code quality</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.codeQuality}" data-key="codeQuality"><span id="v_codeQuality">${p.subs.codeQuality}</span></div>
+         <div class="sub"><span>Relevance</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.relevance}" data-key="relevance"><span id="v_relevance">${p.subs.relevance}</span></div>
+         <div class="sub"><span>Reach</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.reach}" data-key="reach"><span id="v_reach">${p.subs.reach}</span></div>
+       </div>
+       <div><h4>Why this score</h4><p>${p.reason}</p><div class="evi">${evidence(p).map(e=>`<span class="ev-chip ${e[0]}">${e[1]}</span>`).join("")}</div></div>
+       ${p.bio?`<div><h4>Bio</h4><p>${p.bio}</p></div>`:""}
+       <div><h4>Top repos</h4><div class="repos">${p.repoData.map(r=>`<div class="repo"><div class="rn"><span>${r.n}</span><span class="rs"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>${r.stars.toLocaleString()}</span></div><div class="rd">${r.desc}</div><div class="rm">${r.lang}, pushed ${r.pushed} day${r.pushed>1?"s":""} ago</div></div>`).join("")}</div></div>
+       <div class="facts"><div><b>${p.followers.toLocaleString()}</b><span>Followers</span></div><div><b>${p.following.toLocaleString()}</b><span>Following</span></div><div><b>${ratio}</b><span>Ratio</span></div></div>
+       <div><h4>Languages</h4><div class="lbar"><i style="width:${p.mix[0]}%"></i></div><div class="lleg">${p.langs.map((l,i)=>`<span>${l} ${p.mix[i]}%</span>`).join("")}</div></div>
+       <div><h4>Found by</h4><p>${p.src}, account is ${p.age} year${p.age>1?"s":""} old</p></div>
+       <div class="drawer-credit">
+         <span>Graded by FollowMe Agent by <b>@madhanio</b>.</span>
+         <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">Inspect Agent Source Code ↗</a>
+       </div>
+     </div>
+     <div class="d-foot">${p.status==="followed"?"":`<button class="btn primary" data-da="follow">Follow</button>`}${p.status==="skipped"?"":`<button class="btn" data-da="skip">Skip</button>`}</div>`;
+  };
+
+  $("#drawer").innerHTML = renderDrawerBody();
   document.body.classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
   $("#close").onclick=closeDrawer; $("#close").focus();
   $("#drawer").querySelectorAll("[data-da]").forEach(b=>b.onclick=()=>{act(p.user,b.dataset.da);openDrawer(p.user)});
+  
+  // Real-time interactive sub-score slider event listeners
+  $("#drawer").querySelectorAll(".sub-slider").forEach(slider => {
+    slider.addEventListener("input", e => {
+      const k = e.target.dataset.key;
+      p.subs[k] = parseInt(e.target.value, 10);
+      $(`#v_${k}`).textContent = p.subs[k];
+      recalcScore(p);
+      $("#dScore").textContent = p.score;
+      renderAll();
+    });
+  });
 }
 function closeDrawer(){document.body.classList.remove("open");$("#drawer").setAttribute("aria-hidden","true");state.open=null}
 
-/* evidence chips: derived only from the stored snapshot */
+/* evidence chips */
 function evidence(p){
   const out=[], big=p.repoData.filter(r=>r.stars>=100).length;
   if(big) out.push(["good",`${big} repo${big>1?"s":""} with 100+ stars`]);
@@ -525,7 +642,7 @@ function evidence(p){
   return out;
 }
 
-/* score vs follow-back: the "does scoring actually predict anything" view */
+/* score vs follow-back band chart */
 function renderBands(){
   const bands=[["60-69",60,69],["70-79",70,79],["80-89",80,89],["90+",90,100]];
   const pool=P.filter(p=>p.status==="followed" && !p.fresh);
@@ -562,6 +679,20 @@ function renderAll(){renderStats();renderBands();renderSeg();renderList();}
 
 /* events */
 $("#seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.filter=b.dataset.k;state.limit=20;renderAll()});
+$("#pills").addEventListener("click",e=>{
+  const b=e.target.closest(".pill");if(!b)return;
+  const pill=b.dataset.pill;
+  if(state.pill===pill){
+    state.pill=null;
+    b.setAttribute("aria-pressed","false");
+  } else {
+    state.pill=pill;
+    $("#pills").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed",p===b));
+  }
+  state.limit=20;
+  renderList();
+});
+
 $("#q").addEventListener("input",e=>{state.q=e.target.value.trim().toLowerCase();state.limit=20;renderList()});
 $("#list").addEventListener("click",e=>{
   const a=e.target.closest("[data-a]");
