@@ -62,6 +62,7 @@ import { StatsTab } from '@/components/StatsTab';
 import { SettingsModal } from '@/components/SettingsModal';
 import { UnfollowModal } from '@/components/UnfollowModal';
 import Header from '@/components/Header';
+import StatStrip from '@/components/StatStrip';
 
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
@@ -1141,8 +1142,8 @@ export default function DashboardView({
 
       <main style={{ maxWidth:1200, margin:'0 auto', padding:'24px 16px', display:'flex', flexDirection:'column', gap:24 }}>
 
-        {/* ── STAT STRIP (Part B placeholder) ── */}
-        <div id="stat-strip" style={{ height:88, background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)' }} />
+        {/* ── STAT STRIP (Part B) ── */}
+        <StatStrip repos={repos} />
 
         {/* ── CHARTS ROW (Part C placeholder) ── */}
         <div id="charts-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>

@@ -26,6 +26,7 @@ export interface Repo {
   account_created_at?: string | null;
   last_pushed_at?: string | null;
   source?: string | null;
+  created_at?: string | null;
 }
 
 export interface Log {
