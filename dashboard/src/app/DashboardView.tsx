@@ -61,6 +61,7 @@ import { LogsTable } from '@/components/LogsTable';
 import { StatsTab } from '@/components/StatsTab';
 import { SettingsModal } from '@/components/SettingsModal';
 import { UnfollowModal } from '@/components/UnfollowModal';
+import Header from '@/components/Header';
 
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
@@ -212,6 +213,11 @@ export default function DashboardView({
     isJobRunning: boolean;
     consecutiveFailures: number;
   } | null>(null);
+
+  const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'paused'>('idle');
+  const [isPaused, setIsPaused] = useState(false);
+  const handlePause = () => { setIsPaused(true); setRunStatus('paused'); };
+  const handleUnpause = () => { setIsPaused(false); setRunStatus('idle'); };
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -545,6 +551,13 @@ export default function DashboardView({
   const lastRunTask = useMemo(() => {
     return runSummary.find(r => r.run_type !== 'sync_following' && r.run_type !== 'cleanup') || null;
   }, [runSummary]);
+
+  const lastRunLabel = useMemo(() => {
+    const iso = workerStatus?.lastRun || lastRunTask?.ran_at;
+    if (!iso) return null;
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    return diff < 60 ? `Last run ${diff}m ago` : `Last run ${Math.floor(diff / 60)}h ago`;
+  }, [workerStatus?.lastRun, lastRunTask?.ran_at]);
 
   const filteredProfiles = useMemo(() => {
     return allProfiles.filter(profile => {
@@ -1114,439 +1127,36 @@ export default function DashboardView({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-[#f9f9f9] text-[#1a1c1c] dark:bg-[#0d0d0d] dark:text-[#f0f0f0] font-sans transition-colors duration-200 selection:bg-zinc-200 dark:selection:bg-zinc-800 antialiased">
-      <div className="flex flex-1 flex-col md:flex-row relative">
-        {/* Mobile Header Bar */}
-        <div className="h-14 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] md:hidden flex items-center justify-between px-4 z-30 shrink-0">
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 border border-[#dadada] dark:border-[#2a2a2a] bg-white dark:bg-[#111111] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-lg transition-all cursor-pointer"
-          >
-            {isSidebarOpen ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}
-          </button>
+    <div style={{ minHeight:'100vh', background:'var(--bg)', color:'var(--ink)' }}>
 
-          <div 
-            onClick={() => handleTabChange('home')}
-            className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90 absolute left-1/2 -translate-x-1/2"
-          >
-            <div className="h-7 w-7 rounded-lg bg-[#e60023] flex items-center justify-center text-white font-bold text-sm font-jakarta">F</div>
-            <span className="font-bold tracking-tight font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] text-sm">FollowMe</span>
-          </div>
+      <Header
+        status={runStatus}
+        lastRunLabel={lastRunLabel}
+        onRunNow={handleTrigger}
+        onPause={handlePause}
+        onUnpause={handleUnpause}
+        onUnfollowOpen={() => setIsCleanupOpen(true)}
+        onSettingsOpen={() => setIsSettingsOpen(true)}
+      />
 
-          <div className="relative" ref={mobileProfileMenuRef}>
-            <button
-              onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-              className="h-9 w-9 rounded-full border-2 border-red-500/60 p-0.5 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
-            >
-              <img
-                src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
-                alt={userProfile?.name || userProfile?.login || "Profile"}
-                className="h-full w-full rounded-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://github.com/github.png";
-                }}
-              />
-            </button>
-          </div>
+      <main style={{ maxWidth:1200, margin:'0 auto', padding:'24px 16px', display:'flex', flexDirection:'column', gap:24 }}>
+
+        {/* ── STAT STRIP (Part B placeholder) ── */}
+        <div id="stat-strip" style={{ height:88, background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)' }} />
+
+        {/* ── CHARTS ROW (Part C placeholder) ── */}
+        <div id="charts-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          <div style={{ height:220, background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)' }} />
+          <div style={{ height:220, background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)' }} />
         </div>
 
-        {/* Desktop Sidebar Navigation */}
-        <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-[#111111] border-r border-[#dadada] dark:border-[#2a2a2a] flex flex-col justify-between p-4 shrink-0 select-none transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
-          isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
-        }`}>
-          <div className="space-y-7">
-            <div 
-              onClick={() => {
-                handleTabChange('home');
-                setIsSidebarOpen(false);
-              }}
-              className="flex items-center space-x-3 px-2 cursor-pointer hover:opacity-90 active:scale-95 transition-all"
-            >
-              <div className="h-9 w-9 rounded-xl bg-[#e60023] flex items-center justify-center text-white font-bold text-lg font-jakarta shadow-sm">
-                F
-              </div>
-              <div>
-                <h1 className="text-lg font-bold font-jakarta tracking-tight leading-none text-[#1a1c1c] dark:text-[#f0f0f0]">FollowMe</h1>
-                <span className="text-[9px] uppercase font-mono font-semibold tracking-wider text-slate-400 dark:text-zinc-500 mt-1 block">AI Agent Control</span>
-              </div>
-            </div>
+        {/* ── PROFILES LIST (Part D placeholder) ── */}
+        <div id="profiles-section" style={{ background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)', minHeight:400 }} />
 
-            <nav className="space-y-1 font-geist">
-              {[
-                { tab: 'home', label: 'Home', count: null, icon: Compass },
-                { tab: 'profiles', label: 'Profiles', count: filteredProfiles.length, icon: Layers },
-                { tab: 'repos', label: 'Repositories', count: filteredRepos.length, icon: Star },
-                { tab: 'logs', label: 'Logs', count: logs.length, icon: Terminal },
-                { tab: 'stats', label: 'Stats', count: null, icon: TrendingUp }
-              ].map(item => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.tab;
-                return (
-                  <button 
-                    key={item.tab}
-                    onClick={() => {
-                      handleTabChange(item.tab as any);
-                      setIsSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      isActive 
-                        ? 'bg-[#f3f3f3] dark:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0]' 
-                        : 'text-[#767676] hover:bg-[#f9f9f9] dark:hover:bg-[#151515] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </div>
-                    {item.count !== null && (
-                      <span className="px-2 py-0.5 rounded-full bg-[#f3f3f3] dark:bg-[#2a2a2a] text-xs font-mono font-bold text-[#767676] dark:text-zinc-400">
-                        {item.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </aside>
+        {/* ── ACTIVITY FEED (Part F placeholder) ── */}
+        <div id="activity-feed" style={{ background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)', minHeight:120 }} />
 
-        {isSidebarOpen && (
-          <div 
-            onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-xs transition-opacity duration-300"
-          />
-        )}
-
-        {/* Main View Area */}
-        <main className={`flex-1 flex flex-col min-w-0 h-screen ${
-          isSettingsOpen || isSecurityModalOpen || isCleanupOpen || isSidebarOpen || exportPreview 
-            ? 'overflow-hidden' 
-            : 'overflow-y-auto'
-        }`}>
-          {/* Top Bar */}
-          <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-center md:justify-end px-4 md:px-6 shrink-0 z-20 gap-4">
-            <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden mr-auto">
-              <div className="relative w-full">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Search metadata, profiles, or logs..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-[#f3f3f3] dark:bg-[#1a1a1a] border-none rounded-full py-2 pl-10 pr-4 text-xs text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-slate-450 focus:outline-none focus:ring-1 focus:ring-[#e60023] transition-all font-sans"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center space-x-3 font-geist relative w-full md:w-auto flex-wrap">
-              <button 
-                onClick={toggleDarkMode}
-                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all aura-shadow active:scale-95 shrink-0"
-                title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
-              >
-                {isDark ? <Sun className="h-4 w-4 text-amber-400 shrink-0" /> : <Moon className="h-4 w-4 text-indigo-400 shrink-0" />}
-              </button>
-
-              <button 
-                onClick={() => setIsCleanupOpen(true)}
-                disabled={workerStatus?.isJobRunning}
-                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow active:scale-95 shrink-0"
-                title="Cleanup Cache"
-              >
-                <Trash2 className="h-4 w-4 text-blue-500 shrink-0" />
-              </button>
-
-              <button 
-                onClick={handleRefresh}
-                disabled={isRefreshing || isSyncing}
-                className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all disabled:opacity-40 aura-shadow active:scale-95 shrink-0"
-                title="Refresh Data"
-              >
-                <RotateCw className={`h-4 w-4 text-zinc-500 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </button>
-
-              {/* Extracted RunnerStatus Component */}
-              <RunnerStatus
-                workerStatus={workerStatus}
-                lastRunTime={lastRunTask ? new Date(lastRunTask.ran_at).toLocaleTimeString() : null}
-                isTriggering={isTriggering}
-                healthState={healthState}
-                onTrigger={handleTrigger}
-              />
-
-              <div className="relative ml-2 md:block hidden" ref={profileMenuRef}>
-                <button
-                  onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="h-9 w-9 rounded-full border-2 border-red-500/60 p-0.5 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
-                  title="Profile Menu"
-                >
-                  <img
-                    src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
-                    alt={userProfile?.name || userProfile?.login || "Profile"}
-                    className="h-full w-full rounded-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://github.com/github.png";
-                    }}
-                  />
-                </button>
-
-                {isProfileMenuOpen && (
-                  <div 
-                    className="absolute right-0 mt-3 w-64 bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl shadow-2xl p-4 z-50 space-y-3 font-sans animate-in fade-in zoom-in-95"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
-                      <img
-                        src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
-                        alt={userProfile?.name || userProfile?.login || "Profile"}
-                        className="h-10 w-10 rounded-full border border-red-500/40 object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://github.com/github.png";
-                        }}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-sm font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate">{userProfile?.name || userProfile?.login || 'User'}</h4>
-                        <span className="text-[10px] font-mono text-zinc-400 block truncate">@{userProfile?.login || 'user'}</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-[#f8f9fa] dark:bg-[#1a1a1e] rounded-xl p-2.5 text-[10px] font-mono space-y-1">
-                      <div className="flex items-center justify-between font-bold text-zinc-500">
-                        <span>Worker Status</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${workerStatus?.isJobRunning ? 'bg-amber-500/20 text-amber-500 animate-pulse' : 'bg-emerald-500/20 text-emerald-500'}`}>
-                          {workerStatus?.isJobRunning ? 'RUNNING' : 'ACTIVE'}
-                        </span>
-                      </div>
-                      <div className="text-[9px] text-zinc-400 truncate">
-                        Schedule: Every 6 hours • Worker Online
-                      </div>
-                    </div>
-
-                    <div className="space-y-1 text-xs font-medium pt-1">
-                      <button
-                        onClick={() => {
-                          setIsProfileMenuOpen(false);
-                          setIsSettingsOpen(true);
-                          setTempSettings(savedSettings);
-                        }}
-                        className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1e1e24] transition-all cursor-pointer"
-                      >
-                        <Settings className="h-4 w-4 text-blue-500" />
-                        <span>Settings</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setIsProfileMenuOpen(false);
-                          setIsSecurityModalOpen(true);
-                          setCurrentSecKey('');
-                          setNewSecKey('');
-                          setConfirmSecKey('');
-                          setSecKeyError(null);
-                          setSecKeySuccess(null);
-                        }}
-                        className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1e1e24] transition-all cursor-pointer"
-                      >
-                        <Lock className="h-4 w-4 text-[#e60023]" />
-                        <span>Password</span>
-                      </button>
-
-                      <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer font-bold"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        <span>Logout</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </header>
-
-          {/* Main Content Body */}
-          <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-            {healthState && healthState.isGitHubValid === false && (
-              <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in shadow-sm">
-                <div className="flex items-start space-x-3.5">
-                  <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
-                    <ShieldAlert className="h-6 w-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-jakarta font-bold text-sm text-[#1a1c1c] dark:text-[#fef3c7]">
-                        GitHub Personal Access Token Expired
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                        Historical Snapshot Mode
-                      </span>
-                    </div>
-                    <p className="text-xs text-amber-800 dark:text-amber-300/80 leading-relaxed font-sans max-w-3xl">
-                      Live GitHub authentication failed (401 Bad credentials). FollowMe is showing your last-known database snapshot. Background automation and live mutations are safely paused.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2 shrink-0 w-full md:w-auto">
-                  <button
-                    onClick={() => {
-                      setTempSettings(savedSettings);
-                      setIsSettingsOpen(true);
-                    }}
-                    className="flex-1 md:flex-none px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Key className="h-3.5 w-3.5" />
-                    <span>Update Token</span>
-                  </button>
-                  <a
-                    href="https://github.com/settings/tokens/new"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-2 border border-amber-500/40 hover:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-xs font-mono rounded-xl transition flex items-center gap-1"
-                  >
-                    <span>New PAT</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-              </div>
-            )}
-
-            {triggerStatus && (
-              <div className="p-4 rounded-xl border flex items-center justify-between font-mono text-xs bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400">
-                <div className="flex items-center space-x-2.5">
-                  <CheckCircle className="h-4 w-4 text-emerald-500" />
-                  <span>{triggerStatus.message}</span>
-                </div>
-                <button 
-                  onClick={() => setTriggerStatus(null)}
-                  className="hover:underline font-bold"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-
-            <div className="space-y-6">
-              <div className="pb-4 border-b border-[#dadada] dark:border-[#2a2a2a] flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center space-x-2.5">
-                    <h2 className="text-xl font-extrabold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0] leading-tight">
-                      {activeTab === 'home' && `Welcome back, ${userProfile?.name?.split(' ')[0] || userProfile?.login || 'Developer'}!`}
-                      {activeTab === 'profiles' && "Developer Profiles"}
-                      {activeTab === 'repos' && "Repository Pins"}
-                      {activeTab === 'logs' && "Activity Logs"}
-                      {activeTab === 'stats' && "Evaluation Metrics"}
-                    </h2>
-                  </div>
-                  <p className="text-xs text-zinc-500 font-mono mt-0.5">
-                    {activeTab === 'home' && "AI Automated Follow & Graded Repositories Control Center"}
-                    {activeTab === 'profiles' && "Evaluated developers & status classifications"}
-                    {activeTab === 'repos' && "Discovered and graded software repositories"}
-                    {activeTab === 'logs' && "Real-time execution log console"}
-                    {activeTab === 'stats' && "Historical analytics and performance stats"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Render Tab Views */}
-              {!isTabTransitioning && !isRefreshing && activeTab === 'home' && (
-                <HomeTab
-                  relationshipMatrix={relationshipMatrix}
-                  savedGraceDays={savedSettings.unfollowGracePeriod || 7}
-                  stats={stats}
-                  rateLimitData={rateLimitData}
-                  rateLimitLoading={rateLimitLoading}
-                  repos={repos}
-                  logs={logs}
-                  runSummary={runSummary}
-                  workerStatus={workerStatus}
-                  userProfile={userProfile}
-                  showOnboardingTest={showOnboardingTest}
-                  isBannerDismissed={isBannerDismissed}
-                  isOAuthConnecting={isOAuthConnecting}
-                  onGitHubOAuth={handleGitHubOAuth}
-                  onDismissBanner={() => setIsBannerDismissed(true)}
-                  onSelectRepo={(repo: Repo) => setSelectedRepo(repo)}
-                  setActiveTab={handleTabChange}
-                  setSearchTerm={setSearchTerm}
-                  onRefreshRateLimits={() => fetchRateLimits(true)}
-                  onFollow={handleFollowUser}
-                  onUnfollow={handleUnfollowUser}
-                  onDelete={handleDeleteProfile}
-                  loadingIds={loadingIds.current}
-                />
-              )}
-
-              {!isTabTransitioning && !isRefreshing && activeTab === 'profiles' && (
-                <ProfilesGrid
-                  filteredProfiles={filteredProfiles}
-                  allProfilesCount={allProfiles.length}
-                  visibleProfilesCount={visibleProfilesCount}
-                  activeFilter={activeFilter}
-                  relationshipMatrix={relationshipMatrix}
-                  unfollowGracePeriod={savedSettings.unfollowGracePeriod || 7}
-                  isRefreshing={isRefreshing}
-                  isTriggering={isTriggering}
-                  loadingIds={loadingIds.current}
-                  onFilterChange={(f) => setActiveFilter(f as any)}
-                  onTrigger={handleTrigger}
-                  onFollow={handleFollowUser}
-                  onUnfollow={handleUnfollowUser}
-                  onDelete={handleDeleteProfile}
-                  onLoadMore={() => setVisibleProfilesCount(prev => prev + 24)}
-                  setActiveTab={handleTabChange}
-                  setSearchTerm={setSearchTerm}
-                />
-              )}
-
-              {!isTabTransitioning && !isRefreshing && activeTab === 'repos' && (
-                <ReposGrid
-                  filteredRepos={filteredRepos}
-                  visibleReposCount={visibleReposCount}
-                  activeFilter={activeFilter}
-                  isRefreshing={isRefreshing}
-                  loadingIds={loadingIds.current}
-                  onFilterChange={(f) => setActiveFilter(f as any)}
-                  onStar={handleStar}
-                  onUnstar={handleUnstar}
-                  onSelectRepo={(r) => setSelectedRepo(r)}
-                  onLoadMore={() => setVisibleReposCount(prev => prev + 24)}
-                />
-              )}
-
-              {!isTabTransitioning && !isRefreshing && activeTab === 'logs' && (
-                <LogsTable
-                  logs={logs}
-                  filteredLogs={filteredLogs}
-                  runSummary={runSummary}
-                  workerStatus={workerStatus}
-                  lastRunTask={lastRunTask}
-                  isRefreshing={isRefreshing}
-                  terminalEndRef={terminalEndRef}
-                  getRelativeTime={getRelativeTime}
-                  getFutureRelativeTime={getFutureRelativeTime}
-                />
-              )}
-
-              {!isTabTransitioning && !isRefreshing && activeTab === 'stats' && (
-                <StatsTab
-                  mounted={mounted}
-                  isDark={isDark}
-                  timeRange={timeRange}
-                  setTimeRange={setTimeRange}
-                  filteredSummary={filteredSummary}
-                  chartData={chartData}
-                  statusDistribution={statusDistribution}
-                  allProfiles={allProfiles}
-                  onExportCSV={handleExportCSV}
-                  onExportJSON={handleExportJSON}
-                />
-              )}
-            </div>
-          </div>
-        </main>
-      </div>
+      </main>
 
       {/* Extracted Settings Modal */}
       <SettingsModal

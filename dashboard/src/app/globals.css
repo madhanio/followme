@@ -35,3 +35,16 @@ body {
   scrollbar-width: none;
 }
 
+:root {
+  --bg:#FBFBFC; --surface:#FFFFFF; --ink:#16181D; --muted:#6A7080;
+  --faint:#9AA0AE; --line:#E7E9EE; --line-strong:#D5D8E0;
+  --hover:#F4F5F8; --accent:#12804A; --accent-tint:#E4F4EB;
+  --warn:#9A5B00; --warn-tint:#FBF0DC; --r:8px;
+}
+.dark {
+  --bg:#0B0C0E; --surface:#121418; --ink:#F0F2F5; --muted:#8B92A0;
+  --faint:#555B68; --line:#20232A; --line-strong:#2D323C;
+  --hover:#181B21; --accent:#22C55E; --accent-tint:#0F291E;
+  --warn:#F59E0B; --warn-tint:#2E200C;
+}
+
