@@ -439,12 +439,21 @@ export default function DashboardView({
           totalGrade: (repo.grade || 0),
           avgGrade: (repo.grade || 0),
           repos: [repo],
+          reason: repo.reason || repo.follow_skip_reason || null,
+          bio: repo.bio || null,
           followStatus: ownerStatus,
         });
       } else {
         existing.reposCount += 1;
         existing.repos.push(repo);
         existing.repos.sort((a, b) => (b.grade || 0) - (a.grade || 0) || (b.stars || 0) - (a.stars || 0));
+
+        if (!existing.reason && (repo.reason || repo.follow_skip_reason)) {
+          existing.reason = repo.reason || repo.follow_skip_reason || null;
+        }
+        if (!existing.bio && repo.bio) {
+          existing.bio = repo.bio || null;
+        }
 
         const realGradedRepos = existing.repos.filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile');
         if (realGradedRepos.length > 0) {

@@ -201,6 +201,10 @@ async function runAutomationJob(isManual: boolean = false) {
               topics: repo.topics,
               readme_snippet: repo.readme_snippet || '',
               grade: 0,
+              reason: 'already-followed-or-mutual',
+              source: 'search',
+              // TODO: repository pushed_at not in search payload
+              last_pushed_at: null,
             },
             false,
             false,
@@ -223,6 +227,10 @@ async function runAutomationJob(isManual: boolean = false) {
               topics: repo.topics,
               readme_snippet: repo.readme_snippet || '',
               grade: 0,
+              reason: 'previously-unfollowed',
+              source: 'search',
+              // TODO: repository pushed_at not in search payload
+              last_pushed_at: null,
             },
             false,
             false,
@@ -238,6 +246,7 @@ async function runAutomationJob(isManual: boolean = false) {
       if (!profileCheck.shouldFollow) {
         console.log(`Skipping profile ${repo.owner} — targeting filter failed: ${profileCheck.skipReason}. Skipping AI grading.`);
         stats.skipped++;
+        const skipReason = `Targeting filter: ${profileCheck.skipReason}`;
         await logAction('SKIP_FOLLOW', repo.id, 'SUCCESS', `Skipped ${repo.owner} before grading: ${profileCheck.skipReason}`);
         await saveRepo(
           {
@@ -250,11 +259,19 @@ async function runAutomationJob(isManual: boolean = false) {
             topics: repo.topics,
             readme_snippet: repo.readme_snippet || '',
             grade: 0,
+            reason: skipReason,
+            bio: profileCheck.profile?.bio ?? null,
+            followers_count: profileCheck.profile?.followers ?? null,
+            following_count: profileCheck.profile?.following ?? null,
+            account_created_at: profileCheck.profile?.created_at ?? null,
+            // TODO: repository pushed_at not in search payload
+            last_pushed_at: null,
+            source: 'search',
           },
           false,
           false,
           true,
-          `Targeting filter: ${profileCheck.skipReason}`
+          skipReason
         );
         continue;
       }
@@ -338,6 +355,14 @@ async function runAutomationJob(isManual: boolean = false) {
             topics: repo.topics,
             readme_snippet: repo.readme_snippet,
             grade: grading.grade,
+            reason: grading.reason,
+            bio: profileCheck.profile?.bio ?? null,
+            followers_count: profileCheck.profile?.followers ?? null,
+            following_count: profileCheck.profile?.following ?? null,
+            account_created_at: profileCheck.profile?.created_at ?? null,
+            // TODO: repository pushed_at not in search payload
+            last_pushed_at: null,
+            source: 'search',
           },
           followed,
           starred,
@@ -360,6 +385,7 @@ async function runAutomationJob(isManual: boolean = false) {
         );
       } else {
         // Persist low-grade or non-actioned repo to database as follow_skipped: true
+        const skipReason = `Grade ${grading.grade} < ${config.gradeThreshold}: ${grading.reason}`;
         await saveRepo(
           {
             id: repo.id,
@@ -371,11 +397,19 @@ async function runAutomationJob(isManual: boolean = false) {
             topics: repo.topics,
             readme_snippet: repo.readme_snippet,
             grade: grading.grade,
+            reason: skipReason,
+            bio: profileCheck.profile?.bio ?? null,
+            followers_count: profileCheck.profile?.followers ?? null,
+            following_count: profileCheck.profile?.following ?? null,
+            account_created_at: profileCheck.profile?.created_at ?? null,
+            // TODO: repository pushed_at not in search payload
+            last_pushed_at: null,
+            source: 'search',
           },
           false,
           false,
           true,
-          `Grade ${grading.grade} < ${config.gradeThreshold}: ${grading.reason}`
+          skipReason
         );
 
         await logAction(

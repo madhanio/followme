@@ -89,11 +89,27 @@ export async function saveRepo(
     topics: string[];
     readme_snippet: string;
     grade: number;
+    reason?: string | null;
+    bio?: string | null;
+    followers_count?: number | null;
+    following_count?: number | null;
+    account_created_at?: string | null;
+    last_pushed_at?: string | null;
+    source?: string | null;
   },
   followed: boolean,
   starred: boolean,
   followSkipped: boolean = false,
-  followSkipReason: string | null = null
+  followSkipReason: string | null = null,
+  profileMeta?: {
+    reason?: string | null;
+    bio?: string | null;
+    followers_count?: number | null;
+    following_count?: number | null;
+    account_created_at?: string | null;
+    last_pushed_at?: string | null;
+    source?: string | null;
+  }
 ) {
   try {
     const actualStarred = followSkipped ? false : starred;
@@ -112,6 +128,13 @@ export async function saveRepo(
       starred: actualStarred,
       follow_skipped: followSkipped,
       follow_skip_reason: followSkipReason,
+      reason: profileMeta?.reason ?? repo.reason ?? (followSkipped ? followSkipReason : null),
+      bio: profileMeta?.bio ?? repo.bio ?? null,
+      followers_count: profileMeta?.followers_count ?? repo.followers_count ?? null,
+      following_count: profileMeta?.following_count ?? repo.following_count ?? null,
+      account_created_at: profileMeta?.account_created_at ?? repo.account_created_at ?? null,
+      last_pushed_at: profileMeta?.last_pushed_at ?? repo.last_pushed_at ?? null,
+      source: profileMeta?.source ?? repo.source ?? null,
     };
 
     if (followed) {

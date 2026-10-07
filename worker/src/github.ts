@@ -139,6 +139,12 @@ export async function fetchGitHub(
 export interface OwnerProfileResult {
   shouldFollow: boolean;
   skipReason: string | null;
+  profile?: {
+    bio: string | null;
+    followers: number;
+    following: number;
+    created_at: string;
+  };
 }
 
 /**
@@ -171,41 +177,48 @@ export async function checkOwnerProfile(
     const followers: number = (profile.followers != null && profile.followers > 0) ? profile.followers : 0;
     const following: number = (profile.following != null && profile.following > 0) ? profile.following : 0;
 
+    const profileData = {
+      bio: profile.bio || null,
+      followers,
+      following,
+      created_at: profile.created_at || new Date(0).toISOString(),
+    };
+
     if (followers === 0 || following === 0) {
-      return { shouldFollow: false, skipReason: 'hidden-or-zero-stats' };
+      return { shouldFollow: false, skipReason: 'hidden-or-zero-stats', profile: profileData };
     }
     const createdAt = new Date(profile.created_at || 0);
     const accountAgeDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
 
     // Layer 1: High-profile skip (big name, almost never follows back)
     if (followers > MAX_OWNER_FOLLOWERS && following < MIN_OWNER_FOLLOWING) {
-      return { shouldFollow: false, skipReason: 'high-profile' };
+      return { shouldFollow: false, skipReason: 'high-profile', profile: profileData };
     }
 
     // Layer 2: Peer targeting — active, similar-sized, reciprocal-leaning accounts
     const ratio = following > 0 ? followers / following : 999;
 
     if (followers < 3) {
-      return { shouldFollow: false, skipReason: 'too-new (< 3 followers)' };
+      return { shouldFollow: false, skipReason: 'too-new (< 3 followers)', profile: profileData };
     }
     if (followers > MAX_OWNER_FOLLOWERS) {
-      return { shouldFollow: false, skipReason: 'too-popular (> ' + MAX_OWNER_FOLLOWERS + ' followers)' };
+      return { shouldFollow: false, skipReason: 'too-popular (> ' + MAX_OWNER_FOLLOWERS + ' followers)', profile: profileData };
     }
     if (following < MIN_OWNER_FOLLOWING) {
-      return { shouldFollow: false, skipReason: 'low-following (< ' + MIN_OWNER_FOLLOWING + ' following)' };
+      return { shouldFollow: false, skipReason: 'low-following (< ' + MIN_OWNER_FOLLOWING + ' following)', profile: profileData };
     }
     if (ratio < 0.1 || ratio > 5.0) {
-      return { shouldFollow: false, skipReason: `ratio-mismatch (ratio: ${ratio.toFixed(2)})` };
+      return { shouldFollow: false, skipReason: `ratio-mismatch (ratio: ${ratio.toFixed(2)})`, profile: profileData };
     }
     if (accountAgeDays < 30) {
-      return { shouldFollow: false, skipReason: 'account-too-new (< 30 days)' };
+      return { shouldFollow: false, skipReason: 'account-too-new (< 30 days)', profile: profileData };
     }
     if (MAX_OWNER_AGE_DAYS > 0 && accountAgeDays > MAX_OWNER_AGE_DAYS) {
-      return { shouldFollow: false, skipReason: `account-too-old (> ${MAX_OWNER_AGE_DAYS} days)` };
+      return { shouldFollow: false, skipReason: `account-too-old (> ${MAX_OWNER_AGE_DAYS} days)`, profile: profileData };
     }
 
     // Passed all filters — good follow candidate
-    return { shouldFollow: true, skipReason: null };
+    return { shouldFollow: true, skipReason: null, profile: profileData };
   } catch (err: any) {
     console.error(`Error checking owner profile for ${username}:`, err.message || err);
     return { shouldFollow: false, skipReason: 'error' };
