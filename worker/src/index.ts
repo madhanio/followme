@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo, getGitHubFollowing, getGitHubFollowers, getGitHubFollowersDetails, getAuthenticatedUserStats, FatalGitHubAuthError, FatalGitHubRateLimitError, setRuntimeGitHubCredentials } from './github';
 import { gradeRepository, FatalAiQuotaError, isAiQuotaOrAuthError } from './nvidia';
-import { supabase, isRepoGraded, saveRepo, logAction, fetchSystemSettings, SystemRuntimeConfig, fetchAllRows, DEFAULT_RUNTIME_CONFIG } from './supabase';
+import { supabase, isRepoGraded, saveRepo, logAction, fetchSystemSettings, SystemRuntimeConfig, fetchAllRows, DEFAULT_RUNTIME_CONFIG, getFollowsTodayCount } from './supabase';
 import { sendIncidentEmail } from './email';
 
 dotenv.config();
@@ -13,7 +13,11 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 8000;
-const WORKER_SECRET = process.env.WORKER_SECRET || 'dev_secret';
+const WORKER_SECRET = process.env.WORKER_SECRET;
+if (!WORKER_SECRET || WORKER_SECRET === 'dev_secret') {
+  console.error('FATAL: WORKER_SECRET env var is missing or still set to dev_secret. Set a strong secret and restart.');
+  process.exit(1);
+}
 const GITHUB_USERNAME = process.env.GITHUB_USERNAME;
 
 const TOPICS = ['ai', 'machine-learning', 'llm', 'flutter', 'nodejs', 'python'];
@@ -304,6 +308,12 @@ async function runAutomationJob(isManual: boolean = false) {
         }
 
         // Follow user (profile already passed check)
+        const followsToday = await getFollowsTodayCount();
+        if (followsToday >= config.dailyFollowLimit) {
+          console.log(`Daily follow limit ${config.dailyFollowLimit} reached (${followsToday} follows today). Stopping follows.`);
+          break;
+        }
+
         console.log(`Following user ${repo.owner}...`);
         const followSuccess = await followUser(repo.owner);
         if (followSuccess) {
@@ -1391,20 +1401,6 @@ app.listen(PORT, () => {
   reconcileFollowing().catch(err => {
     console.error('Failed to run startup reconciliation:', err);
   });
-
-  // Initialize dynamic next run timestamp
-  updateNextRunTime();
-
-  // Autonomous background interval scheduler
-  setInterval(async () => {
-    console.log('Autonomous scheduler tick: starting periodic automation & cleanup cycle...');
-    updateNextRunTime();
-    try {
-      await runAutomationJob(false);
-    } catch (schedErr: any) {
-      console.error('Error during autonomous background cycle:', schedErr.message || schedErr);
-    }
-  }, SCHEDULER_INTERVAL_MINUTES * 60 * 1000);
 });
 
 // Global error handlers to prevent silent process crashes and log them

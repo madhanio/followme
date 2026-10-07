@@ -82,10 +82,14 @@ CREATE POLICY "Allow select" ON repos FOR SELECT USING (true);
 CREATE POLICY "Allow select" ON logs FOR SELECT USING (true);
 CREATE POLICY "Allow select" ON run_summary FOR SELECT USING (true);
 
--- Protect sensitive keys in settings: anon client cannot read github_token or resend_api_key
-CREATE POLICY "Allow select non-sensitive settings" ON settings FOR SELECT USING (
-  key NOT IN ('github_token', 'resend_api_key', 'dashboard_password')
-);
+-- Protect sensitive keys in settings: anon client cannot read sensitive tokens/keys
+DROP POLICY IF EXISTS "Allow select non-sensitive settings" ON settings;
+CREATE POLICY "Allow select non-sensitive settings" ON settings
+  FOR SELECT USING (
+    lower(replace(key, '_', '')) NOT IN (
+      'githubtoken', 'resendapikey', 'dashboardpassword', 'webhooksecret'
+    )
+  );
 
 -- incident_log is service-role only, but allow select if needed for diagnostic views
 CREATE POLICY "Allow select incident_log" ON incident_log FOR SELECT USING (true);

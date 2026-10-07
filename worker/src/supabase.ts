@@ -244,3 +244,18 @@ export async function fetchSystemSettings(): Promise<SystemRuntimeConfig> {
     return DEFAULT_RUNTIME_CONFIG;
   }
 }
+
+export async function getFollowsTodayCount(): Promise<number> {
+  try {
+    const todayDate = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('run_summary')
+      .select('profiles_followed')
+      .gte('ran_at', `${todayDate}T00:00:00.000Z`);
+    if (error || !data) return 0;
+    return data.reduce((acc, row) => acc + (row.profiles_followed || 0), 0);
+  } catch (err) {
+    console.error('Error fetching follows today count:', err);
+    return 0;
+  }
+}

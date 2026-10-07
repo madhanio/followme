@@ -2,8 +2,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Lottie from 'lottie-react';
-import mainCharacter from '../../public/animations/main_character.json';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { 
   triggerWorker, 
@@ -19,477 +17,67 @@ import {
   triggerSyncFollowing,
   saveSystemSettings,
   getGitHubRateLimit,
-  GitHubRateLimitData,
   sendTestAlertEmail,
-  SystemHealthState
+  checkSystemHealth
 } from './actions';
-
-// Recharts components for Stats Tab
-import { 
-  LineChart, 
-  Line, 
-  AreaChart, 
-  Area, 
-  BarChart, 
-  Bar, 
-  PieChart, 
-  Pie, 
-  Cell, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
+import type { 
+  Repo, 
+  Log, 
+  RunSummary, 
+  UserProfile, 
+  ProfileItem, 
+  GitHubRateLimitData, 
+  SystemHealthState 
+} from '@/lib/types';
 
 import { 
   Search, 
-  Filter, 
-  Play, 
   RotateCw, 
-  Star, 
-  UserPlus, 
-  Terminal, 
-  BookOpen, 
   CheckCircle, 
   XCircle,
   ExternalLink,
   Code,
   ShieldAlert,
-  ArrowUpDown,
-  CornerDownRight,
-  TrendingUp,
-  UserMinus,
-  AlertTriangle,
   Trash2,
   Settings,
-  HelpCircle,
   Layers,
-  Activity,
-  ChevronRight,
-  UserCheck,
-  Zap,
-  Info,
+  TrendingUp,
   Sun,
   Moon,
   Menu,
   X,
   Compass,
-  Sliders,
+  Star,
+  Terminal,
   Key,
-  Download,
-  Clock,
-  ShieldCheck,
-  Cpu,
-  Mail,
-  Palette,
-  Lock,
-  Send,
-  KeyRound,
-  LogOut
+  Lock
 } from 'lucide-react';
 
+import { RunnerStatus } from '@/components/RunnerStatus';
+import { HomeTab } from '@/components/HomeTab';
+import { ProfilesGrid } from '@/components/ProfilesGrid';
+import { ReposGrid } from '@/components/ReposGrid';
+import { LogsTable } from '@/components/LogsTable';
+import { StatsTab } from '@/components/StatsTab';
+import { SettingsModal } from '@/components/SettingsModal';
+import { UnfollowModal } from '@/components/UnfollowModal';
 
-
-
-const githubStatsCache = new Map<string, { followers: number; following: number }>();
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
-
-const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth="2"
-    fill="none"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={props.className}
-  >
-    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-    <path d="M9 18c-4.51 2-5-2-7-2" />
-  </svg>
-);
 
 const cleanSnippet = (text: string) => {
   if (!text) return '';
   return text
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // Strip images: ![alt](url)
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // Strip links keeping text: [text](url)
-    .replace(/<[^>]*>/g, '') // Strip HTML tags
-    .replace(/`{3,}[\s\S]*?`{3,}/g, '') // Strip code blocks
-    .replace(/`([^`]+)`/g, '$1') // Strip inline code backticks
-    .replace(/[*_~#>-]/g, '') // Strip markdown formatting chars
-    .replace(/\s+/g, ' ') // Collapse whitespaces
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]*>/g, '')
+    .replace(/`{3,}[\s\S]*?`{3,}/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/[*_~#>-]/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
 };
 
-function AnimatedCounter({ value, duration = 500, active = true }: { value: number; duration?: number; active?: boolean }) {
-  const [displayValue, setDisplayValue] = useState(0);
-
-  useEffect(() => {
-    if (!active) {
-      setDisplayValue(value);
-      return;
-    }
-    let startTimestamp: number | null = null;
-    const step = (timestamp: number) => {
-      if (!startTimestamp) startTimestamp = timestamp;
-      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      setDisplayValue(Math.floor(progress * value));
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
-      }
-    };
-    window.requestAnimationFrame(step);
-  }, [value, duration, active]);
-
-  return <span>{displayValue}</span>;
-}
-
-function AnimatedDecimalCounter({ value, duration = 500, active = true }: { value: number; duration?: number; active?: boolean }) {
-  const [displayValue, setDisplayValue] = useState(0);
-
-  useEffect(() => {
-    if (!active) {
-      setDisplayValue(value);
-      return;
-    }
-    let startTimestamp: number | null = null;
-    const step = (timestamp: number) => {
-      if (!startTimestamp) startTimestamp = timestamp;
-      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      setDisplayValue(progress * value);
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
-      }
-    };
-    window.requestAnimationFrame(step);
-  }, [value, duration, active]);
-
-  return <span>{displayValue.toFixed(1)}</span>;
-}
-
-interface Repo {
-  id: number;
-  github_url: string;
-  owner: string;
-  name: string;
-  stars: number;
-  language: string;
-  topics: string[];
-  readme_snippet: string;
-  grade: number;
-  graded_at: string;
-  followed?: boolean;
-  starred?: boolean;
-  followed_at?: string;
-  follow_back?: boolean;
-  unfollowed?: boolean;
-  follow_skipped?: boolean;
-  follow_skip_reason?: string;
-}
-
-interface Log {
-  id: number;
-  action: string;
-  repo_id: number | null;
-  timestamp: string;
-  status: string;
-  message: string;
-}
-
-function ProfileCard({ 
-  profile, 
-  onFollow, 
-  onUnfollow, 
-  onDelete,
-  isActionLoading,
-  setActiveTab,
-  setSearchTerm,
-  graceDays = 7
-}: { 
-  profile: any; 
-  onFollow: (username: string) => Promise<void>; 
-  onUnfollow: (username: string) => Promise<void>;
-  onDelete: (username: string) => Promise<void>;
-  isActionLoading: boolean;
-  setActiveTab: (tab: any) => void;
-  setSearchTerm: (term: string) => void;
-  graceDays?: number;
-}) {
-  const [stats, setStats] = useState<{ followers: number; following: number } | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const username = profile.owner;
-    if (githubStatsCache.has(username)) {
-      setStats(githubStatsCache.get(username)!);
-      return;
-    }
-    let active = true;
-    const fetchGithubStats = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`https://api.github.com/users/${username}`);
-        if (res.status === 200) {
-          const data = await res.json();
-          const userStats = {
-            followers: data.followers || 0,
-            following: data.following || 0
-          };
-          githubStatsCache.set(username, userStats);
-          if (active) setStats(userStats);
-        } else {
-          if (active) setStats(null);
-        }
-      } catch (err) {
-        if (active) setStats(null);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    fetchGithubStats();
-    return () => {
-      active = false;
-    };
-  }, [profile.owner]);
-
-  const status = profile.followStatus;
-  const isMutual = status.followed && !status.unfollowed && status.follow_back;
-  const isGracePeriod = status.followed && !status.unfollowed && !status.follow_back;
-  const isInbound = !status.followed && status.follow_back;
-  const isUnfollowed = status.unfollowed;
-  const isSkipped = status.follow_skipped;
-
-  // Calculate Grace Period Countdown
-  let graceCountdownText: string | null = null;
-  let isGraceExpired = false;
-  if (isGracePeriod) {
-    if (status.followed_at) {
-      const elapsedDays = (Date.now() - new Date(status.followed_at).getTime()) / (1000 * 60 * 60 * 24);
-      const remaining = Math.max(0, graceDays - elapsedDays);
-      if (remaining <= 0) {
-        graceCountdownText = "Grace period ended (Due for unfollow)";
-        isGraceExpired = true;
-      } else {
-        graceCountdownText = `${remaining.toFixed(1)}d remaining in grace period`;
-      }
-    } else {
-      graceCountdownText = "Grace period ended (Due for unfollow)";
-      isGraceExpired = true;
-    }
-  }
-
-  let badgeClass = "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400";
-  let badgeLabel = "Pending";
-
-  if (isMutual) {
-    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold";
-    badgeLabel = "Mutual (Follows Back)";
-  } else if (isGracePeriod) {
-    if (isGraceExpired) {
-      badgeClass = "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 font-extrabold";
-      badgeLabel = "Grace Ended (Due)";
-    } else {
-      badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 font-bold";
-      badgeLabel = "Grace Period";
-    }
-  } else if (isInbound) {
-    badgeClass = "bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 font-bold";
-    badgeLabel = "Inbound (Follows You)";
-  } else if (isUnfollowed) {
-    badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 font-bold";
-    badgeLabel = "Unfollowed Archive";
-  } else if (isSkipped) {
-    badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 font-bold";
-    badgeLabel = "Filter Skipped";
-  }
-
-  return (
-    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-[32px] transition-all duration-300 relative overflow-hidden flex flex-col justify-between min-h-[230px]">
-      {/* Top Header */}
-      <div className="h-14 bg-slate-100 dark:bg-[#1c1c1e] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-between px-4 shrink-0 z-10">
-        <div className="flex items-center space-x-2.5 min-w-0">
-          <img 
-            src={`https://github.com/${profile.owner}.png`} 
-            alt={profile.owner} 
-            className="h-8 w-8 rounded-full border border-white dark:border-[#111111] bg-zinc-100 dark:bg-[#1a1a1a] object-cover aura-shadow shrink-0" 
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
-            }}
-          />
-          <div className="truncate">
-            <h3 className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate leading-none">
-              @{profile.owner}
-            </h3>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveTab('repos');
-                setSearchTerm(profile.repos[0]?.name || '');
-              }}
-              className="text-[8px] font-mono text-zinc-450 hover:text-[#e60023] transition-colors mt-1 text-left block truncate max-w-[120px] leading-none"
-              title={`Graded on: ${profile.repos[0]?.name || 'Unknown'}`}
-            >
-              Graded on: {profile.repos[0]?.name || 'Unknown'}
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex items-center space-x-1.5 shrink-0">
-          <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono shrink-0 ${badgeClass}`}>
-            {badgeLabel}
-          </span>
-          <button
-            onClick={() => onDelete(profile.owner)}
-            disabled={isActionLoading}
-            className="p-1 bg-rose-50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-950/35 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg transition-all cursor-pointer disabled:opacity-40 shrink-0"
-            title="Delete Profile from DB"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-      
-      {/* Card Content */}
-      <div className="p-4 flex-1 flex flex-col justify-between">
-        <div>
-          {/* Quality Score Bar */}
-          <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-xl text-center my-2 relative overflow-hidden flex items-center justify-between">
-            <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Quality Score</span>
-            <span className={`text-sm font-extrabold font-mono leading-none ${
-              profile.avgGrade >= 9.0 ? 'text-emerald-600 dark:text-emerald-400' :
-              profile.avgGrade >= 7.0 ? 'text-[#e60023]' : 'text-orange-500'
-            }`}>
-              {profile.avgGrade.toFixed(1)}/10
-            </span>
-          </div>
-
-          {/* Grace Period Countdown Alert */}
-          {graceCountdownText && (
-            <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 p-2 rounded-xl mb-2 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 font-bold">
-                <Clock className="h-3 w-3 shrink-0" />
-                {graceCountdownText}
-              </span>
-            </div>
-          )}
-
-          {profile.repos[0]?.readme_snippet && (
-            <p className="text-[11px] font-sans text-[#767676] dark:text-zinc-400 line-clamp-2 leading-relaxed my-2 px-1">
-              {cleanSnippet(profile.repos[0].readme_snippet)}
-            </p>
-          )}
-
-          {isSkipped && profile.followStatus.reason && (
-            <div className="text-[10px] font-mono text-[#767676] leading-relaxed bg-[#f3f3f3] dark:bg-[#1a1a1a] border border-[#dadada] dark:border-[#2a2a2a] p-2 py-1.5 rounded-lg mb-2">
-              Reason: {profile.followStatus.reason}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Card Action Buttons */}
-      <div className="flex space-x-2 px-4 pb-4 pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
-        {isMutual ? (
-          <>
-            <button
-              onClick={() => onUnfollow(profile.owner)}
-              disabled={isActionLoading}
-              className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
-            >
-              Unfollow
-            </button>
-            <a
-              href={`https://github.com/${profile.owner}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
-            >
-              GitHub
-            </a>
-          </>
-        ) : isGracePeriod ? (
-          <>
-            <button
-              onClick={() => onUnfollow(profile.owner)}
-              disabled={isActionLoading}
-              className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
-            >
-              Unfollow
-            </button>
-            <a
-              href={`https://github.com/${profile.owner}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
-            >
-              GitHub
-            </a>
-          </>
-        ) : isInbound ? (
-          <>
-            <button
-              onClick={() => onFollow(profile.owner)}
-              disabled={isActionLoading}
-              className="flex-1 min-h-[34px] flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
-            >
-              Follow Back
-            </button>
-            <a
-              href={`https://github.com/${profile.owner}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
-            >
-              GitHub
-            </a>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={() => onFollow(profile.owner)}
-              disabled={isActionLoading}
-              className="flex-1 min-h-[34px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full cursor-pointer transition-all font-geist disabled:opacity-40"
-            >
-              Follow
-            </button>
-            <a
-              href={`https://github.com/${profile.owner}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
-            >
-              GitHub
-            </a>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-interface RunSummary {
-  id: string;
-  ran_at: string;
-  profiles_followed: number;
-  profiles_unfollowed: number;
-  repos_starred: number;
-  mutuals_found: number;
-  profiles_skipped: number;
-  profiles_evaluated: number;
-  run_type: string;
-}
-
-interface UserProfile {
-  login: string;
-  name: string;
-  avatar_url: string;
-  email: string;
-}
-
-interface DashboardViewProps {
+export interface DashboardViewProps {
   initialRepos: Repo[];
   initialLogs: Log[];
   initialRunSummary?: RunSummary[];
@@ -520,213 +108,24 @@ export default function DashboardView({
   const [userProfile, setUserProfile] = useState<UserProfile | null>(initialUserProfile);
   const [isDark, setIsDark] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [spotlightIndex, setSpotlightIndex] = useState(0);
-  const [insightIndex, setInsightIndex] = useState(0);
 
-  // Interactive filters & active tab
+  // Per-card and per-repo loading tracking via Set in useRef
+  const loadingIds = useRef<Set<string>>(new Set());
+  const [, setTick] = useState(0);
+  const triggerLoadingUpdate = () => setTick(t => t + 1);
+
+  // Search & Active Tabs
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<'followed' | 'starred' | 'skipped' | 'unfollowed' | 'mutual' | 'grace_period' | 'grace_ended' | 'inbound' | 'unstarred' | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'profiles' | 'repos' | 'logs' | 'stats'>(initialTab);
   const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'ALL'>('7D');
   const [showOnboardingTest, setShowOnboardingTest] = useState(false);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
-  const [dismissedWarningIds, setDismissedWarningIds] = useState<string[]>([]);
 
   const [rateLimitData, setRateLimitData] = useState<GitHubRateLimitData | null>(globalRateLimitCache?.data || initialRateLimitData || null);
   const [rateLimitLoading, setRateLimitLoading] = useState(false);
-  const [hasMounted, setHasMounted] = useState(false);
 
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-
-  // Proactive Backend Health & Incident Monitoring
-  const systemWarnings = useMemo(() => {
-    const warnings: { id: string; title: string; message: string; severity: 'critical' | 'warning'; timestamp?: string; actionLabel?: string }[] = [];
-
-    // 1. GitHub API Rate Limit Exhaustion / Low Quota
-    if (rateLimitData?.core && rateLimitData.core.limit > 0) {
-      if (rateLimitData.core.remaining === 0) {
-        warnings.push({
-          id: 'gh-core-exhausted',
-          title: 'GitHub API Limit Exhausted (0 / 5,000 remaining)',
-          message: `Hourly core API limit reached. Quota resets at ${new Date(rateLimitData.core.reset * 1000).toLocaleTimeString()}. Automated follows & stars are temporarily paused.`,
-          severity: 'critical',
-          actionLabel: 'Check Rate Limit'
-        });
-      } else if (rateLimitData.core.remaining / rateLimitData.core.limit < 0.1) {
-        warnings.push({
-          id: 'gh-core-low',
-          title: 'GitHub API Quota Running Critically Low (< 10%)',
-          message: `Only ${rateLimitData.core.remaining.toLocaleString()} requests remaining. Resets at ${new Date(rateLimitData.core.reset * 1000).toLocaleTimeString()}.`,
-          severity: 'warning'
-        });
-      }
-    }
-
-    if (rateLimitData?.search && rateLimitData.search.limit > 0 && rateLimitData.search.remaining === 0) {
-      warnings.push({
-        id: 'gh-search-exhausted',
-        title: 'GitHub Search Quota Reached (0 / 30 remaining)',
-        message: `Search rate limit reached. Resets in ~1 min (${new Date(rateLimitData.search.reset * 1000).toLocaleTimeString()}). Discovery query paused briefly.`,
-        severity: 'warning'
-      });
-    }
-
-    // 2. Scan the Most Recent Automation Run for Failures/Errors
-    let latestRunStartIndex = logs.findIndex(l => (l.message || '').includes('Automation job started'));
-    if (latestRunStartIndex === -1) {
-      latestRunStartIndex = Math.min(logs.length, 30);
-    }
-    const latestRunLogs = logs.slice(0, latestRunStartIndex + 1);
-
-    const latestRunError = latestRunLogs.find(l => {
-      const status = (l.status || '').toUpperCase();
-      const msg = (l.message || '').toLowerCase();
-      return (
-        status === 'FAILED' || 
-        status === 'ERROR' || 
-        status === 'CRITICAL' ||
-        status === 'WARN' ||
-        msg.includes('failed to evaluate') ||
-        msg.includes('ai evaluation paused') ||
-        msg.includes('410') ||
-        msg.includes('404') ||
-        msg.includes('401') ||
-        msg.includes('429') ||
-        msg.includes('413') ||
-        msg.includes('no body') ||
-        msg.includes('status code') ||
-        msg.includes('quota') || 
-        msg.includes('credit') || 
-        msg.includes('exhausted') || 
-        msg.includes('rate limit') || 
-        msg.includes('unauthorized') ||
-        msg.includes('invalid api key') ||
-        msg.includes('worker error') ||
-        msg.includes('all ai evaluation') ||
-        msg.includes('decommissioned') ||
-        msg.includes('fatal')
-      );
-    });
-
-    const latestSuccess = logs.find(l => 
-      l.status === 'SUCCESS' && 
-      (l.action === 'EVALUATION' || l.action === 'DISCOVER' || l.action === 'GRADE' || l.action === 'SYSTEM' || l.action === 'MUTUAL_SYNC')
-    );
-    const isErrorResolved = latestRunError && latestSuccess && new Date(latestSuccess.timestamp).getTime() > new Date(latestRunError.timestamp).getTime();
-
-    if (latestRunError && !isErrorResolved) {
-      const msgLower = latestRunError.message.toLowerCase();
-      const isAiIssue =
-        msgLower.includes('failed to evaluate') ||
-        msgLower.includes('ai evaluation') ||
-        msgLower.includes('410') ||
-        msgLower.includes('404') ||
-        msgLower.includes('401') ||
-        msgLower.includes('413') ||
-        msgLower.includes('quota') ||
-        msgLower.includes('credit') ||
-        msgLower.includes('429') ||
-        msgLower.includes('nvidia') ||
-        msgLower.includes('groq') ||
-        msgLower.includes('all ai evaluation') ||
-        msgLower.includes('model') ||
-        msgLower.includes('decommissioned');
-
-      const cleanMsg = latestRunError.message.length > 220 ? latestRunError.message.slice(0, 217) + '...' : latestRunError.message;
-
-      warnings.push({
-        id: `log-error-${latestRunError.id}`,
-        title: isAiIssue ? 'AI Evaluation Service Error / Key Expired' : `Automation Task Error: ${latestRunError.action || 'Worker'}`,
-        message: cleanMsg,
-        severity: 'critical',
-        timestamp: new Date(latestRunError.timestamp).toLocaleTimeString(),
-        actionLabel: 'Inspect Console'
-      });
-    }
-
-    return warnings;
-  }, [rateLimitData, logs, runSummary]);
-
-  const fetchRateLimits = async (force: boolean = false) => {
-    const now = Date.now();
-    // 60-second client-side cache check across remounts and tab switches unless forced
-    if (!force && globalRateLimitCache && (now - globalRateLimitCache.timestamp < 60000)) {
-      setRateLimitData(globalRateLimitCache.data);
-      return;
-    }
-    setRateLimitLoading(true);
-    try {
-      const res = await getGitHubRateLimit();
-      if (res.success && res.data) {
-        globalRateLimitCache = { data: res.data, timestamp: now };
-        setRateLimitData(res.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch GitHub rate limits:', err);
-    } finally {
-      setRateLimitLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // Fetch live rate limits immediately and set live auto-polling every 30s on Home tab
-    if (activeTab === 'home') {
-      fetchRateLimits();
-      const interval = setInterval(() => {
-        fetchRateLimits(true);
-      }, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [activeTab]);
-
-  // Sync state if initialProps change
-  useEffect(() => {
-    setRepos(initialRepos);
-  }, [initialRepos]);
-
-  useEffect(() => {
-    setLogs(initialLogs);
-  }, [initialLogs]);
-
-  useEffect(() => {
-    setRunSummary(initialRunSummary);
-  }, [initialRunSummary]);
-
-
-
-  useEffect(() => {
-    setMounted(true);
-    const darkActive = document.documentElement.classList.contains('dark');
-    setIsDark(darkActive);
-
-    const localSaved = localStorage.getItem('savedSettings');
-    if (localSaved && !initialSettings) {
-      try {
-        const parsed = JSON.parse(localSaved);
-        setSavedSettings(parsed);
-      } catch (e) {}
-    }
-  }, [initialSettings]);
-
-  const toggleDarkMode = () => {
-    const isCurrentlyDark = document.documentElement.classList.contains('dark');
-    const nextDark = !isCurrentlyDark;
-    setIsDark(nextDark);
-    if (nextDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-      localStorage.theme = 'dark';
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-      localStorage.theme = 'light';
-    }
-  };
-
-
-  // Master Settings Default Values
+  // Settings State: Saved Master vs Temp Draft
   const defaultSettings = useMemo(() => ({
     cronFrequency: '6',
     maxProfilesPerRun: 50,
@@ -751,18 +150,17 @@ export default function DashboardView({
     resendApiKey: '',
     githubToken: '',
     senderName: 'FollowMe System',
-  }), []);
+  }), [userProfile]);
 
-  // Settings State: Saved Master vs Temp Draft
-  const [savedSettings, setSavedSettings] = useState(() => ({
+  const [savedSettings, setSavedSettings] = useState<Record<string, any>>(() => ({
     ...defaultSettings,
     ...(initialSettings || {})
   }));
-  const [tempSettings, setTempSettings] = useState(() => ({
+  const [tempSettings, setTempSettings] = useState<Record<string, any>>(() => ({
     ...defaultSettings,
     ...(initialSettings || {})
   }));
-  const [settingsTab, setSettingsTab] = useState<'automation' | 'safety' | 'ai' | 'notifications' | 'github'>('automation');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Security Key Modal States
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
@@ -775,24 +173,143 @@ export default function DashboardView({
 
   // Email test & Webhook integration states
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
-  const [testEmailStatus, setTestEmailStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [testEmailStatus, setTestEmailStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
-  const [webhookTestStatus, setWebhookTestStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [webhookTestStatus, setWebhookTestStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [isTriggeringAgent, setIsTriggeringAgent] = useState(false);
-  const [agentTriggerStatus, setAgentTriggerStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [agentTriggerStatus, setAgentTriggerStatus] = useState<{ success: boolean; message: string } | null>(null);
 
-  // UI Overlay & Shuffle/Export States
+  // UI Overlays & Navigation
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [shuffleSeed, setShuffleSeed] = useState(0);
   const [exportPreview, setExportPreview] = useState<{ filename: string; mimeType: string; content: string } | null>(null);
-
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const mobileProfileMenuRef = useRef<HTMLDivElement>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTabTransitioning, setIsTabTransitioning] = useState(false);
   const [visibleProfilesCount, setVisibleProfilesCount] = useState(24);
   const [visibleReposCount, setVisibleReposCount] = useState(24);
 
+  // Cleanup Assistant states
+  const [isCleanupOpen, setIsCleanupOpen] = useState(false);
+  const [cleanupOption, setCleanupOption] = useState<'list' | 'logs' | 'stale' | null>(null);
+  const [totalLogsCount, setTotalLogsCount] = useState<number>(0);
+  const staleProfilesCount = useMemo(() => {
+    return repos.filter(r => !r.followed && !r.starred && !r.unfollowed && r.follow_skipped).length;
+  }, [repos]);
+  const [unfollowList, setUnfollowList] = useState<{ id: number; owner: string; name: string; followed_at: string }[]>([]);
+  const [isFetchingUnfollowList, setIsFetchingUnfollowList] = useState(false);
+
+  // Execution & Trigger States
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [triggerStatus, setTriggerStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
+
+  const [workerStatus, setWorkerStatus] = useState<{
+    nextRun: string | null;
+    lastRun: string | null;
+    isJobRunning: boolean;
+    consecutiveFailures: number;
+  } | null>(null);
+
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchRateLimits = async (force: boolean = false) => {
+    const now = Date.now();
+    if (!force && globalRateLimitCache && (now - globalRateLimitCache.timestamp < 60000)) {
+      setRateLimitData(globalRateLimitCache.data);
+      return;
+    }
+    setRateLimitLoading(true);
+    try {
+      const res = await getGitHubRateLimit();
+      if (res.success && res.data) {
+        globalRateLimitCache = { data: res.data, timestamp: now };
+        setRateLimitData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch GitHub rate limits:', err);
+    } finally {
+      setRateLimitLoading(false);
+    }
+  };
+
+  const fetchStatus = async () => {
+    const res = await getWorkerStatus();
+    if (res.success && res.data) {
+      setWorkerStatus(res.data);
+    }
+  };
+
+  const fetchUnfollowList = async () => {
+    setIsFetchingUnfollowList(true);
+    try {
+      const data = await fetchAllRows(
+        supabase,
+        'repos',
+        '*',
+        q => q
+          .eq('follow_back', false)
+          .eq('unfollowed', false)
+          .lt('followed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      );
+      setUnfollowList(data || []);
+    } catch (error) {
+      console.error('Error fetching unfollow list:', error);
+    }
+    setIsFetchingUnfollowList(false);
+  };
+
+  const fetchTotalLogsCount = async () => {
+    const { count, error } = await supabase.from('logs').select('*', { count: 'exact', head: true });
+    if (!error && count !== null) {
+      setTotalLogsCount(count);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+    setMounted(true);
+    const darkActive = document.documentElement.classList.contains('dark');
+    setIsDark(darkActive);
+
+    const localSaved = localStorage.getItem('savedSettings');
+    if (localSaved && !initialSettings) {
+      try {
+        setSavedSettings(JSON.parse(localSaved));
+      } catch (e) {}
+    }
+  }, [initialSettings]);
+
+  useEffect(() => {
+    if (activeTab === 'home') {
+      fetchRateLimits();
+      const interval = setInterval(() => fetchRateLimits(true), 30000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    setRepos(initialRepos);
+  }, [initialRepos]);
+  useEffect(() => {
+    setLogs(initialLogs);
+  }, [initialLogs]);
+  useEffect(() => {
+    setRunSummary(initialRunSummary);
+  }, [initialRunSummary]);
+
+  // Prevent background scrolling when any modal overlay is active
+  useEffect(() => {
+    const isAnyModalOpen = isSettingsOpen || isSecurityModalOpen || isCleanupOpen || isSidebarOpen || Boolean(exportPreview);
+    document.body.style.overflow = isAnyModalOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isSettingsOpen, isSecurityModalOpen, isCleanupOpen, isSidebarOpen, exportPreview]);
+
+  // Click outside to close profile menus
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const inDesktop = profileMenuRef.current && profileMenuRef.current.contains(event.target as Node);
@@ -807,7 +324,678 @@ export default function DashboardView({
     };
   }, []);
 
+  const toggleDarkMode = () => {
+    const isCurrentlyDark = document.documentElement.classList.contains('dark');
+    const nextDark = !isCurrentlyDark;
+    setIsDark(nextDark);
+    if (nextDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+      localStorage.theme = 'dark';
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+      localStorage.theme = 'light';
+    }
+  };
 
+  const handleTabChange = (newTab: 'home' | 'profiles' | 'repos' | 'logs' | 'stats', filter: any = null) => {
+    setIsTabTransitioning(true);
+    setActiveTab(newTab);
+    setActiveFilter(filter);
+    setTimeout(() => {
+      setIsTabTransitioning(false);
+    }, 150);
+
+    const basePath = newTab === 'home' ? '/' : newTab === 'profiles' ? '/profiles' : newTab === 'repos' ? '/repositories' : newTab === 'logs' ? '/logs' : '/?tab=stats';
+    const fullPath = filter ? `${basePath}?filter=${filter}` : basePath;
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', fullPath);
+    }
+    router.push(fullPath);
+  };
+
+  const [isOAuthConnecting, setIsOAuthConnecting] = useState(false);
+  const handleGitHubOAuth = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setIsOAuthConnecting(true);
+    const width = 600;
+    const height = 700;
+    const left = typeof window !== 'undefined' ? window.screenX + (window.outerWidth - width) / 2 : 100;
+    const top = typeof window !== 'undefined' ? window.screenY + (window.outerHeight - height) / 2 : 100;
+
+    const popup = window.open('/api/auth/github', 'github_oauth_popup', `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no,resizable=yes`);
+    if (!popup) {
+      window.location.href = '/api/auth/github';
+      return;
+    }
+
+    const checkTimer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkTimer);
+        setIsOAuthConnecting(false);
+      }
+    }, 500);
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GITHUB_OAUTH_SUCCESS') {
+        clearInterval(checkTimer);
+        window.removeEventListener('message', onMessage);
+        setIsOAuthConnecting(false);
+        router.refresh();
+      } else if (event.data?.type === 'GITHUB_OAUTH_ERROR') {
+        clearInterval(checkTimer);
+        window.removeEventListener('message', onMessage);
+        setIsOAuthConnecting(false);
+      }
+    };
+    window.addEventListener('message', onMessage);
+  };
+
+  const getRelativeTime = (pastDateStr: string | null | undefined) => {
+    if (!pastDateStr) return 'never';
+    const diffMs = Date.now() - new Date(pastDateStr).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  const getFutureRelativeTime = (futureDateStr: string | null | undefined) => {
+    if (!futureDateStr) return 'soon';
+    const diffMs = new Date(futureDateStr).getTime() - Date.now();
+    if (diffMs <= 0) return 'soon';
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) return `in ${diffMins}m`;
+    const diffHours = Math.floor(diffMins / 60);
+    const minsLeft = diffMins % 60;
+    return `in ${diffHours}h ${minsLeft}m`;
+  };
+
+  // Compute Profiles Map
+  const allProfiles = useMemo<ProfileItem[]>(() => {
+    const profilesMap = new Map<string, ProfileItem>();
+    const sorted = [...repos].sort((a, b) => (b.grade || 0) - (a.grade || 0) || new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime());
+
+    sorted.forEach(repo => {
+      const ownerLower = repo.owner.toLowerCase();
+      const existing = profilesMap.get(ownerLower);
+      const ownerStatus = {
+        followed: !!repo.followed,
+        unfollowed: !!repo.unfollowed,
+        follow_skipped: !!repo.follow_skipped,
+        follow_back: !!repo.follow_back,
+        reason: repo.follow_skip_reason || undefined,
+        followed_at: repo.followed_at || undefined,
+      };
+
+      if (!existing) {
+        profilesMap.set(ownerLower, {
+          owner: repo.owner,
+          reposCount: 1,
+          totalGrade: (repo.grade || 0),
+          avgGrade: (repo.grade || 0),
+          repos: [repo],
+          followStatus: ownerStatus,
+        });
+      } else {
+        existing.reposCount += 1;
+        existing.repos.push(repo);
+        existing.repos.sort((a, b) => (b.grade || 0) - (a.grade || 0) || (b.stars || 0) - (a.stars || 0));
+
+        const realGradedRepos = existing.repos.filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile');
+        if (realGradedRepos.length > 0) {
+          existing.avgGrade = Number((realGradedRepos.reduce((acc, r) => acc + (r.grade || 0), 0) / realGradedRepos.length).toFixed(1));
+          existing.totalGrade = realGradedRepos.reduce((acc, r) => acc + (r.grade || 0), 0);
+        } else {
+          existing.avgGrade = existing.repos[0]?.grade || 0;
+          existing.totalGrade = existing.avgGrade;
+        }
+
+        const isFollowed = existing.followStatus.followed || ownerStatus.followed;
+        const isFollowBack = existing.followStatus.follow_back || ownerStatus.follow_back;
+        const isUnfollowed = !isFollowed && (existing.followStatus.unfollowed || ownerStatus.unfollowed);
+        const isSkipped = !isFollowed && !isUnfollowed && (existing.followStatus.follow_skipped || ownerStatus.follow_skipped);
+
+        existing.followStatus = {
+          followed: isFollowed,
+          unfollowed: isUnfollowed,
+          follow_skipped: isSkipped,
+          follow_back: isFollowBack,
+          reason: ownerStatus.reason || existing.followStatus.reason,
+          followed_at: ownerStatus.followed_at || existing.followStatus.followed_at,
+        };
+      }
+    });
+
+    return Array.from(profilesMap.values());
+  }, [repos]);
+
+  const stats = useMemo(() => {
+    const total = repos.length;
+    const starred = repos.filter(r => r.starred).length;
+    let followed = 0;
+    let unfollowed = 0;
+    let skipped = 0;
+    let mutuals = 0;
+    let inbound = 0;
+
+    allProfiles.forEach((profile) => {
+      const status = profile.followStatus;
+      if (status.followed && !status.unfollowed && !status.follow_back) followed++;
+      if (status.unfollowed) unfollowed++;
+      if (status.follow_skipped) skipped++;
+      if (status.followed && !status.unfollowed && status.follow_back) mutuals++;
+      if (!status.followed && status.follow_back) inbound++;
+    });
+
+    const totalGrade = repos.reduce((acc, r) => acc + (r.grade || 0), 0);
+    const avgGrade = total > 0 ? (totalGrade / total) : 0;
+
+    return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals, inbound, totalProfiles: allProfiles.length };
+  }, [repos, allProfiles]);
+
+  const relationshipMatrix = useMemo(() => {
+    const mutuals: ProfileItem[] = [];
+    const gracePeriod: ProfileItem[] = [];
+    const graceEnded: ProfileItem[] = [];
+    const inbound: ProfileItem[] = [];
+    const unfollowed: ProfileItem[] = [];
+
+    const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
+    const cutoffMs = graceDays * 24 * 60 * 60 * 1000;
+
+    allProfiles.forEach((profile) => {
+      const status = profile.followStatus;
+      if (status.followed && !status.unfollowed && status.follow_back) {
+        mutuals.push(profile);
+      } else if (status.followed && !status.unfollowed && !status.follow_back) {
+        if (status.followed_at) {
+          const elapsed = Date.now() - new Date(status.followed_at).getTime();
+          if (elapsed >= cutoffMs) {
+            graceEnded.push(profile);
+          } else {
+            gracePeriod.push(profile);
+          }
+        } else {
+          graceEnded.push(profile);
+        }
+      } else if (!status.followed && status.follow_back) {
+        inbound.push(profile);
+      } else if (status.unfollowed) {
+        unfollowed.push(profile);
+      }
+    });
+
+    return { mutuals, gracePeriod, graceEnded, inbound, unfollowed };
+  }, [allProfiles, savedSettings.unfollowGracePeriod]);
+
+  const lastRunTask = useMemo(() => {
+    return runSummary.find(r => r.run_type !== 'sync_following' && r.run_type !== 'cleanup') || null;
+  }, [runSummary]);
+
+  const filteredProfiles = useMemo(() => {
+    return allProfiles.filter(profile => {
+      const matchesSearch = profile.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        profile.repos.some(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()) || (r.topics && r.topics.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))));
+      
+      if (!matchesSearch) return false;
+
+      const isStarred = profile.repos.some(r => r.starred);
+      const isFollowed = profile.followStatus.followed && !profile.followStatus.unfollowed;
+      const isSkipped = profile.followStatus.follow_skipped;
+
+      if (isSkipped && !isFollowed && !isStarred && activeFilter !== 'skipped' && activeFilter !== null) {
+        return false;
+      }
+      if (activeFilter === 'starred') return isStarred;
+      if (activeFilter === 'followed') return profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_back;
+      if (activeFilter === 'grace_period') {
+        if (!profile.followStatus.followed || profile.followStatus.unfollowed || profile.followStatus.follow_back) return false;
+        if (!profile.followStatus.followed_at) return false;
+        const elapsed = Date.now() - new Date(profile.followStatus.followed_at).getTime();
+        const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
+        return elapsed < graceDays * 24 * 60 * 60 * 1000;
+      }
+      if (activeFilter === 'grace_ended') {
+        if (!profile.followStatus.followed || profile.followStatus.unfollowed || profile.followStatus.follow_back) return false;
+        if (!profile.followStatus.followed_at) return true;
+        const elapsed = Date.now() - new Date(profile.followStatus.followed_at).getTime();
+        const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
+        return elapsed >= graceDays * 24 * 60 * 60 * 1000;
+      }
+      if (activeFilter === 'skipped') return profile.followStatus.follow_skipped;
+      if (activeFilter === 'unfollowed') return profile.followStatus.unfollowed;
+      if (activeFilter === 'mutual') return profile.followStatus.followed && !profile.followStatus.unfollowed && profile.followStatus.follow_back;
+      if (activeFilter === 'inbound') return !profile.followStatus.followed && profile.followStatus.follow_back;
+      return true;
+    });
+  }, [allProfiles, searchTerm, activeFilter, savedSettings.unfollowGracePeriod]);
+
+  const filteredRepos = useMemo(() => {
+    return repos
+      .filter(repo => {
+        const matchesSearch = 
+          `${repo.owner}/${repo.name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (repo.topics && repo.topics.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())));
+        if (!matchesSearch) return false;
+        if (activeFilter === 'starred') return repo.starred;
+        if (activeFilter === 'unstarred') return !repo.starred;
+        return true;
+      })
+      .sort((a, b) => new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime());
+  }, [repos, searchTerm, activeFilter]);
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      const term = searchTerm.toLowerCase();
+      return (
+        log.action.toLowerCase().includes(term) ||
+        log.status.toLowerCase().includes(term) ||
+        (log.message && log.message.toLowerCase().includes(term))
+      );
+    });
+  }, [logs, searchTerm]);
+
+  // Historical chart data for Recharts
+  const chartData = useMemo(() => {
+    const dailyMap = new Map<string, { date: string; dateObj: Date; follows: number; unfollows: number; evaluations: number; mutuals: number; totalGrade: number; gradeCount: number }>();
+    const now = new Date();
+    const formatLocalDateKey = (d: Date) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    let cutoffDate = new Date();
+    if (timeRange === 'TODAY') {
+      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (timeRange === '7D') {
+      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    } else if (timeRange === '30D') {
+      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+    } else {
+      cutoffDate = new Date(0);
+    }
+
+    runSummary.forEach(run => {
+      const runDate = new Date(run.ran_at);
+      if (runDate >= cutoffDate) {
+        const dateKey = formatLocalDateKey(runDate);
+        const existing = dailyMap.get(dateKey) || { date: dateKey, dateObj: runDate, follows: 0, unfollows: 0, evaluations: 0, mutuals: 0, totalGrade: 0, gradeCount: 0 };
+        existing.follows += (run.profiles_followed || 0);
+        existing.unfollows += (run.profiles_unfollowed || 0);
+        existing.evaluations += (run.profiles_evaluated || 0);
+        dailyMap.set(dateKey, existing);
+      }
+    });
+
+    const sortedList = Array.from(dailyMap.values())
+      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+      .map(item => ({
+        ...item,
+        avgGrade: item.gradeCount > 0 ? Number((item.totalGrade / item.gradeCount).toFixed(1)) : 8.5,
+        followingGrowth: 0
+      }));
+
+    let runningTotal = 0;
+    return sortedList.map(item => {
+      runningTotal += (item.follows - item.unfollows);
+      return { ...item, followingGrowth: runningTotal };
+    });
+  }, [runSummary, timeRange]);
+
+  const filteredSummary = useMemo(() => {
+    let evaluated = 0, followed = 0, unfollowed = 0, mutuals = 0;
+    if (timeRange === 'ALL') {
+      runSummary.forEach(run => {
+        evaluated += (run.profiles_evaluated || 0);
+        followed += (run.profiles_followed || 0);
+        unfollowed += (run.profiles_unfollowed || 0);
+      });
+      if (evaluated === 0 && (stats.totalProfiles || allProfiles.length) > 0) {
+        evaluated = stats.totalProfiles || allProfiles.length;
+        followed = stats.followed + stats.mutuals;
+        unfollowed = stats.unfollowed;
+      }
+      mutuals = stats.mutuals;
+      return { evaluated, followed, unfollowed, mutuals };
+    }
+
+    chartData.forEach(item => {
+      evaluated += item.evaluations;
+      followed += item.follows;
+      unfollowed += item.unfollows;
+      mutuals += (item.mutuals || 0);
+    });
+    return { evaluated, followed, unfollowed, mutuals };
+  }, [chartData, runSummary, stats, timeRange, allProfiles.length]);
+
+  const statusDistribution = useMemo(() => {
+    const acc = '#e60023';
+    return [
+      { name: 'Mutuals', value: stats.mutuals, color: acc },
+      { name: 'Grace Period', value: stats.followed, color: `color-mix(in srgb, ${acc} 80%, black)` },
+      { name: 'Inbound', value: stats.inbound, color: '#3b82f6' },
+      { name: 'Unfollowed', value: stats.unfollowed, color: `color-mix(in srgb, ${acc} 50%, white)` },
+      { name: 'Skipped', value: stats.skipped, color: `color-mix(in srgb, ${acc} 25%, white)` }
+    ].filter(item => item.value > 0);
+  }, [stats]);
+
+  // Actions
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const syncRes = await triggerSyncFollowing();
+      const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+      if (freshRepos) setRepos(freshRepos);
+      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
+      if (logsRes.data) setLogs(logsRes.data);
+      const summaryRes = await supabase.from('run_summary').select('*').order('ran_at', { ascending: false });
+      if (summaryRes.data) setRunSummary(summaryRes.data);
+      await fetchStatus();
+      await fetchRateLimits(true);
+
+      if (syncRes.success && syncRes.data) {
+        const d = syncRes.data;
+        setTriggerStatus({
+          success: true,
+          message: `Live Sync Successful: ${d.liveFollowingCount ?? '350+'} Following, ${d.liveFollowersCount ?? '140+'} Followers synced with GitHub.`
+        });
+      }
+    } catch (err: any) {
+      console.error('Error refreshing data and syncing with GitHub:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleTrigger = async () => {
+    setIsTriggering(true);
+    setTriggerStatus(null);
+    try {
+      const res = await triggerWorker();
+      if (res.success) {
+        setTriggerStatus({ success: true, message: res.message || 'Worker triggered successfully.' });
+        fetchStatus();
+      } else {
+        setTriggerStatus({ success: false, message: res.error || 'Failed to trigger automation job.' });
+      }
+    } catch (err: any) {
+      setTriggerStatus({ success: false, message: err.message || 'Network error triggering worker' });
+    } finally {
+      setIsTriggering(false);
+    }
+  };
+
+  const handleFollowUser = async (username: string) => {
+    if (healthState?.isGitHubValid === false) {
+      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
+      return;
+    }
+    const targetId = `profile-${username}`;
+    loadingIds.current.add(targetId);
+    triggerLoadingUpdate();
+
+    setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false, followed_at: new Date().toISOString() } : r));
+    try {
+      const res = await triggerFollow(username);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false } : r));
+        alert(`Failed to follow: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false } : r));
+      alert(`Failed to follow: ${err.message || err}`);
+    } finally {
+      loadingIds.current.delete(targetId);
+      triggerLoadingUpdate();
+    }
+  };
+
+  const handleUnfollowUser = async (username: string) => {
+    if (healthState?.isGitHubValid === false) {
+      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
+      return;
+    }
+    const targetId = `profile-${username}`;
+    loadingIds.current.add(targetId);
+    triggerLoadingUpdate();
+
+    setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false, unfollowed: true } : r));
+    try {
+      const res = await triggerUnfollow(username);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false } : r));
+        alert(`Failed to unfollow: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false } : r));
+      alert(`Failed to unfollow: ${err.message || err}`);
+    } finally {
+      loadingIds.current.delete(targetId);
+      triggerLoadingUpdate();
+    }
+  };
+
+  const handleStar = async (owner: string, name: string) => {
+    if (healthState?.isGitHubValid === false) {
+      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
+      return;
+    }
+    const targetId = `repo-${owner}-${name}`;
+    loadingIds.current.add(targetId);
+    triggerLoadingUpdate();
+
+    setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
+    try {
+      const res = await triggerStar(owner, name);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
+        alert(`Failed to star: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
+      alert(`Failed to star: ${err.message || err}`);
+    } finally {
+      loadingIds.current.delete(targetId);
+      triggerLoadingUpdate();
+    }
+  };
+
+  const handleUnstar = async (owner: string, name: string) => {
+    const targetId = `repo-${owner}-${name}`;
+    loadingIds.current.add(targetId);
+    triggerLoadingUpdate();
+
+    setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
+    try {
+      const res = await triggerUnstar(owner, name);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
+        alert(`Failed to unstar: ${res.error}`);
+      }
+    } catch (err: any) {
+      setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
+      alert(`Failed to unstar: ${err.message || err}`);
+    } finally {
+      loadingIds.current.delete(targetId);
+      triggerLoadingUpdate();
+    }
+  };
+
+  const handleDeleteProfile = async (username: string) => {
+    if (!confirm(`Are you sure you want to permanently delete @${username} and all of their repositories from the database?`)) {
+      return;
+    }
+    const targetId = `profile-${username}`;
+    loadingIds.current.add(targetId);
+    triggerLoadingUpdate();
+
+    setRepos(prev => prev.filter(r => r.owner.toLowerCase() !== username.toLowerCase()));
+    try {
+      const res = await triggerDeleteProfile(username);
+      if (res.success) {
+        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
+        if (logsRes.data) setLogs(logsRes.data);
+      } else {
+        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+        if (freshRepos) setRepos(freshRepos);
+        alert(`Failed to delete profile: ${res.error}`);
+      }
+    } catch (err: any) {
+      const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+      if (freshRepos) setRepos(freshRepos);
+      alert(`Failed to delete profile: ${err.message || err}`);
+    } finally {
+      loadingIds.current.delete(targetId);
+      triggerLoadingUpdate();
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+    } catch (e) {}
+    router.push('/login');
+    router.refresh();
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['Owner', 'ReposCount', 'AvgGrade', 'FollowStatus'];
+    const rows = allProfiles.map(p => {
+      let statusLabel = 'Pending';
+      if (p.followStatus.followed && p.followStatus.follow_back) statusLabel = 'Mutual';
+      else if (p.followStatus.followed && !p.followStatus.unfollowed) statusLabel = 'Followed';
+      else if (!p.followStatus.followed && p.followStatus.follow_back) statusLabel = 'Inbound';
+      else if (p.followStatus.unfollowed) statusLabel = 'Unfollowed';
+      else if (p.followStatus.follow_skipped) statusLabel = 'Skipped';
+      return [`"${p.owner}"`, p.reposCount, p.avgGrade.toFixed(1), `"${statusLabel}"`];
+    });
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    setExportPreview({
+      filename: `followme_profiles_${new Date().toISOString().split('T')[0]}.csv`,
+      mimeType: 'text/csv;charset=utf-8',
+      content: csvContent
+    });
+  };
+
+  const handleExportJSON = () => {
+    const exportData = allProfiles.map(p => ({
+      owner: p.owner,
+      reposCount: p.reposCount,
+      avgGrade: p.avgGrade,
+      followStatus: p.followStatus,
+      repos: p.repos.map(r => ({
+        name: r.name,
+        stars: r.stars,
+        grade: r.grade,
+        language: r.language,
+        github_url: r.github_url,
+      }))
+    }));
+    setExportPreview({
+      filename: `followme_profiles_${new Date().toISOString().split('T')[0]}.json`,
+      mimeType: 'application/json;charset=utf-8',
+      content: JSON.stringify(exportData, null, 2)
+    });
+  };
+
+  const handleUpdateSecurityKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSecKeyError(null);
+    setSecKeySuccess(null);
+    if (!currentSecKey || !newSecKey || !confirmSecKey) {
+      setSecKeyError('Please fill in all security key fields.');
+      return;
+    }
+    if (newSecKey !== confirmSecKey) {
+      setSecKeyError('New security key and confirmation do not match.');
+      return;
+    }
+    if (newSecKey.length < 4) {
+      setSecKeyError('New security key must be at least 4 characters long.');
+      return;
+    }
+    setIsSecKeySubmitting(true);
+    try {
+      const res = await fetch('/api/auth/update-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentKey: currentSecKey, newKey: newSecKey })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSecKeySuccess('Security Key updated successfully!');
+        setCurrentSecKey('');
+        setNewSecKey('');
+        setConfirmSecKey('');
+        setTimeout(() => {
+          setSecKeySuccess(null);
+          setIsSecurityModalOpen(false);
+        }, 1500);
+      } else {
+        setSecKeyError(data.error || 'Current key verification failed.');
+      }
+    } catch (err: any) {
+      setSecKeyError('Failed to update security key. Check connection.');
+    } finally {
+      setIsSecKeySubmitting(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setSavedSettings(tempSettings);
+    localStorage.setItem('savedSettings', JSON.stringify(tempSettings));
+    setIsSettingsOpen(false);
+
+    const { githubToken, resendApiKey, _githubTokenDirty, _resendApiKeyDirty, ...restSettings } = tempSettings;
+    const savePayload: Record<string, any> = {
+      ...restSettings,
+      ...(_githubTokenDirty && { githubToken }),
+      ...(_resendApiKeyDirty && { resendApiKey }),
+    };
+
+    await saveSystemSettings(savePayload);
+    try {
+      const freshHealth = await checkSystemHealth();
+      setHealthState(freshHealth);
+    } catch (_) {}
+    router.refresh();
+  };
+
+  const handleSendTestEmail = async () => {
+    setIsSendingTestEmail(true);
+    setTestEmailStatus(null);
+    try {
+      const res = await sendTestAlertEmail(tempSettings.recipientEmail, tempSettings.resendApiKey);
+      if (res.success) {
+        setTestEmailStatus({ success: true, message: `Test dispatch succeeded! Delivered to ${tempSettings.recipientEmail}` });
+      } else {
+        setTestEmailStatus({ success: false, message: res.error || 'Email dispatch failed. Verify your Resend API Key.' });
+      }
+    } catch (err: any) {
+      setTestEmailStatus({ success: false, message: 'Network error sending test alert: ' + (err.message || err) });
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
 
   const handleTestWebhook = async () => {
     setIsTestingWebhook(true);
@@ -816,10 +1004,7 @@ export default function DashboardView({
       const response = await fetch('/api/test-webhook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: tempSettings.webhookUrl,
-          secret: tempSettings.webhookSecret,
-        }),
+        body: JSON.stringify({ url: tempSettings.webhookUrl, secret: tempSettings.webhookSecret }),
       });
       const data = await response.json();
       if (response.ok && data.success) {
@@ -855,719 +1040,22 @@ export default function DashboardView({
     }
   };
 
-  // Mouse Drag state for top repos carousel
-  const repoCarouselRef = useRef<HTMLDivElement>(null);
-  const [isDraggingRepo, setIsDraggingRepo] = useState(false);
-  const [startXRepo, setStartXRepo] = useState(0);
-  const [scrollLeftRepo, setScrollLeftRepo] = useState(0);
-
-  // Mouse Drag state for nav bar
-  const navContainerRef = useRef<HTMLDivElement>(null);
-  const [isDraggingNav, setIsDraggingNav] = useState(false);
-  const [startXNav, setStartXNav] = useState(0);
-  const [scrollLeftNav, setScrollLeftNav] = useState(0);
-
-
-  const handleTabChange = (newTab: 'home' | 'profiles' | 'repos' | 'logs' | 'stats', filter: any = null) => {
-    setIsTabTransitioning(true);
-    setActiveTab(newTab);
-    setActiveFilter(filter);
-    setTimeout(() => {
-      setIsTabTransitioning(false);
-    }, 150);
-
-    const basePath = newTab === 'home' 
-      ? '/' 
-      : newTab === 'profiles' 
-      ? '/profiles' 
-      : newTab === 'repos' 
-      ? '/repositories' 
-      : newTab === 'logs' 
-      ? '/logs' 
-      : '/?tab=stats';
-
-    const fullPath = filter ? `${basePath}?filter=${filter}` : basePath;
-
-    if (typeof window !== 'undefined') {
-      window.history.pushState(null, '', fullPath);
-    }
-    router.push(fullPath);
-  };
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const urlFilter = params.get('filter');
-      const urlQuery = params.get('q');
-      const urlTab = params.get('tab');
-      const urlOnboarding = params.get('onboarding');
-      if (urlFilter) setActiveFilter(urlFilter as any);
-      if (urlQuery) setSearchTerm(urlQuery);
-      if (urlTab === 'stats') setActiveTab('stats');
-      if (urlOnboarding === '1' || urlOnboarding === 'true') setShowOnboardingTest(true);
-    }
-  }, []);
-
-  const [isOAuthConnecting, setIsOAuthConnecting] = useState(false);
-
-  const handleGitHubOAuth = (e?: React.MouseEvent) => {
-    if (e) e.preventDefault();
-    setIsOAuthConnecting(true);
-
-    const width = 600;
-    const height = 700;
-    const left = typeof window !== 'undefined' ? window.screenX + (window.outerWidth - width) / 2 : 100;
-    const top = typeof window !== 'undefined' ? window.screenY + (window.outerHeight - height) / 2 : 100;
-
-    const popup = window.open(
-      '/api/auth/github',
-      'github_oauth_popup',
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no,resizable=yes`
-    );
-
-    if (!popup) {
-      window.location.href = '/api/auth/github';
-      return;
-    }
-
-    const checkTimer = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkTimer);
-        setIsOAuthConnecting(false);
-      }
-    }, 500);
-
-    const onMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'GITHUB_OAUTH_SUCCESS') {
-        clearInterval(checkTimer);
-        window.removeEventListener('message', onMessage);
-        setIsOAuthConnecting(false);
-        router.refresh();
-      } else if (event.data?.type === 'GITHUB_OAUTH_ERROR') {
-        clearInterval(checkTimer);
-        window.removeEventListener('message', onMessage);
-        setIsOAuthConnecting(false);
-      }
-    };
-
-    window.addEventListener('message', onMessage);
-  };
-
-  useEffect(() => {
-    if (activeTab === 'home') {
-      setShuffleSeed(prev => prev + 1);
-    }
-  }, [activeTab]);
-
-  const handleRepoMouseDown = (e: React.MouseEvent) => {
-    if (!repoCarouselRef.current) return;
-    setIsDraggingRepo(true);
-    setStartXRepo(e.pageX - repoCarouselRef.current.offsetLeft);
-    setScrollLeftRepo(repoCarouselRef.current.scrollLeft);
-  };
-  const handleRepoMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingRepo || !repoCarouselRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - repoCarouselRef.current.offsetLeft;
-    const walk = (x - startXRepo) * 1.5;
-    repoCarouselRef.current.scrollLeft = scrollLeftRepo - walk;
-  };
-  const handleRepoMouseUpOrLeave = () => {
-    setIsDraggingRepo(false);
-  };
-
-  const handleNavMouseDown = (e: React.MouseEvent) => {
-    if (!navContainerRef.current) return;
-    setIsDraggingNav(true);
-    setStartXNav(e.pageX - navContainerRef.current.offsetLeft);
-    setScrollLeftNav(navContainerRef.current.scrollLeft);
-  };
-  const handleNavMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingNav || !navContainerRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - navContainerRef.current.offsetLeft;
-    const walk = (x - startXNav) * 1.5;
-    navContainerRef.current.scrollLeft = scrollLeftNav - walk;
-  };
-  const handleNavMouseUpOrLeave = () => {
-    setIsDraggingNav(false);
-  };
-
-  const [logTypeFilter, setLogTypeFilter] = useState<'ALL' | 'SUCCESS' | 'ERROR' | 'WARN' | 'INFO'>('ALL');
-  const [relativeTick, setRelativeTick] = useState(0);
-  const terminalEndRef = useRef<HTMLDivElement>(null);
-  const [hoveredDonut, setHoveredDonut] = useState<{ name: string; value: number } | null>(null);
-
-
-  // Auto-update relative times every 60 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRelativeTick(t => t + 1);
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Auto-scroll terminal to bottom on tab load or new logs
-  useEffect(() => {
-    if (activeTab === 'logs' && !isTabTransitioning) {
-      setTimeout(() => {
-        terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [activeTab, logs, logTypeFilter, isTabTransitioning]);
-
-  const getRelativeTime = (pastDateStr: string | null | undefined) => {
-    if (!pastDateStr) return 'never';
-    const diffMs = Date.now() - new Date(pastDateStr).getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
-  };
-
-  const getFutureRelativeTime = (futureDateStr: string | null | undefined) => {
-    if (!futureDateStr) return 'soon';
-    const diffMs = new Date(futureDateStr).getTime() - Date.now();
-    if (diffMs <= 0) return 'soon';
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 60) return `in ${diffMins}m`;
-    const diffHours = Math.floor(diffMins / 60);
-    const minsLeft = diffMins % 60;
-    return `in ${diffHours}h ${minsLeft}m`;
-  };
-
-  // Cleanup Assistant states
-  const [isCleanupOpen, setIsCleanupOpen] = useState(false);
-
-  // Prevent background scrolling when any modal overlay is active
-  useEffect(() => {
-    const isAnyModalOpen = isSettingsOpen || isSecurityModalOpen || isCleanupOpen || isSidebarOpen || Boolean(exportPreview);
-    if (isAnyModalOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isSettingsOpen, isSecurityModalOpen, isCleanupOpen, isSidebarOpen, exportPreview]);
-  const [cleanupOption, setCleanupOption] = useState<'list' | 'logs' | 'stale' | null>(null);
-  const [totalLogsCount, setTotalLogsCount] = useState<number>(0);
-  const staleProfilesCount = useMemo(() => {
-    return repos.filter(r => !r.followed && !r.starred && !r.unfollowed && r.follow_skipped).length;
-  }, [repos]);
-  const [unfollowList, setUnfollowList] = useState<{ id: number; owner: string; name: string; followed_at: string }[]>([]);
-  const [isFetchingUnfollowList, setIsFetchingUnfollowList] = useState(false);
-
-  // Animation States
-  const [isFirstMount, setIsFirstMount] = useState(true);
-
-  // Refreshing State
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Triggering State
-  const [isTriggering, setIsTriggering] = useState(false);
-  const [triggerStatus, setTriggerStatus] = useState<{ success?: boolean; message?: string } | null>(null);
-
-  // Cleanup Trigger State
-  const [isCleaning, setIsCleaning] = useState(false);
-  const [cleanupStatus, setCleanupStatus] = useState<{ success?: boolean; message?: string } | null>(null);
-
-  // Sync State
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  // Selected Repo for modal overlay
-  const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
-
-  const [isActionLoading, setIsActionLoading] = useState(false);
-
-  // Worker status states
-  const [workerStatus, setWorkerStatus] = useState<{
-    nextRun: string | null;
-    lastRun: string | null;
-    isJobRunning: boolean;
-    consecutiveFailures: number;
-  } | null>(null);
-  const [isStatusLoading, setIsStatusLoading] = useState(false);
-
-  const fetchStatus = async () => {
-    setIsStatusLoading(true);
-    const res = await getWorkerStatus();
-    if (res.success && res.data) {
-      setWorkerStatus(res.data);
-    }
-    setIsStatusLoading(false);
-  };
-
-  const fetchUnfollowList = async () => {
-    setIsFetchingUnfollowList(true);
-    try {
-      const data = await fetchAllRows(
-        supabase,
-        'repos',
-        '*',
-        q => q
-          .eq('follow_back', false)
-          .eq('unfollowed', false)
-          .lt('followed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-      );
-      setUnfollowList(data);
-    } catch (error) {
-      console.error('Error fetching unfollow list:', error);
-    }
-    setIsFetchingUnfollowList(false);
-  };
-
-  const fetchTotalLogsCount = async () => {
-    const { count, error } = await supabase
-      .from('logs')
-      .select('*', { count: 'exact', head: true });
-    
-    if (!error && count !== null) {
-      setTotalLogsCount(count);
-    } else {
-      console.error('Error fetching logs count:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchStatus();
-    setIsFirstMount(false);
-  }, []);
-
-  // Compute Profiles Map
-  const allProfiles = useMemo(() => {
-    const profilesMap = new Map<string, {
-      owner: string;
-      reposCount: number;
-      avgGrade: number;
-      totalGrade: number;
-      repos: Repo[];
-      followStatus: { followed: boolean; unfollowed: boolean; follow_skipped: boolean; follow_back: boolean; reason: string | null; followed_at: string | null };
-    }>();
-
-    const sorted = [...repos].sort((a, b) => (b.grade || 0) - (a.grade || 0) || new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime());
-
-    sorted.forEach(repo => {
-      const ownerLower = repo.owner.toLowerCase();
-      const existing = profilesMap.get(ownerLower);
-      
-      const ownerStatus = {
-        followed: !!repo.followed,
-        unfollowed: !!repo.unfollowed,
-        follow_skipped: !!repo.follow_skipped,
-        follow_back: !!repo.follow_back,
-        reason: repo.follow_skip_reason || null,
-        followed_at: repo.followed_at || null,
-      };
-
-      if (!existing) {
-        profilesMap.set(ownerLower, {
-          owner: repo.owner,
-          reposCount: 1,
-          totalGrade: (repo.grade || 0),
-          avgGrade: (repo.grade || 0),
-          repos: [repo],
-          followStatus: ownerStatus,
-        });
-      } else {
-        existing.reposCount += 1;
-        existing.repos.push(repo);
-
-        // Sort repos so best graded project is first
-        existing.repos.sort((a, b) => (b.grade || 0) - (a.grade || 0) || (b.stars || 0) - (a.stars || 0));
-
-        const realGradedRepos = existing.repos.filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile');
-        if (realGradedRepos.length > 0) {
-          existing.avgGrade = Number((realGradedRepos.reduce((acc, r) => acc + (r.grade || 0), 0) / realGradedRepos.length).toFixed(1));
-          existing.totalGrade = realGradedRepos.reduce((acc, r) => acc + (r.grade || 0), 0);
-        } else {
-          existing.avgGrade = existing.repos[0]?.grade || 0;
-          existing.totalGrade = existing.avgGrade;
-        }
-
-        const isFollowed = existing.followStatus.followed || ownerStatus.followed;
-        const isFollowBack = existing.followStatus.follow_back || ownerStatus.follow_back;
-        const isUnfollowed = !isFollowed && (existing.followStatus.unfollowed || ownerStatus.unfollowed);
-        const isSkipped = !isFollowed && !isUnfollowed && (existing.followStatus.follow_skipped || ownerStatus.follow_skipped);
-
-        existing.followStatus = {
-          followed: isFollowed,
-          unfollowed: isUnfollowed,
-          follow_skipped: isSkipped,
-          follow_back: isFollowBack,
-          reason: ownerStatus.reason || existing.followStatus.reason,
-          followed_at: ownerStatus.followed_at || existing.followStatus.followed_at,
-        };
-      }
-    });
-
-    return Array.from(profilesMap.values());
-  }, [repos]);
-
-  const stats = useMemo(() => {
-    const total = repos.length;
-    const starred = repos.filter(r => r.starred).length;
-    
-    let followed = 0;
-    let unfollowed = 0;
-    let skipped = 0;
-    let mutuals = 0;
-    let inbound = 0;
-
-    allProfiles.forEach((profile) => {
-      const status = profile.followStatus;
-      if (status.followed && !status.unfollowed && !status.follow_back) followed++;
-      if (status.unfollowed) unfollowed++;
-      if (status.follow_skipped) skipped++;
-      if (status.followed && !status.unfollowed && status.follow_back) mutuals++;
-      if (!status.followed && status.follow_back) inbound++;
-    });
-
-    const totalGrade = repos.reduce((acc, r) => acc + (r.grade || 0), 0);
-    const avgGrade = total > 0 ? (totalGrade / total) : 0;
-
-    return { total, starred, followed, unfollowed, skipped, avgGrade, mutuals, inbound, totalProfiles: allProfiles.length };
-  }, [repos, allProfiles]);
-
-  const relationshipMatrix = useMemo(() => {
-    const mutuals: any[] = [];
-    const gracePeriod: any[] = [];
-    const graceEnded: any[] = [];
-    const inbound: any[] = [];
-    const unfollowed: any[] = [];
-
-    const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
-    const cutoffMs = graceDays * 24 * 60 * 60 * 1000;
-
-    allProfiles.forEach((profile) => {
-      const status = profile.followStatus;
-      if (status.followed && !status.unfollowed && status.follow_back) {
-        mutuals.push(profile);
-      } else if (status.followed && !status.unfollowed && !status.follow_back) {
-        if (status.followed_at) {
-          const elapsed = Date.now() - new Date(status.followed_at).getTime();
-          if (elapsed >= cutoffMs) {
-            graceEnded.push(profile);
-          } else {
-            gracePeriod.push(profile);
-          }
-        } else {
-          // If no timestamp is present, it is considered past grace
-          graceEnded.push(profile);
-        }
-      } else if (!status.followed && status.follow_back) {
-        inbound.push(profile);
-      } else if (status.unfollowed) {
-        unfollowed.push(profile);
-      }
-    });
-
-    return {
-      mutuals,
-      gracePeriod,
-      graceEnded,
-      inbound,
-      unfollowed,
-    };
-  }, [allProfiles, savedSettings.unfollowGracePeriod]);
-
-  const topProfile = useMemo(() => {
-    if (allProfiles.length === 0) return null;
-    return [...allProfiles]
-      .filter(p => p.avgGrade > 0 && !p.followStatus.follow_skipped)
-      .sort((a, b) => b.avgGrade - a.avgGrade)[0] || allProfiles[0];
-  }, [allProfiles]);
-
-  const topRepo = useMemo(() => {
-    if (repos.length === 0) return null;
-    return [...repos]
-      .filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile')
-      .sort((a, b) => (b.grade || 0) - (a.grade || 0) || (b.stars || 0) - (a.stars || 0))[0] || repos[0];
-  }, [repos]);
-
-  const sumSummary = useMemo(() => {
-    let evaluated = 0;
-    let followed = 0;
-    let unfollowed = 0;
-    runSummary.forEach(r => {
-      evaluated += (r.profiles_evaluated || 0);
-      followed += (r.profiles_followed || 0);
-      unfollowed += (r.profiles_unfollowed || 0);
-    });
-    return { evaluated, followed, unfollowed, mutuals: stats.mutuals };
-  }, [runSummary, stats.mutuals]);
-
-  const narration = useMemo(() => {
-    let lastRunTimeStr = "Never";
-    let timeAgoStr = "some time ago";
-    let evaluatedCount = 0;
-    let followedCount = 0;
-    let unfollowedCount = 0;
-
-    const latestRun = runSummary[0]; // Since it is sorted descending by ran_at
-    if (latestRun) {
-      const dt = new Date(latestRun.ran_at);
-      lastRunTimeStr = dt.toLocaleTimeString();
-      const minutesAgo = Math.floor((Date.now() - dt.getTime()) / 60000);
-      if (minutesAgo < 60) {
-        timeAgoStr = `${minutesAgo}m ago`;
-      } else {
-        const hoursAgo = Math.floor(minutesAgo / 60);
-        timeAgoStr = `${hoursAgo}h ago`;
-      }
-
-      if (latestRun.run_type === 'cleanup') {
-        unfollowedCount = latestRun.profiles_unfollowed;
-        const lastEvalRun = runSummary.find(r => r.run_type === 'evaluation');
-        if (lastEvalRun) {
-          evaluatedCount = lastEvalRun.profiles_evaluated;
-          followedCount = lastEvalRun.profiles_followed;
-        }
-      } else {
-        evaluatedCount = latestRun.profiles_evaluated;
-        followedCount = latestRun.profiles_followed;
-        const lastCleanupRun = runSummary.find(r => r.run_type === 'cleanup');
-        if (lastCleanupRun) {
-          unfollowedCount = lastCleanupRun.profiles_unfollowed;
-        }
-      }
-    } else {
-      // Fallback
-      const finishedLog = logs.find(l => l.action === 'SYSTEM' && l.status === 'SUCCESS' && l.message.includes('finished'));
-      if (finishedLog) {
-        const dt = new Date(finishedLog.timestamp);
-        lastRunTimeStr = dt.toLocaleTimeString();
-        const minutesAgo = Math.floor((Date.now() - dt.getTime()) / 60000);
-        if (minutesAgo < 60) {
-          timeAgoStr = `${minutesAgo}m ago`;
-        } else {
-          const hoursAgo = Math.floor(minutesAgo / 60);
-          timeAgoStr = `${hoursAgo}h ago`;
-        }
-        const evalMatch = finishedLog.message.match(/evaluated\s+(\d+)/i) || finishedLog.message.match(/graded\s+(\d+)/i) || finishedLog.message.match(/processed\s+(\d+)/i);
-        if (evalMatch) evaluatedCount = parseInt(evalMatch[1]);
-      }
-      const lastRunTimestamp = finishedLog ? new Date(finishedLog.timestamp).getTime() : 0;
-      const lastRunLogs = logs.filter(l => new Date(l.timestamp).getTime() >= lastRunTimestamp - 60000);
-      followedCount = lastRunLogs.filter(l => l.action === 'FOLLOW' && l.status === 'SUCCESS').length;
-      unfollowedCount = lastRunLogs.filter(l => (l.action === 'UNFOLLOW' || l.action === 'UNFOLLOW_RATIO') && l.status === 'SUCCESS').length;
-    }
-
-    let nextRunTimeStr = "in 1h";
-    if (workerStatus?.nextRun) {
-      const dt = new Date(workerStatus.nextRun);
-      const minutesLeft = Math.floor((dt.getTime() - Date.now()) / 60000);
-      if (minutesLeft > 0) {
-        if (minutesLeft < 60) {
-          nextRunTimeStr = `in ${minutesLeft}m`;
-        } else {
-          const hoursLeft = Math.floor(minutesLeft / 60);
-          const minsLeft = minutesLeft % 60;
-          nextRunTimeStr = `in ${hoursLeft}h ${minsLeft}m`;
-        }
-      } else {
-        nextRunTimeStr = "soon";
-      }
-    }
-
-    return `Evaluated ${evaluatedCount} profiles ${timeAgoStr}. ${followedCount} scored above 8.0 and were followed. ${unfollowedCount} were unfollowed for non-followback. Avg quality sits at ${(stats.avgGrade).toFixed(1)}/10 across ${stats.totalProfiles || allProfiles.length} graded profiles. Next run ${nextRunTimeStr}.`;
-  }, [runSummary, logs, workerStatus, stats, allProfiles.length]);
-
-  const lastRunTask = useMemo(() => {
-    return runSummary.find(r => r.run_type !== 'sync_following' && r.run_type !== 'cleanup') || null;
-  }, [runSummary]);
-
-  const lastRunTaskFormattedTime = useMemo(() => {
-    if (!lastRunTask) return 'Never';
-    return new Date(lastRunTask.ran_at).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  }, [lastRunTask]);
-
-  const top5Profiles = useMemo(() => {
-    if (allProfiles.length === 0) return [];
-    return [...allProfiles]
-      .filter(p => p.avgGrade > 0 && !p.followStatus.follow_skipped)
-      .sort((a, b) => b.avgGrade - a.avgGrade)
-      .slice(0, 5);
-  }, [allProfiles]);
-
-  const top3Repos = useMemo(() => {
-    if (repos.length === 0) return [];
-    return [...repos]
-      .filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile')
-      .sort((a, b) => (b.grade || 0) - (a.grade || 0) || (b.stars || 0) - (a.stars || 0))
-      .slice(0, 8);
-  }, [repos]);
-
-  const last3Insights = useMemo(() => {
-    const lastRunFollowed = lastRunTask?.profiles_followed || 0;
-    const lastRunUnfollowed = lastRunTask?.profiles_unfollowed || 0;
-
-    const msg1 = `Evaluated ${stats.totalProfiles || allProfiles.length} total developer profiles, with ${stats.followed} high-graded developers targeted and followed.`;
-    const msg2 = `In the last run, followed ${lastRunFollowed} new developers and unfollowed ${lastRunUnfollowed} inactive profiles.`;
-    const msg3 = `System health status is ${workerStatus?.isJobRunning ? 'Active (Running Job)' : 'Healthy & Operational'}. Next run scheduled ${getFutureRelativeTime(workerStatus?.nextRun)}.`;
-
-    return [msg1, msg2, msg3];
-  }, [lastRunTask, stats.totalProfiles, stats.followed, workerStatus, allProfiles.length]);
-
-
-  // Auto-rotate Top Profile Spotlight every 4 seconds
-  useEffect(() => {
-    if (top5Profiles.length <= 1) return;
-    const interval = setInterval(() => {
-      setSpotlightIndex(prev => (prev + 1) % top5Profiles.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [top5Profiles]);
-
-  // Auto-rotate AI Insights every 6 seconds
-  useEffect(() => {
-    if (last3Insights.length <= 1) return;
-    const interval = setInterval(() => {
-      setInsightIndex(prev => (prev + 1) % last3Insights.length);
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [last3Insights]);
-
-  // Apply filters to profiles
-  const filteredProfiles = useMemo(() => {
-    return allProfiles.filter(profile => {
-      const matchesSearch = profile.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        profile.repos.some(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()) || (r.topics && r.topics.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))));
-      
-      if (!matchesSearch) return false;
-
-      const isStarred = profile.repos.some(r => r.starred);
-      const isFollowed = profile.followStatus.followed && !profile.followStatus.unfollowed;
-      const isSkipped = profile.followStatus.follow_skipped;
-
-      if (isSkipped && !isFollowed && !isStarred && activeFilter !== 'skipped' && activeFilter !== null) {
-        return false;
-      }
-
-      if (activeFilter === 'starred') {
-        return isStarred;
-      }
-      if (activeFilter === 'followed') {
-        return profile.followStatus.followed && !profile.followStatus.unfollowed && !profile.followStatus.follow_back;
-      }
-      if (activeFilter === 'grace_period') {
-        if (!profile.followStatus.followed || profile.followStatus.unfollowed || profile.followStatus.follow_back) return false;
-        if (!profile.followStatus.followed_at) return false;
-        const elapsed = Date.now() - new Date(profile.followStatus.followed_at).getTime();
-        const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
-        return elapsed < graceDays * 24 * 60 * 60 * 1000;
-      }
-      if (activeFilter === 'grace_ended') {
-        if (!profile.followStatus.followed || profile.followStatus.unfollowed || profile.followStatus.follow_back) return false;
-        if (!profile.followStatus.followed_at) return true;
-        const elapsed = Date.now() - new Date(profile.followStatus.followed_at).getTime();
-        const graceDays = savedSettings.unfollowGracePeriod && savedSettings.unfollowGracePeriod > 0 ? savedSettings.unfollowGracePeriod : 7;
-        return elapsed >= graceDays * 24 * 60 * 60 * 1000;
-      }
-      if (activeFilter === 'skipped') {
-        return profile.followStatus.follow_skipped;
-      }
-      if (activeFilter === 'unfollowed') {
-        return profile.followStatus.unfollowed;
-      }
-      if (activeFilter === 'mutual') {
-        return profile.followStatus.followed && !profile.followStatus.unfollowed && profile.followStatus.follow_back;
-      }
-      if (activeFilter === 'inbound') {
-        return !profile.followStatus.followed && profile.followStatus.follow_back;
-      }
-      return true;
-    });
-  }, [allProfiles, searchTerm, activeFilter, savedSettings.unfollowGracePeriod]);
-
-  // Apply filters and sorting to repos
-  const filteredRepos = useMemo(() => {
-    return repos
-      .filter(repo => {
-        const matchesSearch = 
-          `${repo.owner}/${repo.name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (repo.topics && repo.topics.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())));
-        
-        if (!matchesSearch) return false;
-
-        if (activeFilter === 'starred') {
-          return repo.starred;
-        }
-        if (activeFilter === 'unstarred') {
-          return !repo.starred;
-        }
-        return true;
-
-      })
-      .sort((a, b) => new Date(b.graded_at || 0).getTime() - new Date(a.graded_at || 0).getTime());
-  }, [repos, searchTerm, activeFilter]);
-
-  // Apply search filtering to logs
-  const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      const term = searchTerm.toLowerCase();
-      return (
-        log.action.toLowerCase().includes(term) ||
-        log.status.toLowerCase().includes(term) ||
-        (log.message && log.message.toLowerCase().includes(term))
-      );
-    });
-  }, [logs, searchTerm]);
-
-  // Action handlings
-  const handleSync = async () => {
-    if (healthState?.isGitHubValid === false) {
-      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
-      return;
-    }
-    setIsSyncing(true);
-    try {
-      const res = await triggerSyncFollowing();
-      if (res.success) {
-        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
-        if (freshRepos) setRepos(freshRepos);
-        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
-        if (logsRes.data) setLogs(logsRes.data);
-        fetchStatus();
-      } else {
-        alert(`Sync failed: ${res.error}`);
-      }
-    } catch (err: any) {
-      alert(`Sync failed: ${err.message || err}`);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const handleCleanupRun = async () => {
     setIsCleaning(true);
     setIsRefreshing(true);
-    setCleanupStatus(null);
     try {
       const res = await triggerCleanup();
       if (res.success) {
-        setCleanupStatus({ success: true, message: res.message });
         const freshRepos = await fetchAllRows(supabase, 'repos', '*');
         if (freshRepos) setRepos(freshRepos);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
         fetchStatus();
       } else {
-        setCleanupStatus({ success: false, message: res.error || 'Failed to trigger cleanup' });
+        alert(`Cleanup error: ${res.error}`);
       }
     } catch (err: any) {
-      setCleanupStatus({ success: false, message: err.message || 'Error occurred during cleanup trigger' });
+      alert(`Cleanup error: ${err.message || err}`);
     } finally {
       setIsCleaning(false);
       setIsRefreshing(false);
@@ -1616,468 +1104,10 @@ export default function DashboardView({
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth', { method: 'DELETE' });
-    } catch (e) {}
-    router.push('/login');
-    router.refresh();
-  };
-
-  const handleExportCSV = () => {
-    const headers = ['Owner', 'ReposCount', 'AvgGrade', 'FollowStatus'];
-    const rows = allProfiles.map(p => {
-      let statusLabel = 'Pending';
-      if (p.followStatus.followed && p.followStatus.follow_back) {
-        statusLabel = 'Mutual';
-      } else if (p.followStatus.followed && !p.followStatus.unfollowed) {
-        statusLabel = 'Followed';
-      } else if (!p.followStatus.followed && p.followStatus.follow_back) {
-        statusLabel = 'Inbound';
-      } else if (p.followStatus.unfollowed) {
-        statusLabel = 'Unfollowed';
-      } else if (p.followStatus.follow_skipped) {
-        statusLabel = 'Skipped';
-      }
-      return [
-        `"${p.owner}"`,
-        p.reposCount,
-        p.avgGrade.toFixed(1),
-        `"${statusLabel}"`
-      ];
-    });
-    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    setExportPreview({
-      filename: `followme_profiles_${new Date().toISOString().split('T')[0]}.csv`,
-      mimeType: 'text/csv;charset=utf-8',
-      content: csvContent
-    });
-  };
-
-  const handleUpdateSecurityKey = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSecKeyError(null);
-    setSecKeySuccess(null);
-
-    if (!currentSecKey || !newSecKey || !confirmSecKey) {
-      setSecKeyError('Please fill in all security key fields.');
-      return;
-    }
-    if (newSecKey !== confirmSecKey) {
-      setSecKeyError('New security key and confirmation do not match.');
-      return;
-    }
-    if (newSecKey.length < 4) {
-      setSecKeyError('New security key must be at least 4 characters long.');
-      return;
-    }
-
-    setIsSecKeySubmitting(true);
-    try {
-      const res = await fetch('/api/auth/update-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentKey: currentSecKey, newKey: newSecKey })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSecKeySuccess('Security Key updated successfully!');
-        setCurrentSecKey('');
-        setNewSecKey('');
-        setConfirmSecKey('');
-        setTimeout(() => {
-          setSecKeySuccess(null);
-          setIsSecurityModalOpen(false);
-        }, 1500);
-      } else {
-        setSecKeyError(data.error || 'Current key verification failed.');
-      }
-    } catch (err: any) {
-      setSecKeyError('Failed to update security key. Check connection.');
-    } finally {
-      setIsSecKeySubmitting(false);
-    }
-  };
-
-
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      // 1. Sync live GitHub followers and following bidirectional state
-      const syncRes = await triggerSyncFollowing();
-      
-      // 2. Fetch fresh data from Supabase (paginated)
-      const freshRepos = await fetchAllRows(supabase, 'repos', '*');
-      if (freshRepos) setRepos(freshRepos);
-      const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
-      if (logsRes.data) setLogs(logsRes.data);
-      const summaryRes = await supabase.from('run_summary').select('*').order('ran_at', { ascending: false });
-      if (summaryRes.data) setRunSummary(summaryRes.data);
-      await fetchStatus();
-      await fetchRateLimits(true);
-      setShuffleSeed(prev => prev + 1);
-
-      if (syncRes.success && syncRes.data) {
-        const d = syncRes.data;
-        setTriggerStatus({
-          success: true,
-          message: `Live Sync Successful: ${d.liveFollowingCount ?? '350+'} Following, ${d.liveFollowersCount ?? '140+'} Followers synced with GitHub.`
-        });
-      }
-    } catch (err: any) {
-      console.error('Error refreshing data and syncing with GitHub:', err);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-
-  const handleTrigger = async () => {
-    setIsTriggering(true);
-    setTriggerStatus(null);
-    try {
-      const res = await triggerWorker();
-      if (res.success) {
-        setTriggerStatus({ success: true, message: res.message || 'Worker triggered successfully.' });
-        fetchStatus();
-      } else {
-        setTriggerStatus({ success: false, message: res.error || 'Failed to trigger automation job.' });
-      }
-    } catch (err: any) {
-      setTriggerStatus({ success: false, message: err.message || 'Network error triggering worker' });
-    } finally {
-      setIsTriggering(false);
-    }
-  };
-
-  const handleFollowUser = async (username: string) => {
-    if (healthState?.isGitHubValid === false) {
-      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
-      return;
-    }
-    setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false, followed_at: new Date().toISOString() } : r));
-    setIsActionLoading(true);
-    try {
-      const res = await triggerFollow(username);
-      if (res.success) {
-        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
-        if (logsRes.data) setLogs(logsRes.data);
-      } else {
-        setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false } : r));
-        alert(`Failed to follow: ${res.error}`);
-      }
-    } catch (err: any) {
-      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false } : r));
-      alert(`Failed to follow: ${err.message || err}`);
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleUnfollowUser = async (username: string) => {
-    if (healthState?.isGitHubValid === false) {
-      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
-      return;
-    }
-    setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: false, unfollowed: true } : r));
-    setIsActionLoading(true);
-    try {
-      const res = await triggerUnfollow(username);
-      if (res.success) {
-        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
-        if (logsRes.data) setLogs(logsRes.data);
-      } else {
-        setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false } : r));
-        alert(`Failed to unfollow: ${res.error}`);
-      }
-    } catch (err: any) {
-      setRepos(prev => prev.map(r => r.owner.toLowerCase() === username.toLowerCase() ? { ...r, followed: true, unfollowed: false } : r));
-      alert(`Failed to unfollow: ${err.message || err}`);
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleStar = async (owner: string, name: string) => {
-    if (healthState?.isGitHubValid === false) {
-      alert('Action disabled: GitHub Personal Access Token is expired or invalid. Please update your token in Settings.');
-      return;
-    }
-    setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
-    try {
-      const res = await triggerStar(owner, name);
-      if (res.success) {
-        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
-        if (logsRes.data) setLogs(logsRes.data);
-      } else {
-        setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
-        alert(`Failed to star: ${res.error}`);
-      }
-    } catch (err: any) {
-      setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
-      alert(`Failed to star: ${err.message || err}`);
-    }
-  };
-
-  const handleUnstar = async (owner: string, name: string) => {
-    setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: false } : r));
-    try {
-      const res = await triggerUnstar(owner, name);
-      if (res.success) {
-        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
-        if (logsRes.data) setLogs(logsRes.data);
-      } else {
-        setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
-        alert(`Failed to unstar: ${res.error}`);
-      }
-    } catch (err: any) {
-      setRepos(prev => prev.map(r => (r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === name.toLowerCase()) ? { ...r, starred: true } : r));
-      alert(`Failed to unstar: ${err.message || err}`);
-    }
-  };
-
-  const handleDeleteProfile = async (username: string) => {
-    if (!confirm(`Are you sure you want to permanently delete @${username} and all of their repositories from the database?`)) {
-      return;
-    }
-    setRepos(prev => prev.filter(r => r.owner.toLowerCase() !== username.toLowerCase()));
-    setIsActionLoading(true);
-    try {
-      const res = await triggerDeleteProfile(username);
-      if (res.success) {
-        const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
-        if (logsRes.data) setLogs(logsRes.data);
-      } else {
-        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
-        if (freshRepos) setRepos(freshRepos);
-        alert(`Failed to delete profile: ${res.error}`);
-      }
-    } catch (err: any) {
-      const freshRepos = await fetchAllRows(supabase, 'repos', '*');
-      if (freshRepos) setRepos(freshRepos);
-      alert(`Failed to delete profile: ${err.message || err}`);
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const getGradeColor = (grade: number) => {
-    if (grade >= 9.0) return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/25 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30';
-    if (grade >= 7.0) return 'bg-rose-50 text-[#e60023] border border-rose-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-rose-950/20 dark:text-rose-455 dark:border-rose-900/30';
-    return 'bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30';
-  };
-
-  // Process historical data for Recharts based on timeRange (TODAY / 7D / 30D / ALL)
-  const chartData = useMemo(() => {
-    const dailyMap = new Map<string, { date: string; dateObj: Date; follows: number; unfollows: number; evaluations: number; mutuals: number; totalGrade: number; gradeCount: number }>();
-
-    const now = new Date();
-    const formatLocalDateKey = (d: Date) => {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
-    };
-
-    const todayStr = formatLocalDateKey(now);
-    let cutoffDate = new Date();
-    if (timeRange === 'TODAY') {
-      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    } else if (timeRange === '7D') {
-      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-    } else if (timeRange === '30D') {
-      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
-    } else {
-      cutoffDate = new Date(0);
-    }
-
-    if (timeRange === 'TODAY') {
-      const label = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      dailyMap.set(todayStr, { date: label, dateObj: now, follows: 0, unfollows: 0, evaluations: 0, mutuals: 0, totalGrade: 0, gradeCount: 0 });
-    } else if (timeRange !== 'ALL') {
-      const daysToInclude = timeRange === '7D' ? 7 : 30;
-      for (let i = daysToInclude - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-        const key = formatLocalDateKey(d);
-        const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        dailyMap.set(key, { date: label, dateObj: d, follows: 0, unfollows: 0, evaluations: 0, mutuals: 0, totalGrade: 0, gradeCount: 0 });
-      }
-    }
-
-    runSummary.forEach(run => {
-      if (!run.ran_at) return;
-      const runDateObj = new Date(run.ran_at);
-      const runDateStr = formatLocalDateKey(runDateObj);
-      
-      if (timeRange === 'TODAY' && runDateStr !== todayStr) return;
-      if (timeRange !== 'TODAY' && timeRange !== 'ALL' && runDateObj.getTime() < cutoffDate.getTime()) return;
-
-      if (!dailyMap.has(runDateStr)) {
-        const label = runDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        dailyMap.set(runDateStr, { date: label, dateObj: runDateObj, follows: 0, unfollows: 0, evaluations: 0, mutuals: 0, totalGrade: 0, gradeCount: 0 });
-      }
-      const dayData = dailyMap.get(runDateStr)!;
-      dayData.follows += (run.profiles_followed || 0);
-      dayData.unfollows += (run.profiles_unfollowed || 0);
-      dayData.evaluations += (run.profiles_evaluated || 0);
-      dayData.mutuals += (run.mutuals_found || 0);
-    });
-
-    repos.forEach(repo => {
-      if (repo.graded_at) {
-        const gradeDateObj = new Date(repo.graded_at);
-        const gradeDateStr = formatLocalDateKey(gradeDateObj);
-        if (dailyMap.has(gradeDateStr)) {
-          const dayData = dailyMap.get(gradeDateStr)!;
-          dayData.totalGrade += (repo.grade || 0);
-          dayData.gradeCount++;
-        }
-      }
-    });
-
-    const sortedList = Array.from(dailyMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([key, dayData]) => {
-        const avgScore = dayData.gradeCount > 0 ? Number((dayData.totalGrade / dayData.gradeCount).toFixed(1)) : 0;
-        return {
-          key,
-          date: dayData.date,
-          follows: dayData.follows,
-          unfollows: dayData.unfollows,
-          evaluations: dayData.evaluations,
-          mutuals: dayData.mutuals,
-          avgScore,
-          followingGrowth: 0
-        };
-      });
-
-    let runningTotal = 0;
-    const finalResult = sortedList.map(item => {
-      runningTotal += (item.follows - item.unfollows);
-      return {
-        ...item,
-        followingGrowth: runningTotal
-      };
-    });
-
-    return finalResult;
-  }, [runSummary, repos, timeRange]);
-
-  // Compute filtered totals for the Metrics tab cards in perfect sync with Donut graph & Line chart
-  const filteredSummary = useMemo(() => {
-    let evaluated = 0;
-    let followed = 0;
-    let unfollowed = 0;
-    let mutuals = 0;
-
-    if (timeRange === 'ALL') {
-      runSummary.forEach(run => {
-        evaluated += (run.profiles_evaluated || 0);
-        followed += (run.profiles_followed || 0);
-        unfollowed += (run.profiles_unfollowed || 0);
-      });
-      if (evaluated === 0 && (stats.totalProfiles || allProfiles.length) > 0) {
-        evaluated = stats.totalProfiles || allProfiles.length;
-        followed = stats.followed + stats.mutuals;
-        unfollowed = stats.unfollowed;
-      }
-      mutuals = stats.mutuals;
-      return { evaluated, followed, unfollowed, mutuals };
-    }
-
-    chartData.forEach(item => {
-      evaluated += item.evaluations;
-      followed += item.follows;
-      unfollowed += item.unfollows;
-      mutuals += (item.mutuals || 0);
-    });
-
-    return { evaluated, followed, unfollowed, mutuals };
-  }, [chartData, runSummary, stats, timeRange, allProfiles.length]);
-
-  const statusDistribution = useMemo(() => {
-    const acc = '#e60023';
-    return [
-      { name: 'Mutuals', value: stats.mutuals, color: acc },
-      { name: 'Grace Period', value: stats.followed, color: `color-mix(in srgb, ${acc} 80%, black)` },
-      { name: 'Inbound', value: stats.inbound, color: '#3b82f6' },
-      { name: 'Unfollowed', value: stats.unfollowed, color: `color-mix(in srgb, ${acc} 50%, white)` },
-      { name: 'Skipped', value: stats.skipped, color: `color-mix(in srgb, ${acc} 25%, white)` }
-    ].filter(item => item.value > 0);
-  }, [stats]);
-
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#f9f9f9] text-[#1a1c1c] dark:bg-[#0d0d0d] dark:text-[#f0f0f0] font-sans transition-colors duration-200 selection:bg-zinc-200 dark:selection:bg-zinc-800 antialiased">
-      <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&family=Geist:wght@100..900&family=Inter:ital,wght@0,100..900;1,100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
-        
-        :root {
-          --accent-color: #e60023;
-          --accent-hover: #c0001b;
-        }
-        
-        .font-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .font-geist { font-family: 'Geist', sans-serif; }
-        .font-sans { font-family: 'Inter', sans-serif; }
-        .font-mono { font-family: 'Geist Mono', monospace; }
-        
-        .aura-shadow {
-          box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.04);
-        }
-        .dark .aura-shadow {
-          box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.25);
-        }
-        .aura-shadow-hover:hover {
-          box-shadow: 0px 8px 30px rgba(0, 0, 0, 0.08);
-        }
-        .dark .aura-shadow-hover:hover {
-          box-shadow: 0px 8px 30px rgba(0, 0, 0, 0.35);
-        }
-
-        .masonry-grid {
-          column-count: 1;
-          column-gap: 1.5rem;
-        }
-        @media (min-width: 768px) {
-          .masonry-grid { column-count: 2; }
-        }
-        @media (min-width: 1200px) {
-          .masonry-grid { column-count: 3; }
-        }
-        .masonry-item {
-          break-inside: avoid;
-          margin-bottom: 1.5rem;
-        }
-
-        /* Accent overrides "everywhere - no mercy" */
-        .text-\\[\\#e60023\\] { color: var(--accent-color) !important; }
-        .bg-\\[\\#e60023\\] { background-color: var(--accent-color) !important; }
-        .border-\\[\\#e60023\\] { border-color: var(--accent-color) !important; }
-        .hover\\:bg-\\[\\#c0001b\\]:hover { background-color: var(--accent-hover) !important; }
-        .text-red-500 { color: var(--accent-color) !important; }
-        .text-red-600 { color: var(--accent-color) !important; }
-        .bg-red-500 { background-color: var(--accent-color) !important; }
-        .bg-red-650 { background-color: var(--accent-color) !important; }
-        .bg-red-600 { background-color: var(--accent-color) !important; }
-        .border-red-500 { border-color: var(--accent-color) !important; }
-        .border-red-600 { border-color: var(--accent-color) !important; }
-        .text-rose-700 { color: var(--accent-color) !important; }
-        .bg-rose-50 { background-color: color-mix(in srgb, var(--accent-color) 8%, transparent) !important; }
-        .bg-red-500\\/10 { background-color: color-mix(in srgb, var(--accent-color) 10%, transparent) !important; }
-        .border-red-500\\/20 { border-color: color-mix(in srgb, var(--accent-color) 20%, transparent) !important; }
-        .border-\\[\\#e60023\\]\\/30 { border-color: color-mix(in srgb, var(--accent-color) 30%, transparent) !important; }
-        .focus\\:border-\\[\\#e60023\\]:focus { border-color: var(--accent-color) !important; }
-        .focus\\:ring-\\[\\#e60023\\]:focus { --tw-ring-color: var(--accent-color) !important; }
-        ::selection {
-          background-color: var(--accent-color) !important;
-          color: white !important;
-        }
-      ` }} />
-
       <div className="flex flex-1 flex-col md:flex-row relative">
-        
-        {/* HAMBURGER TOP BAR FOR MOBILE */}
+        {/* Mobile Header Bar */}
         <div className="h-14 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] md:hidden flex items-center justify-between px-4 z-30 shrink-0">
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -2098,83 +1128,24 @@ export default function DashboardView({
             <button
               onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
               className="h-9 w-9 rounded-full border-2 border-red-500/60 p-0.5 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
-              title="Profile Menu"
             >
               <img
                 src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
-                alt={userProfile?.login || 'User Profile'}
+                alt={userProfile?.name || userProfile?.login || "Profile"}
                 className="h-full w-full rounded-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://unavatar.io/github/${userProfile?.login || 'github'}`;
+                  (e.target as HTMLImageElement).src = "https://github.com/github.png";
                 }}
               />
             </button>
-            
-            {/* Top-Right Profile Dropdown Menu on Mobile */}
-            {isProfileMenuOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 font-sans">
-                <div className="p-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
-                  <div className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0] truncate">
-                    {userProfile?.name || `@${userProfile?.login || 'user'}`}
-                  </div>
-                  <div className="text-[10px] font-mono text-slate-400 dark:text-zinc-500 truncate">
-                    @{userProfile?.login || 'github_user'}
-                  </div>
-                </div>
-
-                <div className="p-1 space-y-1">
-                  <button
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      setTempSettings(savedSettings);
-                      setIsSettingsOpen(true);
-                    }}
-                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] rounded-xl transition cursor-pointer font-geist"
-                  >
-                    <Settings className="h-3.5 w-3.5 text-zinc-500" />
-                    <span>Settings</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      setIsSecurityModalOpen(true);
-                    }}
-                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-[#1a1c1c] dark:text-[#f0f0f0] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] rounded-xl transition cursor-pointer font-geist"
-                  >
-                    <KeyRound className="h-3.5 w-3.5 text-zinc-500" />
-                    <span>Security Key</span>
-                  </button>
-
-                  <div className="border-t border-[#eeeeee] dark:border-[#2a2a2a] my-1" />
-
-                  <button
-                    onClick={async () => {
-                      try {
-                        await fetch('/api/auth', { method: 'DELETE' });
-                        router.push('/login');
-                        router.refresh();
-                      } catch (err) {
-                        router.push('/login');
-                      }
-                    }}
-                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition cursor-pointer font-geist"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* DESKTOP & MOBILE RESPONSIVE SIDEBAR DRAWER */}
+        {/* Desktop Sidebar Navigation */}
         <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-[#111111] border-r border-[#dadada] dark:border-[#2a2a2a] flex flex-col justify-between p-4 shrink-0 select-none transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
         }`}>
           <div className="space-y-7">
-            {/* Title / Brand */}
             <div 
               onClick={() => {
                 handleTabChange('home');
@@ -2191,7 +1162,6 @@ export default function DashboardView({
               </div>
             </div>
 
-            {/* Menu Links */}
             <nav className="space-y-1 font-geist">
               {[
                 { tab: 'home', label: 'Home', count: null, icon: Compass },
@@ -2228,11 +1198,9 @@ export default function DashboardView({
                 );
               })}
             </nav>
-
           </div>
         </aside>
 
-        {/* BACKDROP FOR MOBILE */}
         {isSidebarOpen && (
           <div 
             onClick={() => setIsSidebarOpen(false)}
@@ -2240,30 +1208,28 @@ export default function DashboardView({
           />
         )}
 
-        {/* MAIN WORKSPACE */}
+        {/* Main View Area */}
         <main className={`flex-1 flex flex-col min-w-0 h-screen ${
           isSettingsOpen || isSecurityModalOpen || isCleanupOpen || isSidebarOpen || exportPreview 
             ? 'overflow-hidden' 
             : 'overflow-y-auto'
         }`}>
-          
-          {/* TOP APP BAR */}
+          {/* Top Bar */}
           <header className="h-16 bg-white dark:bg-[#111111] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-center md:justify-end px-4 md:px-6 shrink-0 z-20 gap-4">
             <div className="flex items-center space-x-4 flex-1 max-w-md md:block hidden mr-auto">
-                <div className="relative w-full">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input 
-                    type="text" 
-                    placeholder="Search metadata, profiles, or logs..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-[#f3f3f3] dark:bg-[#1a1a1a] border-none rounded-full py-2 pl-10 pr-4 text-xs text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-slate-450 focus:outline-none focus:ring-1 focus:ring-[#e60023] transition-all font-sans"
-                  />
-                </div>
+              <div className="relative w-full">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search metadata, profiles, or logs..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-[#f3f3f3] dark:bg-[#1a1a1a] border-none rounded-full py-2 pl-10 pr-4 text-xs text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-slate-450 focus:outline-none focus:ring-1 focus:ring-[#e60023] transition-all font-sans"
+                />
               </div>
+            </div>
 
             <div className="flex items-center justify-center space-x-3 font-geist relative w-full md:w-auto flex-wrap">
-              {/* Theme Toggle Button */}
               <button 
                 onClick={toggleDarkMode}
                 className="h-9 w-9 flex items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full cursor-pointer transition-all aura-shadow active:scale-95 shrink-0"
@@ -2272,7 +1238,6 @@ export default function DashboardView({
                 {isDark ? <Sun className="h-4 w-4 text-amber-400 shrink-0" /> : <Moon className="h-4 w-4 text-indigo-400 shrink-0" />}
               </button>
 
-              {/* Icon-only Cleanup Cache */}
               <button 
                 onClick={() => setIsCleanupOpen(true)}
                 disabled={workerStatus?.isJobRunning}
@@ -2282,7 +1247,6 @@ export default function DashboardView({
                 <Trash2 className="h-4 w-4 text-blue-500 shrink-0" />
               </button>
 
-              {/* Icon-only Refresh Data */}
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing || isSyncing}
@@ -2292,19 +1256,16 @@ export default function DashboardView({
                 <RotateCw className={`h-4 w-4 text-zinc-500 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
 
-              <button 
-                onClick={handleTrigger}
-                disabled={isTriggering || workerStatus?.isJobRunning || healthState?.isGitHubValid === false}
-                className="min-h-[36px] px-4 flex items-center space-x-1.5 bg-[#e60023] hover:bg-[#c0001b] disabled:bg-slate-350 disabled:opacity-40 text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 disabled:cursor-not-allowed"
-                title={healthState?.isGitHubValid === false ? 'Disabled: GitHub PAT is expired or invalid. Please update your token in Settings.' : 'Run Automation Task'}
-              >
-                <Play className="h-3.5 w-3.5 fill-current shrink-0" />
-                <span>{isTriggering ? 'Running...' : 'Run Task'}</span>
-              </button>
+              {/* Extracted RunnerStatus Component */}
+              <RunnerStatus
+                workerStatus={workerStatus}
+                lastRunTime={lastRunTask ? new Date(lastRunTask.ran_at).toLocaleTimeString() : null}
+                isTriggering={isTriggering}
+                healthState={healthState}
+                onTrigger={handleTrigger}
+              />
 
-              {/* Top-Right Profile Icon Avatar & Dropdown - Hidden on Mobile */}
               <div className="relative ml-2 md:block hidden" ref={profileMenuRef}>
-
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                   className="h-9 w-9 rounded-full border-2 border-red-500/60 p-0.5 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
@@ -2320,13 +1281,11 @@ export default function DashboardView({
                   />
                 </button>
 
-                {/* Profile Popup Dropdown */}
                 {isProfileMenuOpen && (
                   <div 
                     className="absolute right-0 mt-3 w-64 bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl shadow-2xl p-4 z-50 space-y-3 font-sans animate-in fade-in zoom-in-95"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {/* Header */}
                     <div className="flex items-center space-x-3 pb-3 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
                       <img
                         src={userProfile?.avatar_url || (userProfile?.login ? `https://github.com/${userProfile.login}.png` : "https://github.com/github.png")}
@@ -2342,7 +1301,6 @@ export default function DashboardView({
                       </div>
                     </div>
 
-                    {/* Agent Worker Status */}
                     <div className="bg-[#f8f9fa] dark:bg-[#1a1a1e] rounded-xl p-2.5 text-[10px] font-mono space-y-1">
                       <div className="flex items-center justify-between font-bold text-zinc-500">
                         <span>Worker Status</span>
@@ -2355,7 +1313,6 @@ export default function DashboardView({
                       </div>
                     </div>
 
-                    {/* Menu Actions */}
                     <div className="space-y-1 text-xs font-medium pt-1">
                       <button
                         onClick={() => {
@@ -2385,8 +1342,6 @@ export default function DashboardView({
                         <span>Password</span>
                       </button>
 
-
-
                       <button
                         onClick={handleLogout}
                         className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer font-bold"
@@ -2394,7 +1349,6 @@ export default function DashboardView({
                         <XCircle className="h-4 w-4" />
                         <span>Logout</span>
                       </button>
-
                     </div>
                   </div>
                 )}
@@ -2402,11 +1356,8 @@ export default function DashboardView({
             </div>
           </header>
 
-
-          {/* MAIN PAGE BODY */}
+          {/* Main Content Body */}
           <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-
-            {/* CRITICAL INCIDENT BANNER: GITHUB AUTH EXPIRED (Option A: Informative & Safe Offline Snapshot Mode) */}
             {healthState && healthState.isGitHubValid === false && (
               <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in shadow-sm">
                 <div className="flex items-start space-x-3.5">
@@ -2423,7 +1374,7 @@ export default function DashboardView({
                       </span>
                     </div>
                     <p className="text-xs text-amber-800 dark:text-amber-300/80 leading-relaxed font-sans max-w-3xl">
-                      Live GitHub authentication failed (401 Bad credentials). FollowMe is showing your last-known database snapshot. Background automation and live mutations (follow, star, sync) are safely paused to prevent errors.
+                      Live GitHub authentication failed (401 Bad credentials). FollowMe is showing your last-known database snapshot. Background automation and live mutations are safely paused.
                     </p>
                   </div>
                 </div>
@@ -2432,7 +1383,6 @@ export default function DashboardView({
                   <button
                     onClick={() => {
                       setTempSettings(savedSettings);
-                      setSettingsTab('github');
                       setIsSettingsOpen(true);
                     }}
                     className="flex-1 md:flex-none px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
@@ -2453,30 +1403,8 @@ export default function DashboardView({
               </div>
             )}
 
-            {/* WORKER OFFLINE ADVISORY BANNER */}
-            {healthState && healthState.isWorkerOnline === false && (
-              <div className="p-3.5 rounded-2xl bg-zinc-100 dark:bg-[#151518] border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 flex items-center justify-between text-xs font-sans">
-                <div className="flex items-center space-x-2.5">
-                  <div className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
-                  <span>
-                    <strong>Worker Service Offline:</strong> The background worker service is unreachable. Scheduled runs may be delayed.
-                  </span>
-                </div>
-                <button
-                  onClick={async () => {
-                    const { checkSystemHealth } = await import('./actions');
-                    const fresh = await checkSystemHealth();
-                    setHealthState(fresh);
-                  }}
-                  className="font-mono text-[10px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline cursor-pointer"
-                >
-                  Retry Ping
-                </button>
-              </div>
-            )}
-
             {triggerStatus && (
-              <div className="p-4 rounded-xl border flex items-center justify-between font-mono text-xs animate-startup-logo bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+              <div className="p-4 rounded-xl border flex items-center justify-between font-mono text-xs bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400">
                 <div className="flex items-center space-x-2.5">
                   <CheckCircle className="h-4 w-4 text-emerald-500" />
                   <span>{triggerStatus.message}</span>
@@ -2490,9 +1418,7 @@ export default function DashboardView({
               </div>
             )}
 
-            {/* TAB CONTENT GRID CONTAINER */}
             <div className="space-y-6">
-                            {/* TAB OPTIONS HEADER */}
               <div className="pb-4 border-b border-[#dadada] dark:border-[#2a2a2a] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center space-x-2.5">
@@ -2503,11 +1429,6 @@ export default function DashboardView({
                       {activeTab === 'logs' && "Activity Logs"}
                       {activeTab === 'stats' && "Evaluation Metrics"}
                     </h2>
-                    {healthState && healthState.isGitHubValid === false && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
-                        Historical / Offline Snapshot
-                      </span>
-                    )}
                   </div>
                   <p className="text-xs text-zinc-500 font-mono mt-0.5">
                     {activeTab === 'home' && "AI Automated Follow & Graded Repositories Control Center"}
@@ -2517,2004 +1438,155 @@ export default function DashboardView({
                     {activeTab === 'stats' && "Historical analytics and performance stats"}
                   </p>
                 </div>
-
-                {/* Filter Pills for Profiles Tab */}
-                {activeTab === 'profiles' && (
-                  <div className="flex flex-wrap items-center gap-2 font-geist">
-                    {[
-                      { id: null, label: `All (${allProfiles.length})` },
-                      { id: 'mutual', label: `Mutuals (${relationshipMatrix.mutuals.length})` },
-                      { id: 'grace_period', label: `Grace Queue (${relationshipMatrix.gracePeriod.length})` },
-                      { 
-                        id: 'grace_ended', 
-                        label: `Grace Ended (${relationshipMatrix.graceEnded.length})`, 
-                        highlight: relationshipMatrix.graceEnded.length > 0 
-                      },
-                      { id: 'inbound', label: `Inbound Fans (${relationshipMatrix.inbound.length})` },
-                      { id: 'unfollowed', label: `Unfollowed (${relationshipMatrix.unfollowed.length})` }
-                    ].map(pill => {
-                      const isSelected = activeFilter === pill.id;
-                      return (
-                        <button
-                          key={pill.label}
-                          onClick={() => {
-                            const nextFilter = isSelected ? null : pill.id;
-                            setActiveFilter(nextFilter as any);
-                            if (typeof window !== 'undefined') {
-                              const url = new URL(window.location.href);
-                              if (nextFilter) {
-                                url.searchParams.set('filter', nextFilter);
-                              } else {
-                                url.searchParams.delete('filter');
-                              }
-                              window.history.replaceState(null, '', url.toString());
-                            }
-                          }}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                            isSelected
-                              ? 'bg-[#e60023] text-white border-[#e60023] shadow-sm'
-                              : pill.highlight
-                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:border-amber-500 font-extrabold'
-                              : 'bg-transparent text-[#767676] border-[#dadada] dark:border-[#2a2a2a] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
-                          }`}
-                        >
-                          {pill.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Filter Pills for Repos Tab */}
-                {activeTab === 'repos' && (
-                  <div className="flex flex-wrap items-center gap-2 font-geist">
-                    {[
-                      { id: null, label: 'All' },
-                      { id: 'starred', label: 'Starred' },
-                      { id: 'unstarred', label: 'Unstarred' }
-                    ].map(pill => {
-                      const isSelected = activeFilter === pill.id || (pill.id === 'unstarred' && activeFilter === 'unstarred');
-                      return (
-                        <button
-                          key={pill.label}
-                          onClick={() => {
-                            const nextFilter = isSelected ? null : pill.id;
-                            setActiveFilter(nextFilter as any);
-                            if (typeof window !== 'undefined') {
-                              const url = new URL(window.location.href);
-                              if (nextFilter) {
-                                url.searchParams.set('filter', nextFilter);
-                              } else {
-                                url.searchParams.delete('filter');
-                              }
-                              window.history.replaceState(null, '', url.toString());
-                            }
-                          }}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                            isSelected
-                              ? 'bg-[#e60023] text-white border-[#e60023] shadow-sm'
-                              : 'bg-transparent text-[#767676] border-[#dadada] dark:border-[#2a2a2a] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
-                          }`}
-                        >
-                          {pill.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
 
-              {/* Tab Switching Skeleton Transition Loader */}
-              {(isTabTransitioning || isRefreshing) && (
-                <div className="space-y-6 animate-pulse py-4">
-                  <div className="h-6 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-1/3" />
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="h-44 bg-zinc-200 dark:bg-zinc-800 rounded-3xl" />
-                    <div className="h-44 bg-zinc-200 dark:bg-zinc-800 rounded-3xl" />
-                    <div className="h-44 bg-zinc-200 dark:bg-zinc-800 rounded-3xl" />
-                  </div>
-                  <div className="h-60 bg-zinc-200 dark:bg-zinc-800 rounded-3xl" />
-                </div>
-              )}
-
-              {/* 0. HOMEPAGE TAB */}
+              {/* Render Tab Views */}
               {!isTabTransitioning && !isRefreshing && activeTab === 'home' && (
-                <div className="space-y-6">
-                  {/* ONBOARDING GITHUB OAUTH BANNER FOR NEW USERS */}
-                  {(showOnboardingTest || (!userProfile?.login && !isBannerDismissed)) && (
-                    <div className="relative p-5 rounded-3xl bg-gradient-to-r from-zinc-900 via-[#1a1a1c] to-black text-white border border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
-                      <div className="flex items-center space-x-3.5 pr-8">
-                        <div className="h-11 w-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
-                          <GithubIcon className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                          <h4 className="font-bold font-jakarta text-sm">Welcome to FollowMe! Connect Your GitHub Account</h4>
-                          <p className="text-xs text-zinc-400 font-sans mt-0.5">
-                            Authorize FollowMe with one click via GitHub OAuth to enable automated discovery, evaluation, and follow actions.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3 shrink-0">
-                        <button
-                          onClick={handleGitHubOAuth}
-                          disabled={isOAuthConnecting}
-                          className="px-5 py-2.5 bg-[#e60023] hover:bg-[#c0001b] disabled:opacity-50 text-white rounded-full font-bold text-xs transition-all active:scale-95 shrink-0 flex items-center space-x-2 shadow-sm cursor-pointer"
-                        >
-                          {isOAuthConnecting ? (
-                            <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                          ) : (
-                            <GithubIcon className="h-4 w-4" />
-                          )}
-                          <span>{isOAuthConnecting ? 'Connecting...' : 'Connect GitHub via OAuth'}</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setIsBannerDismissed(true);
-                            setShowOnboardingTest(false);
-                          }}
-                          className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-zinc-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
-                          title="Dismiss Banner"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PROACTIVE BACKEND HEALTH & API WARNING ALERTS */}
-                  {systemWarnings
-                    .filter(w => !dismissedWarningIds.includes(w.id))
-                    .map(warning => (
-                      <div 
-                        key={warning.id}
-                        className={`p-4 rounded-2xl border-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm animate-in fade-in duration-300 font-sans ${
-                          warning.severity === 'critical'
-                            ? 'bg-red-500/10 dark:bg-red-950/40 border-red-500/40 dark:border-red-500/50 text-red-700 dark:text-red-300'
-                            : 'bg-amber-500/10 dark:bg-amber-950/40 border-amber-500/40 dark:border-amber-500/50 text-amber-800 dark:text-amber-300'
-                        }`}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                            warning.severity === 'critical' 
-                              ? 'bg-red-500/20 text-[#e60023] dark:text-red-400' 
-                              : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                          }`}>
-                            <AlertTriangle className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              {warning.severity === 'critical' && (
-                                <span className="h-2 w-2 rounded-full bg-[#e60023] animate-pulse shrink-0" />
-                              )}
-                              <h4 className="font-bold text-xs font-jakarta">{warning.title}</h4>
-                              {warning.timestamp && (
-                                <span className="text-[10px] font-mono opacity-70">({warning.timestamp})</span>
-                              )}
-                            </div>
-                            <p className="text-xs opacity-90 font-sans mt-0.5 leading-relaxed">
-                              {warning.message}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
-                          {warning.actionLabel && (
-                            <button
-                              onClick={() => handleTabChange('logs')}
-                              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-xs ${
-                                warning.severity === 'critical'
-                                  ? 'bg-[#e60023] hover:bg-[#c0001b] text-white'
-                                  : 'bg-amber-600 hover:bg-amber-700 text-white'
-                              }`}
-                            >
-                              {warning.actionLabel}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setDismissedWarningIds(prev => [...prev, warning.id])}
-                            className="h-7 w-7 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 flex items-center justify-center transition-all cursor-pointer"
-                            title="Dismiss Alert"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-
-                  {/* 4-WAY PROFILE RELATIONSHIP MATRIX CARDS */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-geist">
-                    {/* 1. Mutual Friends */}
-                    <div 
-                      onClick={() => handleTabChange('profiles', 'mutual')}
-                      className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-emerald-500/80 dark:hover:border-emerald-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                          <UserCheck className="h-3.5 w-3.5" /> Mutual Friends
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold border border-emerald-200/50 dark:border-emerald-900/40">
-                          I Follow + They Follow
-                        </span>
-                      </div>
-                      <div className="my-3">
-                        <div className="text-3xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">
-                          {relationshipMatrix.mutuals.length}
-                        </div>
-                        <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
-                          Reciprocal connections. Protected from auto-unfollow.
-                        </p>
-                      </div>
-                      <div className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                        <span>View mutuals</span> &rarr;
-                      </div>
-                    </div>
-
-                    {/* 2. Grace Period Queue */}
-                    <div 
-                      onClick={() => handleTabChange('profiles', 'grace_period')}
-                      className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-blue-500/80 dark:hover:border-blue-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#0058bb] dark:text-blue-400 flex items-center gap-1.5">
-                          <Clock className="h-3.5 w-3.5" /> Grace Period
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 font-bold border border-blue-200/50 dark:border-blue-900/40">
-                          I Follow + They Don&apos;t
-                        </span>
-                      </div>
-                      <div className="my-3">
-                        <div className="text-3xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">
-                          {relationshipMatrix.gracePeriod.length}
-                        </div>
-                        <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
-                          Awaiting follow-back ({savedSettings.unfollowGracePeriod || 7}d grace timer).
-                        </p>
-                      </div>
-                      <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                        <span>View pending queue</span> &rarr;
-                      </div>
-                    </div>
-
-                    {/* 3. Inbound Fans */}
-                    <div 
-                      onClick={() => handleTabChange('profiles', 'inbound')}
-                      className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-purple-500/80 dark:hover:border-purple-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-                          <UserPlus className="h-3.5 w-3.5" /> Inbound Fans
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400 font-bold border border-purple-200/50 dark:border-purple-900/40">
-                          They Follow + I Don&apos;t
-                        </span>
-                      </div>
-                      <div className="my-3">
-                        <div className="text-3xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">
-                          {relationshipMatrix.inbound.length}
-                        </div>
-                        <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
-                          Developers following you. Ready to follow back!
-                        </p>
-                      </div>
-                      <div className="text-[10px] font-mono text-purple-600 dark:text-purple-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                        <span>Follow back opportunities</span> &rarr;
-                      </div>
-                    </div>
-
-                    {/* 4. Unfollowed History */}
-                    <div 
-                      onClick={() => handleTabChange('profiles', 'unfollowed')}
-                      className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-rose-500/80 dark:hover:border-rose-500/80 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
-                          <UserMinus className="h-3.5 w-3.5" /> Unfollowed
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 font-bold border border-rose-200/50 dark:border-rose-900/40">
-                          I Don&apos;t + They Don&apos;t
-                        </span>
-                      </div>
-                      <div className="my-3">
-                        <div className="text-3xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">
-                          {relationshipMatrix.unfollowed.length}
-                        </div>
-                        <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
-                          Auto-cleaned after grace period expiration.
-                        </p>
-                      </div>
-                      <div className="text-[10px] font-mono text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                        <span>View cleanup archive</span> &rarr;
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="masonry-grid">
-                               {/* Card 1: Top Profile Card -> Rotating Spotlight */}
-                  {top5Profiles.length > 0 && (() => {
-                    const profile = top5Profiles[spotlightIndex];
-                    if (!profile) return null;
-                    const status = profile.followStatus;
-                    const isFollowed = status.followed && !status.unfollowed && !status.follow_back;
-                    const isUnfollowed = status.unfollowed;
-                    const isSkipped = status.follow_skipped;
-                    const isMutual = status.followed && !status.unfollowed && status.follow_back;
-                    
-                    let badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
-                    let badgeLabel = "Pending";
-                    if (isFollowed) {
-                      badgeClass = "bg-blue-50 text-[#0058bb] border-blue-200 dark:bg-blue-955/20 dark:text-blue-400";
-                      badgeLabel = "Followed";
-                    } else if (isMutual) {
-                      badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-955/20 dark:text-emerald-400";
-                      badgeLabel = "Mutual Follow";
-                    } else if (isUnfollowed) {
-                      badgeClass = "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:text-rose-455";
-                      badgeLabel = "Unfollowed";
-                    } else if (isSkipped) {
-                      badgeClass = "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-955/20 dark:text-orange-400";
-                      badgeLabel = "Skipped";
-                    }
-
-                    return (
-                      <div 
-                        onClick={() => handleTabChange('profiles')}
-                        className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[245px]"
-                      >
-                        {/* Redesigned Spotlight Top Header Row (Unified Layout) */}
-                        <div className="h-14 bg-slate-100 dark:bg-[#1c1c1e] border-b border-[#dadada] dark:border-[#2a2a2a] flex items-center justify-between px-4 shrink-0">
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <img 
-                              src={`https://github.com/${profile.owner}.png`} 
-                              alt={profile.owner} 
-                              className="h-8 w-8 rounded-full border border-white dark:border-[#111111] bg-zinc-100 dark:bg-[#1a1a1a] object-cover aura-shadow shrink-0" 
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = `https://unavatar.io/github/${profile.owner}`;
-                              }}
-                            />
-                            <div className="truncate">
-                              <div className="flex items-center gap-1 leading-none mb-1">
-                                <span className="h-1 w-1 rounded-full bg-[#e60023] animate-pulse" />
-                                <span className="text-[8px] uppercase font-bold text-[#e60023] font-jakarta tracking-wider">Spotlight</span>
-                              </div>
-                              <h3 className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta truncate leading-none">
-                                @{profile.owner}
-                              </h3>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-1.5 shrink-0">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-mono font-bold shrink-0 ${badgeClass}`}>
-                              {badgeLabel}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Card Content */}
-                        <div className="p-4 flex-1 flex flex-col justify-between">
-                          <div>
-
-                          {/* Visual center grade block */}
-                          <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] py-2 px-3 rounded-lg text-center my-3 relative overflow-hidden flex items-center justify-between">
-                            <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#767676]">Average Quality Score</span>
-                            <span className="text-sm font-extrabold text-[#e60023] font-mono leading-none">{(profile.avgGrade).toFixed(1)}/10</span>
-                          </div>
-
-                          {profile.repos[0]?.readme_snippet && (
-                            <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-2 leading-relaxed mt-1">
-                              {cleanSnippet(profile.repos[0].readme_snippet)}
-                            </p>
-                          )}
-                        </div>
-                        </div>
-
-                        <div className="flex items-center justify-between px-5 pb-4 pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
-                          <div className="flex items-center space-x-3 font-mono text-[10px] text-[#767676]">
-                            <span>{profile.repos[0]?.language || 'Unknown'}</span>
-                            <span className="flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-current text-amber-500" />
-                              {profile.repos.reduce((acc: number, r: any) => acc + r.stars, 0)} Stars
-                            </span>
-                          </div>
-                          
-                          {/* Navigation dots */}
-                          <div className="flex space-x-1">
-                            {top5Profiles.map((_: any, idx: number) => (
-                              <button
-                                key={idx}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSpotlightIndex(idx);
-                                }}
-                                className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${spotlightIndex === idx ? 'bg-[#e60023] w-3' : 'bg-zinc-300 dark:bg-zinc-700'}`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Card 2: Featured Repository -> Horizontal Scroll Strip */}
-                  {top3Repos.length > 0 && (
-                    <div className="masonry-item space-y-3 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] p-5 aura-shadow">
-                      <div className="flex items-center justify-between px-1 mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Top Graded Repositories</span>
-                        <span className="text-[9px] font-mono text-zinc-400 select-none">Swipe &larr;</span>
-                      </div>
-                      
-                      <div 
-                        ref={repoCarouselRef}
-                        onMouseDown={handleRepoMouseDown}
-                        onMouseMove={handleRepoMouseMove}
-                        onMouseUp={handleRepoMouseUpOrLeave}
-                        onMouseLeave={handleRepoMouseUpOrLeave}
-                        className="flex overflow-x-auto space-x-4 pb-2 no-scrollbar select-none cursor-grab active:cursor-grabbing scroll-smooth"
-                      >
-                        {top3Repos.map((repo: Repo) => (
-                          <div 
-                            key={repo.id}
-                            onClick={() => handleTabChange('repos')}
-                            className="flex-shrink-0 w-[270px] bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[24px] p-4 hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col justify-between min-h-[160px]"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="min-w-0 pr-2">
-                                <span className="text-[9px] font-bold text-[#767676] block">@{repo.owner}</span>
-                                <h4 className="text-sm font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate mt-0.5">{repo.name}</h4>
-                              </div>
-                              <span className={getGradeColor(repo.grade)}>
-                                {repo.grade.toFixed(1)}/10
-                              </span>
-                            </div>
-
-                            {repo.readme_snippet && (
-                              <p className="text-[11px] font-sans text-[#767676] dark:text-zinc-400 line-clamp-2 leading-relaxed my-2">
-                                {cleanSnippet(repo.readme_snippet)}
-                              </p>
-                            )}
-
-                            <div className="flex items-center justify-between pt-2 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
-                              <span className="flex items-center gap-1.5 font-mono text-[9px] text-[#767676]">
-                                <span className="h-1.5 w-1.5 rounded-full bg-[#e60023]" />
-                                {repo.language || 'Unknown'}
-                              </span>
-                              <span className="flex items-center gap-1 font-mono text-[9px] text-amber-500">
-                                <Star className="h-3 w-3 fill-current" /> {repo.stars}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Card 3: Recent Logs Card */}
-                  <div 
-                    onClick={() => handleTabChange('logs')}
-                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow hover:shadow-lg dark:hover:shadow-black/40 aura-shadow-hover transition-all duration-200 cursor-pointer p-5 flex flex-col space-y-4"
-                  >
-                    <div className="flex items-center justify-between px-1">
-                      <h3 className="text-sm font-bold font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0]">Recent Logs</h3>
-                      <span className="text-zinc-400 font-bold tracking-widest text-[10px]">...</span>
-                    </div>
-
-                    <div className="space-y-3 font-sans text-xs">
-                      {logs.slice(0, 3).map(log => {
-                        let dotColor = "bg-blue-400";
-                        if (log.status === 'SUCCESS') dotColor = "bg-[#10b981]";
-                        else if (log.status === 'FAILED' || log.status === 'ERROR') dotColor = "bg-rose-500";
-                        else if (log.status === 'WARN') dotColor = "bg-orange-500";
-                        
-                        return (
-                          <div key={log.id} className="p-3 bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[20px] flex items-start space-x-3 transition-all hover:bg-slate-50 dark:hover:bg-[#202022]">
-                            <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${dotColor}`} />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] truncate">{log.action}: {log.status}</span>
-                              </div>
-                              <span className="text-[10px] text-[#767676] block mt-0.5 truncate max-w-[200px]">
-                                {new Date(log.timestamp).toLocaleTimeString()} &bull; {log.message}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="pt-2">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTabChange('logs');
-                        }}
-                        className="w-full min-h-[38px] bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-sm active:scale-95 flex items-center justify-center space-x-1.5"
-                      >
-                        <span>View System Console</span>
-                      </button>
-                    </div>
-                  </div>
-                  {/* Card 4: Stats Snapshot Card -> Clickable Redirect to Metrics Tab */}
-                  <div 
-                    onClick={() => handleTabChange('stats')}
-                    className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:border-[#e60023]/50 rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-pointer transition-all hover:shadow-lg select-none"
-                    title="Click to view full Evaluation Metrics"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#e60023] font-jakarta">Activity Snapshot</span>
-                      <ChevronRight className="h-4 w-4 text-[#e60023]" />
-                    </div>
-
-                    
-                    <div className="grid grid-cols-2 gap-3.5">
-                      {/* EVALUATED PROFILES */}
-                      <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
-                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.totalProfiles || allProfiles.length}</span>
-                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Evaluated</span>
-                      </div>
-                      {/* FOLLOWED */}
-                      <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
-                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.followed}</span>
-                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Followed</span>
-                      </div>
-                      {/* MUTUALS */}
-                      <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
-                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.mutuals}</span>
-                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Mutuals</span>
-                      </div>
-                      {/* SKIPPED */}
-                      <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-4 rounded-[20px] text-center flex flex-col justify-center">
-                        <span className="text-3xl font-extrabold text-[#e60023] font-mono leading-none">{stats.skipped}</span>
-                        <span className="text-[9px] uppercase font-bold tracking-wider text-[#767676] mt-2 block">Skipped</span>
-                      </div>
-                    </div>
-
-                    {/* GitHub API Rate Limits Live Display Cards */}
-                    <div className="pt-3 border-t border-[#eeeeee] dark:border-[#222222] space-y-2.5" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[#767676] font-jakarta">
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>GitHub Rate Limits</span>
-                        </span>
-                        <button
-                          onClick={() => fetchRateLimits(true)}
-                          disabled={rateLimitLoading}
-                          className="flex items-center space-x-1 text-[9px] font-mono lowercase text-zinc-500 hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0] transition-all cursor-pointer select-none"
-                          title="Click to fetch live quota immediately"
-                        >
-                          <RotateCw className={`h-3 w-3 ${rateLimitLoading ? 'animate-spin text-[#e60023]' : ''}`} />
-                          <span>{rateLimitLoading ? 'syncing...' : 'live'}</span>
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        {/* Card 1: Core API */}
-                        {(() => {
-                          const coreLimit = rateLimitData?.core?.limit ?? 5000;
-                          const coreRemaining = rateLimitData?.core?.remaining ?? 5000;
-                          const coreUsed = rateLimitData?.core?.used ?? (coreLimit - coreRemaining);
-                          const isCoreLow = coreLimit > 0 && (coreRemaining / coreLimit) < 0.2;
-                          const remainingPct = coreLimit > 0 ? Math.min(100, Math.max(0, (coreRemaining / coreLimit) * 100)) : 100;
-
-                          return (
-                            <div className="relative bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[20px] p-3.5 pb-4 overflow-hidden flex flex-col justify-between transition-all hover:border-[#dadada] dark:hover:border-zinc-700 shadow-xs">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Core API</span>
-                                <span className="text-[8px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">1h limit</span>
-                              </div>
-                              <div className="my-1.5">
-                                <div className="text-lg font-black font-mono text-[#1a1c1c] dark:text-[#f0f0f0] leading-none">
-                                  {coreRemaining.toLocaleString()} <span className="text-[10px] text-[#767676] font-normal font-sans">/ {coreLimit.toLocaleString()}</span>
-                                </div>
-                                <span className={`text-[9px] font-mono mt-1 block ${isCoreLow ? 'text-[#e60023] font-bold' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                  {coreUsed > 0 ? `${coreUsed} used this hr` : '100% capacity free'}
-                                </span>
-                              </div>
-                              {/* Bottom Edge Available Quota Bar */}
-                              <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
-                                <div 
-                                  className={`h-full transition-all duration-500 rounded-r-full ${isCoreLow ? 'bg-[#e60023]' : 'bg-emerald-500'}`}
-                                  style={{ width: `${Math.max(remainingPct, 3)}%` }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* Card 2: Search API */}
-                        {(() => {
-                          const searchLimit = rateLimitData?.search?.limit ?? 30;
-                          const searchRemaining = rateLimitData?.search?.remaining ?? 30;
-                          const searchUsed = rateLimitData?.search?.used ?? (searchLimit - searchRemaining);
-                          const isSearchLow = searchLimit > 0 && (searchRemaining / searchLimit) < 0.2;
-                          const remainingPct = searchLimit > 0 ? Math.min(100, Math.max(0, (searchRemaining / searchLimit) * 100)) : 100;
-
-                          return (
-                            <div className="relative bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] rounded-[20px] p-3.5 pb-4 overflow-hidden flex flex-col justify-between transition-all hover:border-[#dadada] dark:hover:border-zinc-700 shadow-xs">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Search API</span>
-                                <span className="text-[8px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">1m limit</span>
-                              </div>
-                              <div className="my-1.5">
-                                <div className="text-lg font-black font-mono text-[#1a1c1c] dark:text-[#f0f0f0] leading-none">
-                                  {searchRemaining} <span className="text-[10px] text-[#767676] font-normal font-sans">/ {searchLimit}</span>
-                                </div>
-                                <span className={`text-[9px] font-mono mt-1 block ${isSearchLow ? 'text-[#e60023] font-bold' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                  {searchUsed > 0 ? `${searchUsed} used this min` : '100% capacity free'}
-                                </span>
-                              </div>
-                              {/* Bottom Edge Available Quota Bar */}
-                              <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
-                                <div 
-                                  className={`h-full transition-all duration-500 rounded-r-full ${isSearchLow ? 'bg-[#e60023]' : 'bg-emerald-500'}`}
-                                  style={{ width: `${Math.max(remainingPct, 3)}%` }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 5: AI Narrator Card */}
-                  <div className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] aura-shadow p-5 flex flex-col space-y-4 cursor-default">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-1.5 text-[#e60023]">
-                        <Zap className="h-4 w-4 fill-current" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider font-jakarta">Agent Insight</span>
-                      </div>
-                      <span className="text-[9px] font-mono text-zinc-400 flex items-center gap-1.5 select-none">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#e60023] animate-pulse" />
-                        {lastRunTaskFormattedTime}
-                      </span>
-                    </div>
-
-                    {/* Speech-bubble block styling */}
-                    <div className="relative p-4 rounded-[20px] bg-rose-50 border border-rose-100 dark:bg-rose-950/15 dark:border-rose-900/30 text-rose-700 dark:text-rose-455 font-sans text-xs leading-relaxed transition-all duration-500">
-                      <div className="absolute top-[-6px] left-6 w-3 h-3 bg-rose-50 border-t border-l border-rose-100 dark:bg-[#281116] dark:border-rose-900/30 transform rotate-45" />
-                      "{last3Insights[insightIndex]}"
-                    </div>
-
-                    <div className="flex items-center space-x-2 text-[10px] font-mono text-[#767676]">
-                      <span className="h-2 w-2 rounded-full bg-[#e60023] animate-pulse" />
-                      <span>GitAuto Agent Alpha</span>
-                    </div>
-                  </div>
-
-                  </div>
-                </div>
+                <HomeTab
+                  relationshipMatrix={relationshipMatrix}
+                  savedGraceDays={savedSettings.unfollowGracePeriod || 7}
+                  stats={stats}
+                  rateLimitData={rateLimitData}
+                  rateLimitLoading={rateLimitLoading}
+                  repos={repos}
+                  logs={logs}
+                  runSummary={runSummary}
+                  workerStatus={workerStatus}
+                  userProfile={userProfile}
+                  showOnboardingTest={showOnboardingTest}
+                  isBannerDismissed={isBannerDismissed}
+                  isOAuthConnecting={isOAuthConnecting}
+                  onGitHubOAuth={handleGitHubOAuth}
+                  onDismissBanner={() => setIsBannerDismissed(true)}
+                  onSelectRepo={(repo: Repo) => setSelectedRepo(repo)}
+                  setActiveTab={handleTabChange}
+                  setSearchTerm={setSearchTerm}
+                  onRefreshRateLimits={() => fetchRateLimits(true)}
+                  onFollow={handleFollowUser}
+                  onUnfollow={handleUnfollowUser}
+                  onDelete={handleDeleteProfile}
+                  loadingIds={loadingIds.current}
+                />
               )}
-              {/* 1. PROFILES TAB */}
+
               {!isTabTransitioning && !isRefreshing && activeTab === 'profiles' && (
-                <div className="space-y-6">
-                  {activeFilter === 'grace_ended' && (
-                    <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono text-amber-800 dark:text-amber-300 mb-4">
-                      <div className="flex items-center space-x-2.5">
-                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
-                        <div>
-                          <span className="font-bold font-jakarta block sm:inline">Grace Period Ended ({savedSettings.unfollowGracePeriod || 7} Days):</span>
-                          <span className="ml-1 text-[11px] opacity-90">{filteredProfiles.length} profiles have not followed back and are eligible for auto-cleanup.</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleTrigger}
-                        disabled={isTriggering || isActionLoading}
-                        className="px-4 py-1.5 bg-[#e60023] hover:bg-[#c0001b] text-white rounded-full font-bold font-geist text-xs transition-all cursor-pointer shadow-xs active:scale-95 shrink-0 disabled:opacity-40"
-                      >
-                        {isTriggering ? 'Running Cleanup...' : 'Run Auto-Cleanup Job'}
-                      </button>
-                    </div>
-                  )}
-
-                  {isRefreshing ? (
-                    <div className="masonry-grid">
-                      {[1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)}
-                    </div>
-                  ) : filteredProfiles.length === 0 ? (
-                    <div className="w-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl text-center text-xs font-mono text-[#767676] space-y-4 aura-shadow my-2">
-                      <div className="w-28 h-28 flex items-center justify-center overflow-hidden shrink-0">
-                        <Lottie animationData={mainCharacter} loop={true} className="w-full h-full object-contain" />
-                      </div>
-                      <p className="font-semibold text-zinc-600 dark:text-zinc-400">No profiles found matching search query/filters.</p>
-                    </div>
-                  ) : (
-                    <div className="masonry-grid">
-                      {filteredProfiles.slice(0, visibleProfilesCount).map(profile => (
-                        <div key={profile.owner} className="masonry-item">
-                          <ProfileCard
-                            profile={profile}
-                            onFollow={handleFollowUser}
-                            onUnfollow={handleUnfollowUser}
-                            onDelete={handleDeleteProfile}
-                            isActionLoading={isActionLoading}
-                            setActiveTab={handleTabChange}
-                            setSearchTerm={setSearchTerm}
-                            graceDays={savedSettings.unfollowGracePeriod || 7}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {filteredProfiles.length > visibleProfilesCount && (
-                    <div className="flex justify-center pt-4">
-                      <button
-                        onClick={() => setVisibleProfilesCount(prev => prev + 24)}
-                        className="px-6 py-2.5 bg-white dark:bg-[#111111] hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-[#dadada] dark:border-[#2a2a2a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full transition-all cursor-pointer shadow-xs active:scale-95"
-                      >
-                        Load More Profiles
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <ProfilesGrid
+                  filteredProfiles={filteredProfiles}
+                  allProfilesCount={allProfiles.length}
+                  visibleProfilesCount={visibleProfilesCount}
+                  activeFilter={activeFilter}
+                  relationshipMatrix={relationshipMatrix}
+                  unfollowGracePeriod={savedSettings.unfollowGracePeriod || 7}
+                  isRefreshing={isRefreshing}
+                  isTriggering={isTriggering}
+                  loadingIds={loadingIds.current}
+                  onFilterChange={(f) => setActiveFilter(f as any)}
+                  onTrigger={handleTrigger}
+                  onFollow={handleFollowUser}
+                  onUnfollow={handleUnfollowUser}
+                  onDelete={handleDeleteProfile}
+                  onLoadMore={() => setVisibleProfilesCount(prev => prev + 24)}
+                  setActiveTab={handleTabChange}
+                  setSearchTerm={setSearchTerm}
+                />
               )}
 
-              {/* 2. REPOS TAB */}
               {!isTabTransitioning && !isRefreshing && activeTab === 'repos' && (
-                <div className="space-y-6">
-                  {isRefreshing ? (
-                    <div className="masonry-grid">
-                      {[1, 2, 3].map(n => <div key={n} className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 h-[160px] animate-pulse" />)}
-                    </div>
-                  ) : filteredRepos.length === 0 ? (
-                    <div className="w-full py-16 flex flex-col items-center justify-center bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl text-center text-xs font-mono text-[#767676] space-y-4 aura-shadow my-2">
-                      <div className="w-28 h-28 flex items-center justify-center overflow-hidden shrink-0">
-                        <Lottie animationData={mainCharacter} loop={true} className="w-full h-full object-contain" />
-                      </div>
-                      <p className="font-semibold text-zinc-600 dark:text-zinc-400">No repositories found matching search query/filters.</p>
-                    </div>
-                  ) : (
-                    <div className="masonry-grid">
-                      {filteredRepos.slice(0, visibleReposCount).map(repo => (
-                        <div 
-                          key={repo.id}
-                          className="masonry-item bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] hover:shadow-lg dark:hover:shadow-black/40 rounded-xl p-6 transition-all duration-350 flex flex-col justify-between space-y-4"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center space-x-3.5 min-w-0">
-                              <img 
-                                src={`https://github.com/${repo.owner}.png`} 
-                                alt={repo.owner} 
-                                className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] object-cover bg-zinc-50 dark:bg-zinc-900"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = `https://unavatar.io/github/${repo.owner}`;
-                                }}
-                              />
-                              <div className="truncate">
-                                <span className="text-[10px] font-bold text-[#767676] font-geist block leading-none mb-1">@{repo.owner}</span>
-                                <h3 className="text-xl font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta leading-tight truncate">{repo.name}</h3>
-                              </div>
-                            </div>
-                            <span className={getGradeColor(repo.grade || 0)}>
-                              {(repo.grade ?? 0).toFixed(1)}/10
-                            </span>
-                          </div>
-
-                          {repo.readme_snippet && (
-                            <p className="text-xs font-sans text-[#767676] dark:text-zinc-400 line-clamp-3 leading-relaxed">
-                              {cleanSnippet(repo.readme_snippet) || 'No readme description.'}
-                            </p>
-                          )}
-
-                          <div className="flex items-center justify-between pt-3 border-t border-[#eeeeee] dark:border-[#2a2a2a] text-xs">
-                            <div className="flex items-center space-x-3 font-mono text-[10px] text-[#767676]">
-                              <span className="flex items-center gap-1.5">
-                                <span className="h-2.5 w-2.5 rounded-full bg-[#e60023]" />
-                                {repo.language || 'Unknown'}
-                              </span>
-                              <span className="flex items-center gap-1 font-semibold text-amber-500">
-                                <Star className="h-3 w-3 fill-current" />
-                                {repo.stars}
-                              </span>
-                            </div>
-                            
-                            <div className="flex gap-1.5 font-mono text-[9px] font-bold shrink-0">
-                              {repo.starred && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400">Starred</span>}
-                              {repo.followed && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-[#0058bb] border border-blue-200 dark:bg-blue-950/20 dark:text-blue-400">Followed</span>}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2 pt-2">
-                            {repo.starred ? (
-                              <button 
-                                onClick={() => handleUnstar(repo.owner, repo.name)}
-                                className="flex-1 min-h-[34px] flex items-center justify-center bg-transparent border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-xs font-bold rounded-full cursor-pointer transition-all font-geist"
-                              >
-                                Unstar
-                              </button>
-                            ) : (
-                              <button 
-                                onClick={() => handleStar(repo.owner, repo.name)}
-                                className="flex-1 min-h-[34px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
-                              >
-                                Star
-                              </button>
-                            )}
-
-                            {repo.readme_snippet && (
-                              <button 
-                                onClick={() => setSelectedRepo(repo)}
-                                className="px-4 min-h-[34px] flex items-center justify-center bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#1a1a1a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full transition-all cursor-pointer font-geist"
-                              >
-                                Readme
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {filteredRepos.length > visibleReposCount && (
-                    <div className="flex justify-center pt-4">
-                      <button
-                        onClick={() => setVisibleReposCount(prev => prev + 24)}
-                        className="px-6 py-2.5 bg-white dark:bg-[#111111] hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-[#dadada] dark:border-[#2a2a2a] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full transition-all cursor-pointer shadow-xs active:scale-95"
-                      >
-                        Load More Repositories
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <ReposGrid
+                  filteredRepos={filteredRepos}
+                  visibleReposCount={visibleReposCount}
+                  activeFilter={activeFilter}
+                  isRefreshing={isRefreshing}
+                  loadingIds={loadingIds.current}
+                  onFilterChange={(f) => setActiveFilter(f as any)}
+                  onStar={handleStar}
+                  onUnstar={handleUnstar}
+                  onSelectRepo={(r) => setSelectedRepo(r)}
+                  onLoadMore={() => setVisibleReposCount(prev => prev + 24)}
+                />
               )}
 
-              {/* 3. LOGS TAB */}
               {!isTabTransitioning && !isRefreshing && activeTab === 'logs' && (
-                <div className="space-y-4">
-                  {/* Type Filter pills */}
-                  <div className="flex flex-wrap gap-2">
-                    {(['ALL', 'SUCCESS', 'ERROR', 'WARN', 'INFO'] as const).map(type => (
-                      <button
-                        key={type}
-                        onClick={() => setLogTypeFilter(type)}
-                        className={`px-4 py-1.5 text-xs font-bold rounded-full border transition-all cursor-pointer select-none active:scale-95 ${
-                          logTypeFilter === type
-                            ? 'bg-[#e60023] border-[#e60023] text-white shadow-sm'
-                            : 'bg-white border-[#dadada] text-[#767676] hover:bg-zinc-50 hover:text-[#1a1c1c] dark:bg-[#111] dark:border-[#2a2a2a] dark:text-zinc-400 dark:hover:bg-[#1a1a1a] dark:hover:text-[#f0f0f0]'
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Left Viewport: macOS Terminal Window */}
-                    <div className="lg:col-span-2 flex flex-col">
-                      {/* Header Bar */}
-                      <div className="bg-[#18181b] border border-zinc-800 px-4 py-3 flex items-center justify-between text-zinc-400 font-mono text-xs rounded-t-2xl">
-                        <div className="flex items-center space-x-2 shrink-0 select-none">
-                          <span className="h-3 w-3 rounded-full bg-[#ef4444] border border-[#d63d3d]" />
-                          <span className="h-3 w-3 rounded-full bg-[#f59e0b] border border-[#dc8f0a]" />
-                          <span className="h-3 w-3 rounded-full bg-[#10b981] border border-[#0ea26b]" />
-                        </div>
-                        <span className="font-bold text-zinc-350 tracking-tight">SYSTEM_MONITOR_V4.2.LOG</span>
-                        <span className="text-[10px] opacity-60">UTC -05:00</span>
-                      </div>
-
-                      {/* Terminal Body */}
-                      <div className="bg-[#09090b] text-zinc-300 font-mono text-xs p-5 overflow-y-auto no-scrollbar h-[480px] space-y-3.5 rounded-b-2xl border border-zinc-800 border-t-0 select-text">
-                        {isRefreshing ? (
-                          [1, 2, 3].map(n => <div key={n} className="h-8 bg-zinc-900 rounded animate-pulse" />)
-                        ) : (() => {
-                          const displayedLogs = [...filteredLogs]
-                            .filter(log => {
-                              if (logTypeFilter === 'ALL') return true;
-                              if (logTypeFilter === 'SUCCESS') return log.status === 'SUCCESS';
-                              if (logTypeFilter === 'ERROR') return log.status === 'ERROR' || log.status === 'FAILED';
-                              if (logTypeFilter === 'WARN') return log.status === 'WARN';
-                              if (logTypeFilter === 'INFO') return log.status === 'INFO' || log.status === 'SYSTEM';
-                              return true;
-                            })
-                            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-                          if (displayedLogs.length === 0) {
-                            return <div className="py-12 text-center text-zinc-500">No active logs matching search filters.</div>;
-                          }
-
-                          return (
-                            <>
-                              {displayedLogs.map(log => {
-                                let prefixColor = "text-blue-500";
-                                let prefixLabel = "[INFO]";
-                                
-                                if (log.status === 'SUCCESS') {
-                                  prefixColor = "text-[#10b981] font-bold";
-                                  prefixLabel = "[SUCCESS]";
-                                } else if (log.status === 'FAILED' || log.status === 'ERROR') {
-                                  prefixColor = "text-[#ef4444] font-bold";
-                                  prefixLabel = "[ERROR]";
-                                } else if (log.status === 'WARN') {
-                                  prefixColor = "text-[#f59e0b] font-bold";
-                                  prefixLabel = "[WARN]";
-                                }
-
-                                return (
-                                  <div key={log.id} className="flex items-start space-x-2 leading-relaxed tracking-normal animate-fade-in-line">
-                                    <span className="text-zinc-600 shrink-0 select-none">
-                                      {new Date(log.timestamp).toLocaleTimeString()}
-                                    </span>
-                                    <span className={`shrink-0 ${prefixColor}`}>{prefixLabel}</span>
-                                    <span className="text-zinc-400 font-bold shrink-0">@{log.action}:</span>
-                                    <span className="text-zinc-200 select-all">{log.message}</span>
-                                  </div>
-                                );
-                              })}
-                              <div ref={terminalEndRef} />
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Right Viewport: Agent Status Panel */}
-                    <div className="lg:col-span-1">
-                      <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[32px] p-6 flex flex-col justify-between min-h-[480px] shadow-lg relative overflow-hidden aura-shadow">
-                        <div>
-                          <div className="flex items-center justify-between mb-4 border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
-                            <h3 className="text-base font-extrabold font-jakarta tracking-tight text-[#1a1c1c] dark:text-[#f0f0f0]">Agent Status Panel</h3>
-                            
-                            <div className="flex items-center space-x-2 select-none">
-                              <span className={`h-2.5 w-2.5 rounded-full ${workerStatus?.isJobRunning ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`} />
-                              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-[#767676]">
-                                {workerStatus?.isJobRunning ? 'RUNNING' : 'IDLE'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="space-y-4 font-sans text-xs mb-6">
-                            <div className="flex items-center justify-between py-2 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
-                              <span className="font-medium text-[#767676]">Last Execution</span>
-                              <span className="font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-mono">
-                                {lastRunTask ? getRelativeTime(lastRunTask.ran_at) : 'Never'}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between py-2 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
-                              <span className="font-medium text-[#767676]">Next Scheduled Run</span>
-                              <span className="font-extrabold text-[#1a1c1c] dark:text-[#f0f0f0] font-mono">
-                                {getFutureRelativeTime(workerStatus?.nextRun)}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#e60023]">Last Run Statistics</h4>
-                              <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 text-[9px] font-mono font-bold">
-                                from last run
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
-                              <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                <span className="text-base font-bold text-[#e60023] block leading-none">{lastRunTask?.profiles_evaluated || 0}</span>
-                                <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Evaluated</span>
-                              </div>
-                              <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                <span className="text-base font-bold text-[#e60023] block leading-none">{lastRunTask?.profiles_followed || 0}</span>
-                                <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Followed</span>
-                              </div>
-                              <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                <span className="text-base font-bold text-[#e60023] block leading-none">{lastRunTask?.profiles_unfollowed || 0}</span>
-                                <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Unfollowed</span>
-                              </div>
-                              <div className="bg-[#f8f9fa] dark:bg-[#1a1a1c] border border-[#eeeeee] dark:border-[#2a2a2a] p-2.5 rounded-xl">
-                                <span className="text-base font-bold text-[#e60023] block leading-none">{lastRunTask?.mutuals_found || 0}</span>
-                                <span className="text-[8px] uppercase tracking-wider text-[#767676] mt-1.5 block">Mutuals</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-
-                        <div className="mt-6 flex items-center justify-center bg-rose-50 dark:bg-rose-950/15 border border-rose-100 dark:border-rose-900/30 p-2.5 rounded-xl font-mono text-[9px] font-bold tracking-widest text-[#e60023] text-center select-none">
-                          <span className="h-2 w-2 rounded-full bg-[#e60023] mr-2 animate-ping" />
-                          LIVE STREAM ACTIVE
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <LogsTable
+                  logs={logs}
+                  filteredLogs={filteredLogs}
+                  runSummary={runSummary}
+                  workerStatus={workerStatus}
+                  lastRunTask={lastRunTask}
+                  isRefreshing={isRefreshing}
+                  terminalEndRef={terminalEndRef}
+                  getRelativeTime={getRelativeTime}
+                  getFutureRelativeTime={getFutureRelativeTime}
+                />
               )}
 
-              {!isTabTransitioning && !isRefreshing && activeTab === 'stats' && mounted && (
-                <div className="space-y-8 animate-startup-card">
-                  {/* Date toggle & Data Export toolbar */}
-                  <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between flex-wrap gap-4 aura-shadow">
-                    <div className="flex items-center space-x-3 flex-wrap gap-2">
-                      <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta">Plot Historical Ranges:</span>
-                      <div className="flex bg-[#eeeeee] dark:bg-[#1a1a1a] p-1 rounded-full text-xs font-bold font-geist">
-                        {(['TODAY', '7D', '30D', 'ALL'] as const).map(range => (
-                          <button 
-                            key={range}
-                            onClick={() => setTimeRange(range)}
-                            className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${
-                              timeRange === range 
-                                ? 'bg-[#e60023] text-white font-bold shadow-xs' 
-                                : 'text-[#767676] hover:text-[#1a1c1c] dark:hover:text-[#f0f0f0]'
-                            }`}
-                          >
-                            {range === 'TODAY' ? 'Today' : range}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Data Export & Backup Actions */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleExportCSV}
-                        className="px-3.5 py-1.5 border border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#1a1a1a] hover:bg-zinc-200 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full text-xs font-bold font-geist transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-                        title="Export CSV Report"
-                      >
-                        <Download className="h-3.5 w-3.5 text-[#e60023]" />
-                        <span>Export CSV</span>
-                      </button>
-                       <button
-                        onClick={() => {
-                          const jsonContent = JSON.stringify(allProfiles, null, 2);
-                          setExportPreview({
-                            filename: `followme_backup_${new Date().toISOString().split('T')[0]}.json`,
-                            mimeType: 'application/json;charset=utf-8',
-                            content: jsonContent
-                          });
-                        }}
-                        className="px-3.5 py-1.5 border border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#1a1a1a] hover:bg-zinc-200 dark:hover:bg-zinc-800 text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full text-xs font-bold font-geist transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-                        title="Export JSON Backup"
-                      >
-                        <Download className="h-3.5 w-3.5 text-blue-500" />
-                        <span>Export JSON</span>
-                      </button>
-                    </div>
-                  </div>
-
-
-                  {/* 4-Stat Summary Row */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Evaluated</span>
-                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{filteredSummary.evaluated}</span>
-                    </div>
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Followed</span>
-                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{filteredSummary.followed}</span>
-                    </div>
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Total Unfollowed</span>
-                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{filteredSummary.unfollowed}</span>
-                    </div>
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-[24px] p-5 aura-shadow flex flex-col justify-center">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676]">Mutuals Found</span>
-                      <span className="text-2xl font-extrabold text-[#e60023] font-mono mt-1.5 leading-none">{filteredSummary.mutuals}</span>
-                    </div>
-                  </div>
-
-
-                  {/* Primary charts row */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    {/* Daily Action Line Chart */}
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow lg:col-span-2">
-                      <h3 className="text-sm font-bold font-jakarta mb-4 text-[#1a1c1c] dark:text-[#f0f0f0]">Daily Agent Actions (Follows/Unfollows/Evaluations)</h3>
-                      <div className="h-[280px] w-full font-mono text-[10px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#222' : '#f0f0f0'} />
-                            <XAxis dataKey="date" stroke="#767676" tick={{ fontFamily: 'Inter', fontSize: 10 }} />
-                            <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
-                            <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
-                            <Legend wrapperStyle={{ fontFamily: 'Geist', fontSize: 11 }} />
-                            <Line type="monotone" dataKey="follows" stroke="#e60023" name="Follows" strokeWidth={2.5} dot={{ r: 3 }} />
-                            <Line type="monotone" dataKey="unfollows" stroke="color-mix(in srgb, #e60023 50%, white)" name="Unfollows" strokeWidth={2.5} dot={{ r: 3 }} />
-                            <Line type="monotone" dataKey="evaluations" stroke="color-mix(in srgb, #e60023 80%, black)" name="Evaluations" strokeWidth={2} strokeDasharray="5 5" />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    {/* Donut status distribution with dynamic center text */}
-                    <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow relative flex flex-col justify-between">
-                      <h3 className="text-sm font-bold font-jakarta mb-4 text-[#1a1c1c] dark:text-[#f0f0f0]">Profiles Status Shares</h3>
-                      
-                      <div className="h-[200px] w-full font-mono text-[10px] relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={statusDistribution}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={60}
-                              outerRadius={80}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {statusDistribution.map((entry, index) => (
-                                <Cell 
-                                  key={`cell-${index}`} 
-                                  fill={entry.color}
-                                  onMouseEnter={() => setHoveredDonut(entry)}
-                                  onMouseLeave={() => setHoveredDonut(null)}
-                                  className="cursor-pointer transition-all duration-300 hover:opacity-80 outline-none"
-                                />
-                              ))}
-                            </Pie>
-                            <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        
-                        {/* Interactive Center Text */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#767676] max-w-[90px] text-center truncate">
-                            {hoveredDonut ? hoveredDonut.name : 'Total Profiles'}
-                          </span>
-                          <span className="text-xl font-extrabold text-[#e60023] font-mono leading-none mt-1">
-                            {hoveredDonut ? hoveredDonut.value : allProfiles.length}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-[10px] font-geist mt-3">
-                        {statusDistribution.map((entry, index) => (
-                          <div key={index} className="flex items-center space-x-1.5">
-                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                            <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">{entry.name} ({entry.value})</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* Grouped Bar Chart follows vs unfollows */}
-                  <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-5 aura-shadow">
-                    <h3 className="text-sm font-bold font-jakarta mb-4 text-[#1a1c1c] dark:text-[#f0f0f0]">Action Volumes Comparison (Follows vs Unfollows)</h3>
-                    <div className="h-[280px] w-full font-mono text-[10px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#222' : '#f0f0f0'} />
-                          <XAxis dataKey="date" stroke="#767676" tick={{ fontFamily: 'Inter', fontSize: 10 }} />
-                          <YAxis stroke="#767676" tick={{ fontFamily: 'Geist Mono', fontSize: 10 }} />
-                          <Tooltip contentStyle={{ background: isDark ? '#111' : '#fff', border: '1px solid #dadada', borderRadius: '8px' }} />
-                          <Legend wrapperStyle={{ fontFamily: 'Geist', fontSize: 11 }} />
-                          <Bar dataKey="follows" fill="#e60023" name="Follow Actions" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="unfollows" fill="color-mix(in srgb, #e60023 50%, white)" name="Unfollow Actions" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                </div>
+              {!isTabTransitioning && !isRefreshing && activeTab === 'stats' && (
+                <StatsTab
+                  mounted={mounted}
+                  isDark={isDark}
+                  timeRange={timeRange}
+                  setTimeRange={setTimeRange}
+                  filteredSummary={filteredSummary}
+                  chartData={chartData}
+                  statusDistribution={statusDistribution}
+                  allProfiles={allProfiles}
+                  onExportCSV={handleExportCSV}
+                  onExportJSON={handleExportJSON}
+                />
               )}
-
             </div>
           </div>
-
-          <footer className="mt-auto border-t border-[#dadada] dark:border-[#2a2a2a] py-6 text-center text-[10px] font-mono text-[#767676] bg-white dark:bg-[#111111] transition-colors duration-200">
-            <p>FollowMe Dashboard &bull; Verified evaluation runs logged in real time</p>
-          </footer>
         </main>
       </div>
 
-      {/* Maintenance modal */}
-      {isCleanupOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 dark:bg-black/85 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#111111] border-t sm:border border-[#dadada] dark:border-[#2a2a2a] w-full sm:max-w-2xl h-[92vh] sm:h-auto sm:max-h-[85vh] rounded-t-2xl sm:rounded-xl flex flex-col shadow-2xl overflow-hidden font-mono text-xs">
-            <div className="px-5 py-4 border-b border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#151515] flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-[#767676] uppercase tracking-wider">Maintenance Dashboard</span>
-                <h3 className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] uppercase tracking-widest mt-0.5">Cleanup Assistant</h3>
-              </div>
-              <button
-                onClick={() => {
-                  setIsCleanupOpen(false);
-                  setCleanupOption(null);
-                }}
-                className="px-3.5 py-2 hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-lg border border-[#dadada] dark:border-[#2a2a2a] cursor-pointer transition"
-              >
-                Close
-              </button>
-            </div>
+      {/* Extracted Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        tempSettings={tempSettings}
+        savedSettings={savedSettings}
+        defaultSettings={defaultSettings}
+        userProfile={userProfile}
+        healthState={healthState}
+        isOAuthConnecting={isOAuthConnecting}
+        isSendingTestEmail={isSendingTestEmail}
+        testEmailStatus={testEmailStatus}
+        isTriggeringAgent={isTriggeringAgent}
+        agentTriggerStatus={agentTriggerStatus}
+        onClose={() => setIsSettingsOpen(false)}
+        setTempSettings={setTempSettings}
+        onSaveSettings={handleSaveSettings}
+        onSendTestEmail={handleSendTestEmail}
+        onTestWebhook={handleTestWebhook}
+        isTestingWebhook={isTestingWebhook}
+        webhookTestStatus={webhookTestStatus}
+        onTriggerAgent={handleTriggerAgent}
+        onGitHubOAuth={handleGitHubOAuth}
+      />
 
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {cleanupOption === null ? (
-                <div className="space-y-4 font-sans">
-                  <p className="text-[#767676] text-xs">Select a maintenance task to run:</p>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
-                      <div>
-                        <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">1. Bulk Unfollow</h4>
-                        <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
-                          Unfollows anyone followed &gt;7 days ago who has not followed back.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          handleCleanupRun();
-                          setIsCleanupOpen(false);
-                        }}
-                        disabled={isCleaning}
-                        className="w-full min-h-[36px] bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full cursor-pointer transition disabled:opacity-50 font-geist"
-                      >
-                        Run Bulk Cleanup
-                      </button>
-                    </div>
+      {/* Extracted Unfollow / Cleanup Modal */}
+      <UnfollowModal
+        isOpen={isCleanupOpen}
+        cleanupOption={cleanupOption}
+        isCleaning={isCleaning}
+        isFetchingUnfollowList={isFetchingUnfollowList}
+        unfollowList={unfollowList}
+        totalLogsCount={totalLogsCount}
+        staleProfilesCount={staleProfilesCount}
+        onClose={() => {
+          setIsCleanupOpen(false);
+          setCleanupOption(null);
+        }}
+        setCleanupOption={setCleanupOption}
+        onFetchUnfollowList={fetchUnfollowList}
+        onFetchTotalLogsCount={fetchTotalLogsCount}
+        onUnfollowUser={handleUnfollowUser}
+        onRemoveFromUnfollowList={(username) => setUnfollowList(prev => prev.filter(item => item.owner !== username))}
+        onRunBulkCleanup={handleCleanupRun}
+        onRunLogCleanup={handleLogCleanupRun}
+        onRunClearStale={handleClearStaleRun}
+      />
 
-                    <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
-                      <div>
-                        <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">2. Selective Unfollow</h4>
-                        <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
-                          Preview eligible developers to unfollow them selectively or in bulk.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          fetchUnfollowList();
-                          setCleanupOption('list');
-                        }}
-                        className="w-full min-h-[36px] bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition font-geist"
-                      >
-                        Preview & Select
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
-                      <div>
-                        <h4 className="font-bold text-[#0058bb] dark:text-blue-400">3. Log Cleanup</h4>
-                        <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
-                          Purges old logs history to save database storage, keeping the latest 200 logs.
-                        </p>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          await fetchTotalLogsCount();
-                          setCleanupOption('logs');
-                        }}
-                        className="w-full min-h-[36px] bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition font-geist"
-                      >
-                        Purge Old Logs
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
-                      <div>
-                        <h4 className="font-bold text-orange-500">4. Clear Stale Profiles</h4>
-                        <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
-                          Deletes discovered profiles that were skipped and never starred or followed.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setCleanupOption('stale');
-                        }}
-                        className="w-full min-h-[36px] bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition font-geist"
-                      >
-                        Clear Stale Data
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : cleanupOption === 'list' ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-2">
-                    <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] uppercase tracking-widest text-[10px]">Unfollow Candidates list</h4>
-                    <button
-                      onClick={() => setCleanupOption(null)}
-                      className="text-xs hover:underline cursor-pointer"
-                    >
-                      &larr; Back Options
-                    </button>
-                  </div>
-
-                  {isFetchingUnfollowList ? (
-                    <div className="py-8 text-center text-[#767676]">Fetching candidates list...</div>
-                  ) : unfollowList.length === 0 ? (
-                    <div className="py-8 text-center text-[#767676] font-semibold">No users match the cleanup criteria right now.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="space-y-2.5 max-h-[40vh] overflow-y-auto pr-1.5">
-                        {unfollowList.map(user => (
-                          <div key={user.id} className="p-3.5 bg-[#fbfbfb] dark:bg-[#161616] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex items-center justify-between gap-3 text-zinc-300">
-                            <div>
-                              <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] block text-xs">@{user.owner}</span>
-                              <span className="text-[10px] text-[#767676] block mt-0.5">Followed: {new Date(user.followed_at).toLocaleDateString()}</span>
-                            </div>
-                            <div className="flex items-center space-x-2 shrink-0">
-                              <button
-                                onClick={async () => {
-                                  await handleUnfollowUser(user.owner);
-                                  setUnfollowList(prev => prev.filter(u => u.owner !== user.owner));
-                                }}
-                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 rounded-full text-[11px] font-bold cursor-pointer font-geist"
-                              >
-                                Unfollow
-                              </button>
-                              <a
-                                href={`https://github.com/${user.owner}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-3 py-1.5 bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full text-[11px] font-bold flex items-center font-geist"
-                              >
-                                Profile
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="pt-2">
-                        <button
-                          onClick={() => {
-                            handleCleanupRun();
-                            setIsCleanupOpen(false);
-                          }}
-                          disabled={isCleaning}
-                          className="w-full min-h-[40px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full cursor-pointer disabled:opacity-50 font-geist"
-                        >
-                          Unfollow All ({unfollowList.length})
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : cleanupOption === 'logs' ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-2">
-                    <h4 className="font-bold text-[#0058bb] dark:text-blue-400 uppercase tracking-widest text-[10px]">Logs Cleanup Confirmation</h4>
-                    <button
-                      onClick={() => setCleanupOption(null)}
-                      className="text-xs hover:underline cursor-pointer"
-                    >
-                      &larr; Back
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-xl text-[#0058bb] dark:text-blue-400 font-sans">
-                    <p className="font-bold text-xs">⚠️ PURGING HISTORICAL ACTION LOGS</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
-                      This action will delete all old worker logs except for the latest 200 entries. It will not alter repository evaluation scores or follower details.
-                    </p>
-                    <p className="mt-3 text-xs font-semibold text-[#0058bb] dark:text-blue-400 font-mono">
-                      This will delete {Math.max(0, totalLogsCount - 200)} old log entries (Total logs in DB: {totalLogsCount}).
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      onClick={async () => {
-                        await handleLogCleanupRun();
-                        setIsCleanupOpen(false);
-                        setCleanupOption(null);
-                      }}
-                      disabled={isCleaning}
-                      className="w-full min-h-[40px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist"
-                    >
-                      Confirm and Delete Logs
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-2">
-                    <h4 className="font-bold text-orange-500 uppercase tracking-widest text-[10px]">Stale Profiles Cleanup</h4>
-                    <button
-                      onClick={() => setCleanupOption(null)}
-                      className="text-xs hover:underline cursor-pointer"
-                    >
-                      &larr; Back
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-orange-50 dark:bg-orange-950/10 border border-orange-200 dark:border-orange-900/30 rounded-xl text-orange-600 dark:text-orange-400 font-sans">
-                    <p className="font-bold text-xs">⚠️ STALE PROFILE DATA REMOVAL</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
-                      Deletes profiles from the database that were evaluated and skipped, but never starred or followed. Freeing up unnecessary metadata storage.
-                    </p>
-                    <p className="mt-3 text-xs font-semibold text-orange-605 font-mono">
-                      This will remove {staleProfilesCount} stale profiles from your table.
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      onClick={async () => {
-                        await handleClearStaleRun();
-                        setIsCleanupOpen(false);
-                        setCleanupOption(null);
-                      }}
-                      disabled={isCleaning}
-                      className="w-full min-h-[40px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist"
-                    >
-                      Confirm and Clear Stale Profiles
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Snippet Overlay Modal */}
-      {selectedRepo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/80 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-3xl max-h-[80vh] rounded-xl flex flex-col shadow-2xl animate-startup-logo">
-            <div className="px-5 py-3.5 border-b border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#151515] flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-[#767676] font-mono uppercase tracking-wider">Readme Snippet Evaluation</span>
-                <h3 className="font-jakarta text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] flex items-center space-x-2 mt-0.5">
-                  <span>{selectedRepo.owner}/{selectedRepo.name}</span>
-                  <span className="px-2 py-0.5 bg-[#f3f3f3] dark:bg-[#222] border border-[#dadada] dark:border-[#2a2a2a] text-[9px] text-[#767676] dark:text-zinc-400 rounded-full font-mono">
-                    Score: {selectedRepo.grade}/10
-                  </span>
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedRepo(null)}
-                className="px-3.5 py-1.5 hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-lg border border-[#dadada] dark:border-[#2a2a2a] cursor-pointer transition font-mono text-[11px]"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto font-mono text-xs text-[#1a1c1c] dark:text-[#f0f0f0] bg-[#fdfdfd] dark:bg-[#141414] leading-relaxed whitespace-pre-wrap select-text flex-1">
-              {cleanSnippet(selectedRepo.readme_snippet) || 'No evaluation snippet.'}
-            </div>
-            
-            <div className="px-5 py-3 border-t border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#151515] flex justify-end">
-              <a
-                href={selectedRepo.github_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center space-x-1.5 px-4.5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist"
-              >
-                <span>Open in GitHub</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Modal Overlay (Tabbed & Categorized) */}
-      {isSettingsOpen && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in"
-          onClick={() => {
-            setTempSettings(savedSettings);
-            setIsSettingsOpen(false);
-          }}
-        >
-          <div 
-            className="bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-xl rounded-3xl p-6 flex flex-col shadow-2xl space-y-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
-              <div className="flex items-center space-x-2.5">
-                <div className="h-9 w-9 rounded-xl bg-[#e60023]/10 border border-[#e60023]/30 flex items-center justify-center text-[#e60023]">
-                  <Settings className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">Dashboard Settings</h3>
-                  <span className="text-[10px] font-mono text-zinc-400">System Preferences & Agent Tuning</span>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setTempSettings(savedSettings);
-                  setIsSettingsOpen(false);
-                }}
-                className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 cursor-pointer transition"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Category Navigation Pills */}
-            <div className="flex bg-[#f3f3f3] dark:bg-[#1a1a1e] p-1 rounded-2xl text-xs font-bold font-geist overflow-x-auto gap-1">
-              {[
-                { id: 'automation', label: 'Automation', icon: Clock },
-                { id: 'safety', label: 'Safety', icon: ShieldCheck },
-                { id: 'ai', label: 'AI Settings', icon: Cpu },
-                { id: 'notifications', label: 'Notifications', icon: Mail },
-                { id: 'github', label: 'GitHub Account', icon: GithubIcon }
-              ].map(cat => {
-                const Icon = cat.icon;
-                const isActive = settingsTab === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSettingsTab(cat.id as any)}
-                    className={`flex-1 min-w-[100px] flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl transition-all cursor-pointer ${
-                      isActive 
-                        ? 'bg-white dark:bg-[#2a2a30] text-[#e60023] font-bold shadow-xs' 
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    <span>{cat.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Category Tab Content */}
-            <div className="space-y-4 font-sans text-xs max-h-[55vh] overflow-y-auto pr-1">
-              
-              {/* TAB 1: AUTOMATION */}
-              {settingsTab === 'automation' && (
-                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3 animate-in fade-in">
-                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                    <Clock className="h-3.5 w-3.5 text-[#e60023]" /> Automation & Schedule Controls
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Execution Frequency</label>
-                        <select
-                          value={tempSettings.cronFrequency}
-                          onChange={(e) => setTempSettings({ ...tempSettings, cronFrequency: e.target.value })}
-                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                        >
-                          <option value="2">Every 2 Hours</option>
-                          <option value="4">Every 4 Hours</option>
-                          <option value="6">Every 6 Hours</option>
-                          <option value="12">Every 12 Hours</option>
-                          <option value="24">Every 24 Hours</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Max Profiles / Run</label>
-                        <input
-                          type="number"
-                          value={tempSettings.maxProfilesPerRun}
-                          onChange={(e) => setTempSettings({ ...tempSettings, maxProfilesPerRun: Number(e.target.value) })}
-                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Active Operating Window</label>
-                      <input
-                        type="text"
-                        value={tempSettings.activeWorkingHours}
-                        onChange={(e) => setTempSettings({ ...tempSettings, activeWorkingHours: e.target.value })}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                        placeholder="e.g. 09:00 - 22:00"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: SAFETY */}
-              {settingsTab === 'safety' && (
-                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3 animate-in fade-in">
-                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                    <ShieldCheck className="h-3.5 w-3.5 text-[#e60023]" /> Safety & Filtering Limits
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Daily Follow Cap</label>
-                        <input
-                          type="number"
-                          value={tempSettings.dailyFollowLimit}
-                          onChange={(e) => setTempSettings({ ...tempSettings, dailyFollowLimit: Number(e.target.value) })}
-                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Grace Period (Days)</label>
-                        <input
-                          type="number"
-                          value={tempSettings.unfollowGracePeriod}
-                          onChange={(e) => setTempSettings({ ...tempSettings, unfollowGracePeriod: Number(e.target.value) })}
-                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2 pt-1 border-t border-[#eeeeee] dark:border-[#2a2a2a]">
-                      <label className="flex items-center space-x-2 cursor-pointer py-1">
-                        <input
-                          type="checkbox"
-                          checked={tempSettings.autoUnfollowNonMutuals}
-                          onChange={(e) => setTempSettings({ ...tempSettings, autoUnfollowNonMutuals: e.target.checked })}
-                          className="rounded border-[#dadada] dark:border-[#2a2a2a] text-[#e60023] focus:ring-[#e60023]"
-                        />
-                        <span className="text-xs font-medium text-[#1a1c1c] dark:text-[#f0f0f0]">
-                          Auto-unfollow non-mutual profiles after grace period
-                        </span>
-                      </label>
-
-                      <label className="flex items-center space-x-2 cursor-pointer py-1">
-                        <input
-                          type="checkbox"
-                          checked={tempSettings.excludeOrgAccounts}
-                          onChange={(e) => setTempSettings({ ...tempSettings, excludeOrgAccounts: e.target.checked })}
-                          className="rounded border-[#dadada] dark:border-[#2a2a2a] text-[#e60023] focus:ring-[#e60023]"
-                        />
-                        <span className="text-xs font-medium text-[#1a1c1c] dark:text-[#f0f0f0]">
-                          Exclude Organization & Company Accounts (Target individual devs only)
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: AI TUNING */}
-              {settingsTab === 'ai' && (
-                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3 animate-in fade-in">
-                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                    <Cpu className="h-3.5 w-3.5 text-[#e60023]" /> AI Model & Evaluation Prompt
-                  </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">LLM Model Selector</label>
-                      <select
-                        value={tempSettings.llmModel}
-                        onChange={(e) => setTempSettings({ ...tempSettings, llmModel: e.target.value })}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      >
-                        <option value="Gemini 2.5 Flash">Gemini 2.5 Flash (Ultra Fast & Efficient)</option>
-                        <option value="Gemini 1.5 Pro">Gemini 1.5 Pro (Deep Code Reasoning)</option>
-                        <option value="GPT-4o">GPT-4o (High Context Precision)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Custom System Prompt Overlay</label>
-                      <textarea
-                        rows={3}
-                        value={tempSettings.systemPrompt}
-                        onChange={(e) => setTempSettings({ ...tempSettings, systemPrompt: e.target.value })}
-                        className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl p-3 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023] leading-relaxed resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 4: NOTIFICATIONS */}
-              {settingsTab === 'notifications' && (
-                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-3 animate-in fade-in">
-                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                    <Mail className="h-3.5 w-3.5 text-[#e60023]" /> Email Digest & Webhook Alerts
-                  </h4>
-                  
-                  <label className="flex items-center space-x-2 cursor-pointer pb-2 border-b border-[#eeeeee] dark:border-[#2a2a2a]">
-                    <input
-                      type="checkbox"
-                      checked={tempSettings.enableEmailDigest}
-                      onChange={(e) => setTempSettings({ ...tempSettings, enableEmailDigest: e.target.checked })}
-                      className="rounded border-[#dadada] dark:border-[#2a2a2a] text-[#e60023] focus:ring-[#e60023]"
-                    />
-                    <span className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">
-                      Enable Daily Automated Email Digest
-                    </span>
-                  </label>
-
-                  {tempSettings.enableEmailDigest && (
-                    <div className="space-y-3 pt-1 animate-in fade-in">
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Recipient Email Address</label>
-                        <input
-                          type="email"
-                          value={tempSettings.recipientEmail}
-                          onChange={(e) => setTempSettings({ ...tempSettings, recipientEmail: e.target.value })}
-                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                          placeholder="e.g. user@example.com"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1.5">Digest Content Specifications</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { id: 'runSummary', label: 'Run Summary' },
-                            { id: 'followedProfiles', label: 'Followed Profiles' },
-                            { id: 'unfollowedProfiles', label: 'Unfollowed Profiles' },
-                            { id: 'mutualFollows', label: 'Mutual Follow-backs' }
-                          ].map(opt => (
-                            <label key={opt.id} className="flex items-center space-x-2 cursor-pointer bg-white dark:bg-[#111111] p-2 rounded-xl border border-[#dadada] dark:border-[#2a2a2a]">
-                              <input
-                                type="checkbox"
-                                checked={(tempSettings.digestSummary as any)[opt.id]}
-                                onChange={(e) => setTempSettings({
-                                  ...tempSettings,
-                                  digestSummary: { ...tempSettings.digestSummary, [opt.id]: e.target.checked }
-                                })}
-                                className="rounded text-[#e60023] focus:ring-[#e60023]"
-                              />
-                              <span className="text-[11px] font-mono">{opt.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Delivery Time</label>
-                        <input
-                          type="text"
-                          value={tempSettings.digestDeliveryTime}
-                          onChange={(e) => setTempSettings({ ...tempSettings, digestDeliveryTime: e.target.value })}
-                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                          placeholder="e.g. 09:00 AM"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">
-                          Resend API Key (for Automated Incident & Health Reports)
-                        </label>
-                        <input
-                          type="password"
-                          value={tempSettings.resendApiKey || ''}
-                          onChange={(e) => setTempSettings({ ...tempSettings, resendApiKey: e.target.value })}
-                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                          placeholder="re_xxxxxxxxxxxx"
-                        />
-                        <p className="text-[9px] text-zinc-500 mt-1 font-mono">
-                          Stored securely server-side. Used to send zero-spam executive incident alerts directly to your inbox.
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">
-                          Email Sender Display Name
-                        </label>
-                        <input
-                          type="text"
-                          value={tempSettings.senderName || ''}
-                          onChange={(e) => setTempSettings({ ...tempSettings, senderName: e.target.value })}
-                          className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                          placeholder="e.g. FollowMe Ops, My Custom Bot"
-                        />
-                        <p className="text-[9px] text-zinc-500 mt-1 font-mono">
-                          The sender name displayed in your inbox (defaults to FollowMe System).
-                        </p>
-                      </div>
-
-                      <div className="border-t border-[#eeeeee] dark:border-[#2a2a2a] pt-3 space-y-3">
-                        <div>
-                          <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Webhook Endpoint URL (Optional)</label>
-                          <input
-                            type="text"
-                            value={tempSettings.webhookUrl || ''}
-                            onChange={(e) => setTempSettings({ ...tempSettings, webhookUrl: e.target.value })}
-                            className="w-full bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                            placeholder="e.g. https://api.yoursite.com/webhook"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Setup Guide */}
-                      <div className="p-3 bg-emerald-50 dark:bg-[#15231c] border border-emerald-200 dark:border-emerald-800/40 rounded-xl space-y-1.5 text-[10px] font-sans">
-                        <span className="font-bold text-emerald-800 dark:text-emerald-300 block flex items-center gap-1">
-                          🛡️ Resend High-Priority Incident Pipeline
-                        </span>
-                        <p className="text-zinc-600 dark:text-zinc-400 leading-normal">
-                          When your GitHub PAT expires, NVIDIA NIM credits deplete, or rate limits are reached, FollowMe sends a crisp executive report with direct resolution links.
-                        </p>
-                      </div>
-
-                      {/* Action Controls */}
-                      <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            setIsSendingTestEmail(true);
-                            setTestEmailStatus(null);
-                            try {
-                              const res = await sendTestAlertEmail(tempSettings.recipientEmail, tempSettings.resendApiKey, tempSettings.senderName);
-                              if (res.success) {
-                                setTestEmailStatus({ success: true, message: `Test email dispatched to ${tempSettings.recipientEmail}!` });
-                              } else {
-                                setTestEmailStatus({ success: false, message: res.error || 'Failed to dispatch test email' });
-                              }
-                            } catch (err: any) {
-                              setTestEmailStatus({ success: false, message: err.message || 'Error sending test email' });
-                            } finally {
-                              setIsSendingTestEmail(false);
-                            }
-                          }}
-                          disabled={isSendingTestEmail}
-                          className="flex-1 py-2 bg-zinc-900 hover:bg-black dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white text-[10px] font-bold rounded-xl transition cursor-pointer font-geist flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
-                        >
-                          {isSendingTestEmail ? (
-                            <>
-                              <span className="h-3 w-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                              <span>Dispatching...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Mail className="h-3 w-3 text-emerald-400" />
-                              <span>Send Test Alert Email</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleTriggerAgent}
-                          disabled={isTriggeringAgent || healthState?.isGitHubValid === false}
-                          className="flex-1 py-2 bg-[#e60023] hover:bg-[#c0001b] disabled:opacity-50 text-white text-[10px] font-bold rounded-xl transition cursor-pointer font-geist flex items-center justify-center gap-1.5 active:scale-95"
-                        >
-                          {isTriggeringAgent ? (
-                            <>
-                              <span className="h-3 w-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                              <span>Triggering...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-3 w-3 text-white fill-current" />
-                              <span>Run Agent Now</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Status banners */}
-                      {testEmailStatus && (
-                        <div className={`p-2.5 rounded-xl border text-[10px] font-mono font-medium animate-in slide-in-from-top-2 ${
-                          testEmailStatus.success 
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
-                            : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
-                        }`}>
-                          {testEmailStatus.message}
-                        </div>
-                      )}
-
-                      {agentTriggerStatus && (
-                        <div className={`p-2.5 rounded-xl border text-[10px] font-mono font-medium animate-in slide-in-from-top-2 ${
-                          agentTriggerStatus.success 
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
-                            : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-455'
-                        }`}>
-                          {agentTriggerStatus.message}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 5: GITHUB ACCOUNT INTEGRATION */}
-              {settingsTab === 'github' && (
-                <div className="p-4 rounded-2xl bg-[#f8f9fa] dark:bg-[#18181c] border border-[#eeeeee] dark:border-[#2a2a2a] space-y-4 animate-in fade-in">
-                  <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] font-jakarta flex items-center gap-1.5 text-xs">
-                    <GithubIcon className="h-4 w-4 text-[#e60023]" /> GitHub Account & Credentials
-                  </h4>
-
-                  <div className="p-4 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center space-x-3.5">
-                      {userProfile?.avatar_url ? (
-                        <img 
-                          src={userProfile.avatar_url} 
-                          alt={userProfile.login || 'GitHub User'} 
-                          className="h-11 w-11 rounded-full border border-zinc-200 dark:border-zinc-700 object-cover"
-                        />
-                      ) : (
-                        <div className="h-11 w-11 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-300">
-                          <GithubIcon className="h-6 w-6" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-bold font-jakarta text-xs text-[#1a1c1c] dark:text-[#f0f0f0]">
-                            {userProfile?.login ? `@${userProfile.login}` : 'Not Connected'}
-                          </span>
-                          {healthState?.isGitHubValid ? (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                              Connected & Healthy
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
-                              Authentication Expired / Invalid
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                          {userProfile?.name ? `${userProfile.name} • ` : ''}Used for discovery, grading & follow automations
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleGitHubOAuth}
-                      disabled={isOAuthConnecting}
-                      className="px-4 py-2 bg-[#24292e] hover:bg-[#1b1f23] dark:bg-[#1f2328] dark:hover:bg-[#2d333b] disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center space-x-2 shrink-0 shadow-xs cursor-pointer"
-                    >
-                      {isOAuthConnecting ? (
-                        <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                      ) : (
-                        <GithubIcon className="h-3.5 w-3.5" />
-                      )}
-                      <span>{isOAuthConnecting ? 'Connecting...' : (userProfile?.login ? 'Re-authorize OAuth' : 'Connect via GitHub OAuth')}</span>
-                    </button>
-                  </div>
-
-                  {/* Manual PAT Configuration */}
-                  <div className="p-4 bg-white dark:bg-[#111111] border border-[#dadada] dark:border-[#2a2a2a] rounded-2xl space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] flex items-center gap-1.5 font-jakarta">
-                        <Key className="h-3.5 w-3.5 text-[#e60023]" /> Personal Access Token (PAT)
-                      </label>
-                      <a
-                        href="https://github.com/settings/tokens/new"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10px] text-[#e60023] hover:underline font-mono flex items-center gap-1"
-                      >
-                        Generate on GitHub <ExternalLink className="h-2.5 w-2.5" />
-                      </a>
-                    </div>
-                    <input
-                      type="password"
-                      value={tempSettings.githubToken || ''}
-                      onChange={(e) => setTempSettings({ ...tempSettings, githubToken: e.target.value })}
-                      className="w-full bg-zinc-50 dark:bg-[#151518] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl px-3 py-2 text-xs font-mono text-[#1a1c1c] dark:text-[#f0f0f0] focus:outline-none focus:border-[#e60023]"
-                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                    />
-                    <p className="text-[10px] text-zinc-500 font-mono">
-                      Required scopes: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">public_repo</code>, <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">user:follow</code>, <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">read:user</code>.
-                    </p>
-                  </div>
-
-                  <div className="p-3 bg-zinc-50 dark:bg-[#151518] border border-zinc-200 dark:border-zinc-800 rounded-xl text-[11px] font-sans text-zinc-600 dark:text-zinc-400 space-y-1">
-                    <p className="font-bold text-zinc-800 dark:text-zinc-200">ℹ️ Updating Your Token</p>
-                    <p className="leading-relaxed text-[10px]">
-                      Pasting a new PAT here and clicking "Save Settings" immediately restores live connection, clears the offline snapshot banner, and re-enables all background tasks.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer Controls */}
-            <div className="pt-2 flex items-center justify-between border-t border-[#eeeeee] dark:border-[#2a2a2a]">
-              <button
-                type="button"
-                onClick={() => setTempSettings(defaultSettings)}
-                className="px-4 py-2 border border-[#dadada] dark:border-[#2a2a2a] bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-bold rounded-full transition cursor-pointer font-geist"
-              >
-                Restore Defaults
-              </button>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTempSettings(savedSettings);
-                    setIsSettingsOpen(false);
-                  }}
-                  className="px-4 py-2 border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-bold rounded-full transition cursor-pointer font-geist"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setSavedSettings(tempSettings);
-                    localStorage.setItem('savedSettings', JSON.stringify(tempSettings));
-                    setIsSettingsOpen(false);
-                    await saveSystemSettings(tempSettings);
-                    try {
-                      const { checkSystemHealth } = await import('./actions');
-                      const freshHealth = await checkSystemHealth();
-                      setHealthState(freshHealth);
-                    } catch (_) {}
-                    router.refresh();
-                  }}
-                  className="px-5 py-2 bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist shadow-sm"
-                >
-                  Save Settings
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Dedicated Security Key Modal Overlay */}
+      {/* Password Security Modal */}
       {isSecurityModalOpen && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in"
@@ -4542,7 +1614,7 @@ export default function DashboardView({
               </button>
             </div>
 
-            <form onSubmit={handleUpdateSecurityKey} className="space-y-4 font-sans text-xs">
+            <form onSubmit={handleUpdateSecurityKey} className="space-y-4">
               <div>
                 <label className="text-[10px] font-mono font-bold text-zinc-500 block mb-1">Current Password</label>
                 <input
@@ -4612,7 +1684,65 @@ export default function DashboardView({
         </div>
       )}
 
-      {/* Data Export Preview Modal Overlay */}
+      {/* Selected Repo Readme Snippet Modal */}
+      {selectedRepo && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in"
+          onClick={() => setSelectedRepo(null)}
+        >
+          <div 
+            className="bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] w-full max-w-2xl rounded-3xl p-6 flex flex-col shadow-2xl space-y-4 max-h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="h-9 w-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-[#e60023]">
+                  <Code className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-jakarta text-base font-bold text-[#1a1c1c] dark:text-[#f0f0f0] truncate max-w-sm">
+                    {selectedRepo.owner} / {selectedRepo.name}
+                  </h3>
+                  <span className="text-[10px] font-mono text-zinc-400">README Architecture & Graded Analysis</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedRepo(null)}
+                className="h-8 w-8 rounded-full border border-[#dadada] dark:border-[#2a2a2a] hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              <div className="bg-[#f8f9fa] dark:bg-[#151518] p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-xs font-sans leading-relaxed text-zinc-700 dark:text-zinc-300">
+                <p className="font-mono text-[10px] uppercase font-bold text-zinc-400 mb-2">Cleaned README Content</p>
+                {cleanSnippet(selectedRepo.readme_snippet) || 'No README documentation preview available for this repository.'}
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-between items-center border-t border-[#eeeeee] dark:border-[#2a2a2a]">
+              <a
+                href={selectedRepo.github_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center space-x-1.5 text-xs text-[#e60023] hover:underline font-mono"
+              >
+                <span>View on GitHub</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+              <button
+                onClick={() => setSelectedRepo(null)}
+                className="px-5 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-bold rounded-full transition cursor-pointer font-geist"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV Export Preview Modal */}
       {exportPreview && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/85 backdrop-blur-md animate-in fade-in"
@@ -4671,10 +1801,3 @@ export default function DashboardView({
     </div>
   );
 }
-
-
-
-
-
-
-

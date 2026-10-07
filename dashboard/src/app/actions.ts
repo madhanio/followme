@@ -671,11 +671,14 @@ export async function saveSystemSettings(settings: Record<string, any>) {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const rows = Object.entries(settings).map(([key, value]) => ({
-      key,
-      value,
-      updated_at: new Date().toISOString(),
-    }));
+    const EPHEMERAL = new Set(['_githubTokenDirty', '_resendApiKeyDirty']);
+    const rows = Object.entries(settings)
+      .filter(([key]) => !EPHEMERAL.has(key))
+      .map(([key, value]) => ({
+        key,
+        value,
+        updated_at: new Date().toISOString(),
+      }));
 
     const { error } = await supabase.from('settings').upsert(rows, { onConflict: 'key' });
     if (error) throw error;
@@ -688,6 +691,9 @@ export async function saveSystemSettings(settings: Record<string, any>) {
 }
 
 export async function getSystemSettings(includeSensitive: boolean = false): Promise<Record<string, any> | null> {
+  const SENSITIVE = new Set(['githubtoken', 'resendapikey', 'dashboardpassword', 'webhooksecret']);
+  const normalizeKey = (k: string) => k.toLowerCase().replace(/_/g, '');
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) return null;
@@ -700,9 +706,7 @@ export async function getSystemSettings(includeSensitive: boolean = false): Prom
     if (error || !data) return null;
     const settingsMap: Record<string, any> = {};
     for (const row of data) {
-      // Never expose github_token, resend_api_key, or dashboard_password unless explicitly requested server-side
-      if (!includeSensitive && (row.key === 'github_token' || row.key === 'resend_api_key' || row.key === 'dashboard_password')) {
-        // Expose a boolean flag so UI knows key exists without exposing the raw secret
+      if (!includeSensitive && SENSITIVE.has(normalizeKey(row.key))) {
         settingsMap[`has_${row.key}`] = Boolean(row.value);
         continue;
       }
