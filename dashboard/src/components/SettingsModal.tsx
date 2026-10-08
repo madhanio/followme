@@ -84,6 +84,8 @@ export interface SettingsModalProps {
   webhookTestStatus?: { success: boolean; message: string } | null;
   onTriggerAgent: () => Promise<void>;
   onGitHubOAuth: (e?: React.MouseEvent) => void;
+  onExport?: () => void;
+  onDeleteAll?: () => Promise<void>;
 }
 
 export function SettingsModal({
@@ -101,6 +103,8 @@ export function SettingsModal({
   onSaveSettings,
   onSendTestEmail,
   onGitHubOAuth,
+  onExport,
+  onDeleteAll,
 }: SettingsModalProps) {
   const [tab, setTab] = useState<'general' | 'data'>('general');
 
@@ -109,14 +113,12 @@ export function SettingsModal({
   const gradeThreshold = Number(tempSettings.gradeThreshold ?? 7);
 
   function handleExportCSV() {
-    // TODO: wire to real repos array / server action in Part G
-    alert('Export not yet wired');
+    onExport?.();
   }
 
-  function handleDeleteAll() {
+  async function handleDeleteAll() {
     if (!confirm('Delete ALL profile data? This cannot be undone.')) return;
-    // TODO: wire to real server action in Part G
-    alert('Delete not yet wired');
+    await onDeleteAll?.();
   }
 
   return (

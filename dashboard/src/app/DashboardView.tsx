@@ -67,6 +67,7 @@ import FollowChart from '@/components/charts/FollowChart';
 import BandChart from '@/components/charts/BandChart';
 import ProfilesSection from '@/components/ProfilesSection';
 import ProfileDrawer from '@/components/ProfileDrawer';
+import ActivityFeed from '@/components/ActivityFeed';
 
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
@@ -917,7 +918,7 @@ export default function DashboardView({
     router.refresh();
   };
 
-  const handleExportCSV = () => {
+  const handleExportPreviewCSV = () => {
     const headers = ['Owner', 'ReposCount', 'AvgGrade', 'FollowStatus'];
     const rows = allProfiles.map(p => {
       let statusLabel = 'Pending';
@@ -1144,6 +1145,26 @@ export default function DashboardView({
     }
   };
 
+  function handleExportCSV() {
+    const rows = repos
+      .filter((r) => r.followed)
+      .map((r) => [
+        r.owner ?? '',
+        r.grade ?? '',
+        r.follow_back ? 'true' : 'false',
+        (r.reason ?? '').replace(/"/g, '""'),
+      ]);
+    const header = 'login,grade,follow_back,reason\n';
+    const csv = header + rows.map((r) => r.map((v) => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'followme-profiles.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg)', color:'var(--ink)' }}>
 
@@ -1174,8 +1195,8 @@ export default function DashboardView({
           onProfileClick={handleProfileClick}
         />
 
-        {/* ── ACTIVITY FEED (Part F placeholder) ── */}
-        <div id="activity-feed" style={{ background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)', minHeight:120 }} />
+        {/* ── ACTIVITY FEED (Part G) ── */}
+        <ActivityFeed repos={repos} />
 
       </main>
 
@@ -1201,6 +1222,10 @@ export default function DashboardView({
         webhookTestStatus={webhookTestStatus}
         onTriggerAgent={handleTriggerAgent}
         onGitHubOAuth={handleGitHubOAuth}
+        onExport={handleExportCSV}
+        onDeleteAll={async () => {
+          /* TODO: wire server action */
+        }}
       />
 
       {/* Extracted Unfollow / Cleanup Modal */}
