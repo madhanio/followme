@@ -27,15 +27,20 @@ export default function RootLayout({
       }}
     >
       <head>
-        <meta name="google" content="notranslate" />
         <script dangerouslySetInnerHTML={{ __html: `
-          try {
-            var t = localStorage.getItem('fm-theme');
-            if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-              document.documentElement.classList.add('dark');
-            }
-          } catch(e) {}
-        `}} />
+(function(){
+  try {
+    var t = localStorage.getItem('fm-theme');
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (t === 'dark' || (!t && prefersDark)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  } catch(e) {}
+})();
+`}} />
+        <meta name="google" content="notranslate" />
       </head>
       <body className="notranslate min-h-full bg-[#f9f9f9] text-[#1a1c1c] dark:bg-[#0d0d0d] dark:text-[#f0f0f0] flex flex-col font-sans">
         {children}

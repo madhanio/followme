@@ -24,12 +24,9 @@ export default function Header({
 }: HeaderProps) {
   const [isDark, setIsDark] = useState(false);
 
+  /* Read the class the layout script already set — no toggle, just sync state */
   useEffect(() => {
-    const saved = localStorage.getItem('fm-theme');
-    const initial =
-      saved === 'dark' || (!saved && document.documentElement.classList.contains('dark'));
-    document.documentElement.classList.toggle('dark', initial);
-    setIsDark(initial);
+    setIsDark(document.documentElement.classList.contains('dark'));
   }, []);
 
   function toggleDark() {

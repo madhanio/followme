@@ -12,6 +12,15 @@ export interface DashboardData {
   healthState?: SystemHealthState;
 }
 
+export const REPOS_SELECT = [
+  'id', 'owner', 'login', 'full_name', 'repo_name',
+  'grade', 'followed', 'unfollowed', 'follow_back',
+  'language', 'avatar_url', 'bio', 'reason',
+  'followers_count', 'following_count',
+  'stargazers_count', 'created_at', 'updated_at',
+  'source', 'account_created_at', 'last_pushed_at',
+].join(', ');
+
 export async function fetchDashboardData(options?: { checkHealth?: boolean }): Promise<DashboardData> {
   const [userProfile, dbSettings, rateLimitRes, healthState] = await Promise.all([
     getUserProfile().catch(() => null),
@@ -33,7 +42,7 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
 
   let repos: Repo[] = [];
   try {
-    repos = await fetchAllRows<Repo>(supabase, 'repos', '*');
+    repos = await fetchAllRows<Repo>(supabase, 'repos', REPOS_SELECT);
   } catch (reposError: unknown) {
     const msg = reposError instanceof Error ? reposError.message : String(reposError);
     console.error('Error fetching repos details:', msg);

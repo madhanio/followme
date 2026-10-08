@@ -32,9 +32,18 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
   ]);
 
   // Paginated fetch to select all rows across 1000+ records
+  const REPOS_SELECT = [
+    'id', 'owner', 'login', 'full_name', 'repo_name',
+    'grade', 'followed', 'unfollowed', 'follow_back',
+    'language', 'avatar_url', 'bio', 'reason',
+    'followers_count', 'following_count',
+    'stargazers_count', 'created_at', 'updated_at',
+    'source', 'account_created_at', 'last_pushed_at',
+  ].join(', ');
+
   let repos: any[] = [];
   try {
-    repos = await fetchAllRows(supabase, 'repos', '*');
+    repos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
   } catch (reposError: any) {
     console.error('Error fetching repos details:', reposError.message || reposError);
   }

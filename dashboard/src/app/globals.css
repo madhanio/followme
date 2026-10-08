@@ -72,3 +72,8 @@ input:focus, select:focus, textarea:focus {
 
 /* Button base */
 button { font-family: inherit; }
+
+@keyframes fm-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
