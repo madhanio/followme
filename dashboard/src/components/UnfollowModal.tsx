@@ -47,34 +47,110 @@ export function UnfollowModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 dark:bg-black/85 backdrop-blur-sm">
-      <div className="bg-white dark:bg-[#111111] border-t sm:border border-[#dadada] dark:border-[#2a2a2a] w-full sm:max-w-2xl h-[92vh] sm:h-auto sm:max-h-[85vh] rounded-t-2xl sm:rounded-xl flex flex-col shadow-2xl overflow-hidden font-mono text-xs">
-        <div className="px-5 py-4 border-b border-[#dadada] dark:border-[#2a2a2a] bg-[#f9f9f9] dark:bg-[#151515] flex items-center justify-between">
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        background: 'rgba(0,0,0,0.4)',
+        backdropFilter: 'blur(4px)',
+      }}
+    >
+      <div
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--line)',
+          width: '100%',
+          maxWidth: 620,
+          maxHeight: '85vh',
+          borderRadius: 'var(--r)',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+          overflow: 'hidden',
+          fontSize: 13,
+          color: 'var(--ink)',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--line)',
+            background: 'var(--surface)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <div>
-            <span className="text-[10px] text-[#767676] uppercase tracking-wider">Maintenance Dashboard</span>
-            <h3 className="text-xs font-bold text-[#1a1c1c] dark:text-[#f0f0f0] uppercase tracking-widest mt-0.5">Cleanup Assistant</h3>
+            <span
+              style={{
+                fontSize: 10,
+                color: 'var(--muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                fontWeight: 600,
+                display: 'block',
+              }}
+            >
+              Maintenance
+            </span>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '2px 0 0', color: 'var(--ink)' }}>
+              Cleanup Assistant
+            </h3>
           </div>
           <button
             onClick={() => {
               onClose();
               setCleanupOption(null);
             }}
-            className="px-3.5 py-2 hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-lg border border-[#dadada] dark:border-[#2a2a2a] cursor-pointer transition"
+            style={{
+              padding: '6px 12px',
+              background: 'var(--hover)',
+              color: 'var(--ink)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-sm)',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
           >
             Close
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        {/* Content body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
           {cleanupOption === null ? (
-            <div className="space-y-4 font-sans">
-              <p className="text-[#767676] text-xs">Select a maintenance task to run:</p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
+                Select a maintenance task to run:
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+                {/* 1. Bulk Unfollow */}
+                <div
+                  style={{
+                    padding: 16,
+                    background: 'var(--hover)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--r-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
                   <div>
-                    <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">1. Bulk Unfollow</h4>
-                    <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
+                    <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                      1. Bulk Unfollow
+                    </h4>
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
                       Unfollows anyone followed &gt;7 days ago who has not followed back.
                     </p>
                   </div>
@@ -84,16 +160,41 @@ export function UnfollowModal({
                       onClose();
                     }}
                     disabled={isCleaning}
-                    className="w-full min-h-[36px] bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full cursor-pointer transition disabled:opacity-50 font-geist"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'var(--warn-tint)',
+                      color: 'var(--warn)',
+                      border: '1px solid var(--warn)',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: isCleaning ? 'not-allowed' : 'pointer',
+                      opacity: isCleaning ? 0.6 : 1,
+                    }}
                   >
                     Run Bulk Cleanup
                   </button>
                 </div>
 
-                <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
+                {/* 2. Selective Unfollow */}
+                <div
+                  style={{
+                    padding: 16,
+                    background: 'var(--hover)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--r-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
                   <div>
-                    <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0]">2. Selective Unfollow</h4>
-                    <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
+                    <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                      2. Selective Unfollow
+                    </h4>
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
                       Preview eligible developers to unfollow them selectively or in bulk.
                     </p>
                   </div>
@@ -102,16 +203,40 @@ export function UnfollowModal({
                       await onFetchUnfollowList();
                       setCleanupOption('list');
                     }}
-                    className="w-full min-h-[36px] bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition font-geist"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'var(--surface)',
+                      color: 'var(--ink)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
                   >
                     Preview & Select
                   </button>
                 </div>
 
-                <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
+                {/* 3. Log Cleanup */}
+                <div
+                  style={{
+                    padding: 16,
+                    background: 'var(--hover)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--r-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
                   <div>
-                    <h4 className="font-bold text-[#0058bb] dark:text-blue-400">3. Log Cleanup</h4>
-                    <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
+                    <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                      3. Log Cleanup
+                    </h4>
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
                       Purges old logs history to save database storage, keeping the latest 200 logs.
                     </p>
                   </div>
@@ -120,16 +245,40 @@ export function UnfollowModal({
                       await onFetchTotalLogsCount();
                       setCleanupOption('logs');
                     }}
-                    className="w-full min-h-[36px] bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition font-geist"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'var(--surface)',
+                      color: 'var(--ink)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
                   >
                     Purge Old Logs
                   </button>
                 </div>
 
-                <div className="p-4 bg-[#fdfdfd] dark:bg-[#181818] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex flex-col justify-between space-y-3">
+                {/* 4. Clear Stale Profiles */}
+                <div
+                  style={{
+                    padding: 16,
+                    background: 'var(--hover)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--r-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
                   <div>
-                    <h4 className="font-bold text-orange-500">4. Clear Stale Profiles</h4>
-                    <p className="text-[#767676] text-[11px] mt-1 leading-relaxed">
+                    <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                      4. Clear Stale Profiles
+                    </h4>
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
                       Deletes discovered profiles that were skipped and never starred or followed.
                     </p>
                   </div>
@@ -137,7 +286,17 @@ export function UnfollowModal({
                     onClick={() => {
                       setCleanupOption('stale');
                     }}
-                    className="w-full min-h-[36px] bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] text-xs font-bold rounded-full cursor-pointer transition font-geist"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'var(--surface)',
+                      color: 'var(--ink)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
                   >
                     Clear Stale Data
                   </button>
@@ -145,37 +304,83 @@ export function UnfollowModal({
               </div>
             </div>
           ) : cleanupOption === 'list' ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-2">
-                <h4 className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] uppercase tracking-widest text-[10px]">Unfollow Candidates list</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid var(--line)',
+                  paddingBottom: 8,
+                }}
+              >
+                <h4 style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink)' }}>
+                  Unfollow Candidates List
+                </h4>
                 <button
                   onClick={() => setCleanupOption(null)}
-                  className="text-xs hover:underline cursor-pointer"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 12,
+                    color: 'var(--accent)',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                  }}
                 >
-                  &larr; Back Options
+                  &larr; Back to Options
                 </button>
               </div>
 
               {isFetchingUnfollowList ? (
-                <div className="py-8 text-center text-[#767676]">Fetching candidates list...</div>
+                <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                  Fetching candidates list...
+                </div>
               ) : unfollowList.length === 0 ? (
-                <div className="py-8 text-center text-[#767676] font-semibold">No users match the cleanup criteria right now.</div>
+                <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13, fontWeight: 500 }}>
+                  No users match the cleanup criteria right now.
+                </div>
               ) : (
-                <div className="space-y-3">
-                  <div className="space-y-2.5 max-h-[40vh] overflow-y-auto pr-1.5">
-                    {unfollowList.map(user => (
-                      <div key={user.id} className="p-3.5 bg-[#fbfbfb] dark:bg-[#161616] border border-[#dadada] dark:border-[#2a2a2a] rounded-xl flex items-center justify-between gap-3 text-zinc-300">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '42vh', overflowY: 'auto', paddingRight: 4 }}>
+                    {unfollowList.map((user) => (
+                      <div
+                        key={user.id}
+                        style={{
+                          padding: '10px 14px',
+                          background: 'var(--hover)',
+                          border: '1px solid var(--line)',
+                          borderRadius: 'var(--r-sm)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                        }}
+                      >
                         <div>
-                          <span className="font-bold text-[#1a1c1c] dark:text-[#f0f0f0] block text-xs">@{user.owner}</span>
-                          <span className="text-[10px] text-[#767676] block mt-0.5">Followed: {new Date(user.followed_at).toLocaleDateString()}</span>
+                          <span style={{ fontWeight: 600, color: 'var(--ink)', display: 'block', fontSize: 13 }}>
+                            @{user.owner}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginTop: 2 }}>
+                            Followed: {new Date(user.followed_at).toLocaleDateString()}
+                          </span>
                         </div>
-                        <div className="flex items-center space-x-2 shrink-0">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                           <button
                             onClick={async () => {
                               await onUnfollowUser(user.owner);
                               onRemoveFromUnfollowList(user.owner);
                             }}
-                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 rounded-full text-[11px] font-bold cursor-pointer font-geist"
+                            style={{
+                              padding: '5px 12px',
+                              background: 'var(--warn-tint)',
+                              border: '1px solid var(--warn)',
+                              color: 'var(--warn)',
+                              borderRadius: 'var(--r-sm)',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
                           >
                             Unfollow
                           </button>
@@ -183,7 +388,18 @@ export function UnfollowModal({
                             href={`https://github.com/${user.owner}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="px-3 py-1.5 bg-transparent border border-[#dadada] dark:border-[#2a2a2a] hover:bg-[#f3f3f3] dark:hover:bg-[#222] text-[#1a1c1c] dark:text-[#f0f0f0] rounded-full text-[11px] font-bold flex items-center font-geist"
+                            style={{
+                              padding: '5px 12px',
+                              background: 'var(--surface)',
+                              border: '1px solid var(--line)',
+                              color: 'var(--ink)',
+                              borderRadius: 'var(--r-sm)',
+                              fontSize: 11,
+                              fontWeight: 500,
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                            }}
                           >
                             Profile
                           </a>
@@ -191,14 +407,28 @@ export function UnfollowModal({
                       </div>
                     ))}
                   </div>
-                  <div className="pt-2">
+                  <div style={{ paddingTop: 8 }}>
                     <button
                       onClick={async () => {
                         await onRunBulkCleanup();
                         onClose();
                       }}
                       disabled={isCleaning}
-                      className="w-full min-h-[40px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full cursor-pointer disabled:opacity-50 font-geist"
+                      style={{
+                        width: '100%',
+                        padding: '10px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'var(--warn-tint)',
+                        color: 'var(--warn)',
+                        border: '1px solid var(--warn)',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        borderRadius: 'var(--r-sm)',
+                        cursor: isCleaning ? 'not-allowed' : 'pointer',
+                        opacity: isCleaning ? 0.6 : 1,
+                      }}
                     >
                       Unfollow All ({unfollowList.length})
                     </button>
@@ -207,28 +437,53 @@ export function UnfollowModal({
               )}
             </div>
           ) : cleanupOption === 'logs' ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-2">
-                <h4 className="font-bold text-[#0058bb] dark:text-blue-400 uppercase tracking-widest text-[10px]">Logs Cleanup Confirmation</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid var(--line)',
+                  paddingBottom: 8,
+                }}
+              >
+                <h4 style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--accent)' }}>
+                  Logs Cleanup Confirmation
+                </h4>
                 <button
                   onClick={() => setCleanupOption(null)}
-                  className="text-xs hover:underline cursor-pointer"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 12,
+                    color: 'var(--accent)',
+                    cursor: 'pointer',
+                  }}
                 >
                   &larr; Back
                 </button>
               </div>
 
-              <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-xl text-[#0058bb] dark:text-blue-400 font-sans">
-                <p className="font-bold text-xs">⚠️ PURGING HISTORICAL ACTION LOGS</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
+              <div
+                style={{
+                  padding: 16,
+                  background: 'var(--hover)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--r-sm)',
+                }}
+              >
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
+                  PURGING HISTORICAL ACTION LOGS
+                </p>
+                <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--muted)' }}>
                   This action will delete all old worker logs except for the latest 200 entries. It will not alter repository evaluation scores or follower details.
                 </p>
-                <p className="mt-3 text-xs font-semibold text-[#0058bb] dark:text-blue-400 font-mono">
+                <p style={{ margin: '12px 0 0', fontSize: 12, fontWeight: 600, color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>
                   This will delete {Math.max(0, totalLogsCount - 200)} old log entries (Total logs in DB: {totalLogsCount}).
                 </p>
               </div>
 
-              <div className="pt-2">
+              <div style={{ paddingTop: 8 }}>
                 <button
                   onClick={async () => {
                     await onRunLogCleanup();
@@ -236,35 +491,74 @@ export function UnfollowModal({
                     setCleanupOption(null);
                   }}
                   disabled={isCleaning}
-                  className="w-full min-h-[40px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist"
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'var(--warn-tint)',
+                    color: 'var(--warn)',
+                    border: '1px solid var(--warn)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    borderRadius: 'var(--r-sm)',
+                    cursor: isCleaning ? 'not-allowed' : 'pointer',
+                    opacity: isCleaning ? 0.6 : 1,
+                  }}
                 >
                   Confirm and Delete Logs
                 </button>
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-[#eeeeee] dark:border-[#2a2a2a] pb-2">
-                <h4 className="font-bold text-orange-500 uppercase tracking-widest text-[10px]">Stale Profiles Cleanup</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid var(--line)',
+                  paddingBottom: 8,
+                }}
+              >
+                <h4 style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--warn)' }}>
+                  Stale Profiles Cleanup
+                </h4>
                 <button
                   onClick={() => setCleanupOption(null)}
-                  className="text-xs hover:underline cursor-pointer"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 12,
+                    color: 'var(--accent)',
+                    cursor: 'pointer',
+                  }}
                 >
                   &larr; Back
                 </button>
               </div>
 
-              <div className="p-4 bg-orange-50 dark:bg-orange-950/10 border border-orange-200 dark:border-orange-900/30 rounded-xl text-orange-600 dark:text-orange-400 font-sans">
-                <p className="font-bold text-xs">⚠️ STALE PROFILE DATA REMOVAL</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-[#767676] dark:text-zinc-400 font-sans">
+              <div
+                style={{
+                  padding: 16,
+                  background: 'var(--warn-tint)',
+                  border: '1px solid var(--warn)',
+                  borderRadius: 'var(--r-sm)',
+                }}
+              >
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 12, color: 'var(--warn)' }}>
+                  STALE PROFILE DATA REMOVAL
+                </p>
+                <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--ink)' }}>
                   Deletes profiles from the database that were evaluated and skipped, but never starred or followed. Freeing up unnecessary metadata storage.
                 </p>
-                <p className="mt-3 text-xs font-semibold text-orange-605 font-mono">
+                <p style={{ margin: '12px 0 0', fontSize: 12, fontWeight: 600, color: 'var(--warn)', fontFamily: 'var(--font-mono)' }}>
                   This will remove {staleProfilesCount} stale profiles from your table.
                 </p>
               </div>
 
-              <div className="pt-2">
+              <div style={{ paddingTop: 8 }}>
                 <button
                   onClick={async () => {
                     await onRunClearStale();
@@ -272,7 +566,21 @@ export function UnfollowModal({
                     setCleanupOption(null);
                   }}
                   disabled={isCleaning}
-                  className="w-full min-h-[40px] flex items-center justify-center bg-[#e60023] hover:bg-[#c0001b] text-white text-xs font-bold rounded-full transition cursor-pointer font-geist"
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'var(--warn-tint)',
+                    color: 'var(--warn)',
+                    border: '1px solid var(--warn)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    borderRadius: 'var(--r-sm)',
+                    cursor: isCleaning ? 'not-allowed' : 'pointer',
+                    opacity: isCleaning ? 0.6 : 1,
+                  }}
                 >
                   Confirm and Clear Stale Profiles
                 </button>
