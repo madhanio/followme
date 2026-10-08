@@ -63,6 +63,8 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { UnfollowModal } from '@/components/UnfollowModal';
 import Header from '@/components/Header';
 import StatStrip from '@/components/StatStrip';
+import FollowChart from '@/components/charts/FollowChart';
+import BandChart from '@/components/charts/BandChart';
 
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
@@ -1145,10 +1147,10 @@ export default function DashboardView({
         {/* ── STAT STRIP (Part B) ── */}
         <StatStrip repos={repos} />
 
-        {/* ── CHARTS ROW (Part C placeholder) ── */}
+        {/* ── CHARTS ROW (Part C) ── */}
         <div id="charts-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-          <div style={{ height:220, background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)' }} />
-          <div style={{ height:220, background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)' }} />
+          <FollowChart repos={repos} />
+          <BandChart repos={repos} />
         </div>
 
         {/* ── PROFILES LIST (Part D placeholder) ── */}
