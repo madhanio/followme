@@ -65,6 +65,7 @@ import Header from '@/components/Header';
 import StatStrip from '@/components/StatStrip';
 import FollowChart from '@/components/charts/FollowChart';
 import BandChart from '@/components/charts/BandChart';
+import ProfilesSection from '@/components/ProfilesSection';
 
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
@@ -221,6 +222,9 @@ export default function DashboardView({
   const [isPaused, setIsPaused] = useState(false);
   const handlePause = () => { setIsPaused(true); setRunStatus('paused'); };
   const handleUnpause = () => { setIsPaused(false); setRunStatus('idle'); };
+
+  const [selectedProfile, setSelectedProfile] = useState<ProfileItem | null>(null);
+  const handleProfileClick = (p: ProfileItem) => setSelectedProfile(p);
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -489,7 +493,16 @@ export default function DashboardView({
       }
     });
 
-    return Array.from(profilesMap.values());
+    return Array.from(profilesMap.values()).map(p => ({
+      ...p,
+      login: p.owner,
+      avatar_url: `https://github.com/${p.owner}.png`,
+      grade: p.avgGrade || p.repos[0]?.grade || 0,
+      followed: p.followStatus.followed,
+      follow_back: p.followStatus.follow_back,
+      unfollowed: p.followStatus.unfollowed,
+      language: p.repos[0]?.language || null,
+    }));
   }, [repos]);
 
   const stats = useMemo(() => {
@@ -1153,8 +1166,11 @@ export default function DashboardView({
           <BandChart repos={repos} />
         </div>
 
-        {/* ── PROFILES LIST (Part D placeholder) ── */}
-        <div id="profiles-section" style={{ background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)', minHeight:400 }} />
+        {/* ── PROFILES LIST (Part D) ── */}
+        <ProfilesSection
+          profiles={allProfiles}
+          onProfileClick={handleProfileClick}
+        />
 
         {/* ── ACTIVITY FEED (Part F placeholder) ── */}
         <div id="activity-feed" style={{ background:'var(--surface)', borderRadius:'var(--r)', border:'1px solid var(--line)', minHeight:120 }} />

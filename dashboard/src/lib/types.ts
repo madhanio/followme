@@ -60,6 +60,13 @@ export interface UserProfile {
 
 export interface ProfileItem {
   owner: string;
+  login?: string;
+  avatar_url?: string | null;
+  grade?: number | null;
+  followed?: boolean | null;
+  follow_back?: boolean | null;
+  unfollowed?: boolean | null;
+  language?: string | null;
   reposCount: number;
   repos: Repo[];
   languages?: string[];
