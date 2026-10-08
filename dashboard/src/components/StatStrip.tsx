@@ -84,7 +84,9 @@ export default function StatStrip({ repos }: StatStripProps) {
 
   /* ── Derive rows ── */
   const followed   = repos.filter(r => r.followed && !r.unfollowed);
-  const followedBack = repos.filter(r => r.follow_back === true);
+  /* Only count follow_back on rows we actually followed —
+     excludes inbound-only synthetic rows (follow_back=true, followed=false) */
+  const followedBack = repos.filter(r => r.follow_back === true && r.followed === true);
   const topPicks   = repos.filter(r => (r.grade ?? 0) >= 9 && r.language !== 'Profile');
   const unfollowed = repos.filter(r => r.unfollowed === true);
 
