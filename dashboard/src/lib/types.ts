@@ -28,6 +28,9 @@ export interface Repo {
   source?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  repo_name?: string | null;
+  full_name?: string | null;
+  stargazers_count?: number | null;
 }
 
 export interface Log {
@@ -75,6 +78,8 @@ export interface ProfileItem {
   latestGradedAt?: string;
   reason?: string | null;
   bio?: string | null;
+  followers_count?: number | null;
+  following_count?: number | null;
   followStatus: {
     followed: boolean;
     unfollowed: boolean;

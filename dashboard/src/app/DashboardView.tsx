@@ -66,6 +66,7 @@ import StatStrip from '@/components/StatStrip';
 import FollowChart from '@/components/charts/FollowChart';
 import BandChart from '@/components/charts/BandChart';
 import ProfilesSection from '@/components/ProfilesSection';
+import ProfileDrawer from '@/components/ProfileDrawer';
 
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
@@ -1436,6 +1437,13 @@ export default function DashboardView({
           </div>
         </div>
       )}
+
+      <ProfileDrawer
+        profile={selectedProfile}
+        repos={repos}
+        onClose={() => setSelectedProfile(null)}
+        onUnfollow={handleUnfollowUser}
+      />
     </div>
   );
 }
