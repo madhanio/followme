@@ -8,53 +8,57 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
   const searchParams = props.searchParams ? await props.searchParams : undefined;
   const initialTab = searchParams?.tab === 'stats' ? 'stats' : 'home';
 
-  const [userProfile, dbSettings, rateLimitRes] = await Promise.all([
-    getUserProfile().catch(() => null),
-    getSystemSettings().catch(() => null),
-    getGitHubRateLimit().catch(() => ({ success: false, data: undefined })),
-  ]);
-
-  // Paginated fetch to select all rows across 1000+ records
+  // Select only columns needed for initial dashboard rendering (excluding bulky readme snippets)
   const REPOS_SELECT = [
     'id', 'github_url', 'owner', 'name', 'stars', 'language', 'topics',
-    'readme_snippet', 'grade', 'graded_at', 'followed', 'starred',
+    'grade', 'graded_at', 'followed', 'starred',
     'followed_at', 'follow_back', 'unfollowed', 'follow_skipped',
-    'follow_skip_reason', 'created_at', 'reason', 'bio',
+    'follow_skip_reason', 'created_at', 'updated_at', 'reason', 'bio',
     'followers_count', 'following_count', 'account_created_at',
     'last_pushed_at', 'source',
   ].join(', ');
 
-  let repos: any[] = [];
-  try {
-    repos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
-  } catch (reposError: any) {
-    console.error('Error fetching repos details:', reposError.message || reposError);
-  }
-
-  // Fetch recent logs
-  let logs: any[] = [];
-  try {
-    const { data: logsData, error: logsError } = await supabase
-      .from('logs')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(500);
-    if (!logsError && logsData) logs = logsData;
-  } catch (logsErr: any) {
-    console.error('Error fetching logs details:', logsErr.message || logsErr);
-  }
-
-  // Fetch run summaries
-  let runSummary: any[] = [];
-  try {
-    const { data: summaryData, error: summaryError } = await supabase
-      .from('run_summary')
-      .select('*')
-      .order('ran_at', { ascending: false });
-    if (!summaryError && summaryData) runSummary = summaryData;
-  } catch (summaryErr: any) {
-    console.error('Error fetching run summary details:', summaryErr.message || summaryErr);
-  }
+  // Fetch all core datasets simultaneously in parallel rather than serial sequential queries
+  const [
+    userProfile,
+    dbSettings,
+    rateLimitRes,
+    repos,
+    logs,
+    runSummary
+  ] = await Promise.all([
+    getUserProfile().catch(() => null),
+    getSystemSettings().catch(() => null),
+    getGitHubRateLimit().catch(() => ({ success: false, data: undefined })),
+    fetchAllRows(supabase, 'repos', REPOS_SELECT).catch((err: any) => {
+      console.error('Error fetching repos details:', err.message || err);
+      return [];
+    }),
+    Promise.resolve(
+      supabase
+        .from('logs')
+        .select('id, action, repo_id, timestamp, status, message')
+        .order('timestamp', { ascending: false })
+        .limit(100)
+    )
+      .then(({ data, error }) => (!error && data ? data : []))
+      .catch((err: any) => {
+        console.error('Error fetching logs details:', err?.message || err);
+        return [];
+      }),
+    Promise.resolve(
+      supabase
+        .from('run_summary')
+        .select('*')
+        .order('ran_at', { ascending: false })
+        .limit(50)
+    )
+      .then(({ data, error }) => (!error && data ? data : []))
+      .catch((err: any) => {
+        console.error('Error fetching run summary details:', err?.message || err);
+        return [];
+      }),
+  ]);
 
   return (
     <DashboardView 

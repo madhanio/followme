@@ -5,40 +5,49 @@ import { getUserProfile, getSystemSettings, getGitHubRateLimit } from '../action
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilesPage() {
-  const [userProfile, dbSettings, rateLimitRes] = await Promise.all([
-    getUserProfile(),
-    getSystemSettings(),
-    getGitHubRateLimit().catch(() => ({ success: false, data: undefined }))
+  const REPOS_SELECT = [
+    'id', 'github_url', 'owner', 'name', 'stars', 'language', 'topics',
+    'grade', 'graded_at', 'followed', 'starred',
+    'followed_at', 'follow_back', 'unfollowed', 'follow_skipped',
+    'follow_skip_reason', 'created_at', 'updated_at', 'reason', 'bio',
+    'followers_count', 'following_count', 'account_created_at',
+    'last_pushed_at', 'source',
+  ].join(', ');
+
+  const [
+    userProfile,
+    dbSettings,
+    rateLimitRes,
+    repos,
+    logs,
+    runSummary
+  ] = await Promise.all([
+    getUserProfile().catch(() => null),
+    getSystemSettings().catch(() => null),
+    getGitHubRateLimit().catch(() => ({ success: false, data: undefined })),
+    fetchAllRows(supabase, 'repos', REPOS_SELECT).catch((err: any) => {
+      console.error('Error fetching repos for profiles page:', err.message || err);
+      return [];
+    }),
+    Promise.resolve(
+      supabase
+        .from('logs')
+        .select('id, action, repo_id, timestamp, status, message')
+        .order('timestamp', { ascending: false })
+        .limit(100)
+    )
+      .then(({ data, error }) => (!error && data ? data : []))
+      .catch(() => []),
+    Promise.resolve(
+      supabase
+        .from('run_summary')
+        .select('*')
+        .order('ran_at', { ascending: false })
+        .limit(50)
+    )
+      .then(({ data, error }) => (!error && data ? data : []))
+      .catch(() => []),
   ]);
-
-  // Paginated fetch to select all rows across 1000+ records
-  let repos: any[] = [];
-  try {
-    repos = await fetchAllRows(supabase, 'repos', '*');
-  } catch (reposError: any) {
-    console.error('Error fetching repos for profiles page:', reposError.message || reposError);
-  }
-
-  // Fetch recent logs
-  const { data: logs, error: logsError } = await supabase
-    .from('logs')
-    .select('*')
-    .order('timestamp', { ascending: false })
-    .limit(500);
-
-  if (logsError) {
-    console.error('Error fetching logs for profiles page:', logsError.message);
-  }
-
-  // Fetch run summaries
-  const { data: runSummary, error: summaryError } = await supabase
-    .from('run_summary')
-    .select('*')
-    .order('ran_at', { ascending: false });
-
-  if (summaryError) {
-    console.error('Error fetching run summary details for profiles page:', summaryError.message);
-  }
 
   return (
     <DashboardView 

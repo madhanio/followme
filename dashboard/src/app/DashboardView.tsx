@@ -72,7 +72,7 @@ import ActivityFeed from '@/components/ActivityFeed';
 
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
-const cleanSnippet = (text: string) => {
+const cleanSnippet = (text?: string | null) => {
   if (!text) return '';
   return text
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
@@ -290,8 +290,12 @@ export default function DashboardView({
   useEffect(() => {
     fetchStatus();
     setMounted(true);
-    const darkActive = document.documentElement.classList.contains('dark');
-    setIsDark(darkActive);
+    const syncTheme = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    syncTheme();
+
+    window.addEventListener('themechange', syncTheme);
 
     const localSaved = localStorage.getItem('savedSettings');
     if (localSaved && !initialSettings) {
@@ -299,6 +303,10 @@ export default function DashboardView({
         setSavedSettings(JSON.parse(localSaved));
       } catch (e) {}
     }
+
+    return () => {
+      window.removeEventListener('themechange', syncTheme);
+    };
   }, [initialSettings]);
 
   useEffect(() => {
@@ -346,16 +354,11 @@ export default function DashboardView({
   const toggleDarkMode = () => {
     const isCurrentlyDark = document.documentElement.classList.contains('dark');
     const nextDark = !isCurrentlyDark;
+    document.documentElement.classList.toggle('dark', nextDark);
+    localStorage.setItem('fm-theme', nextDark ? 'dark' : 'light');
+    localStorage.setItem('theme', nextDark ? 'dark' : 'light');
     setIsDark(nextDark);
-    if (nextDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('fm-theme', 'dark');
-      localStorage['fm-theme'] = 'dark';
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('fm-theme', 'light');
-      localStorage['fm-theme'] = 'light';
-    }
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { isDark: nextDark } }));
   };
 
   const handleTabChange = (newTab: 'home' | 'profiles' | 'repos' | 'logs' | 'stats', filter: any = null) => {

@@ -30,8 +30,8 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: `
 (function(){
   try {
-    var t = localStorage.getItem('fm-theme');
-    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var t = localStorage.getItem('fm-theme') || localStorage.getItem('theme');
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (t === 'dark' || (!t && prefersDark)) {
       document.documentElement.classList.add('dark');
     } else {

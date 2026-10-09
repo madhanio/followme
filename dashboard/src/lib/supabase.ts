@@ -14,8 +14,9 @@ export async function fetchAllRows<T = any>(
 ): Promise<T[]> {
   const allRows: T[] = [];
   let page = 0;
+  const MAX_PAGES = 10; // Safety guard: max 10,000 rows
 
-  while (true) {
+  while (page < MAX_PAGES) {
     const from = page * pageSize;
     const to = from + pageSize - 1;
 
@@ -24,10 +25,16 @@ export async function fetchAllRows<T = any>(
       query = filterFn(query);
     }
 
-    const { data, error } = await query;
+    // Guard with a 6-second timeout to avoid eternal hangs on slow or cold DB connections
+    const fetchPromise = query;
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout fetching ${table} page ${page}`)), 6000)
+    );
+
+    const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
     if (error) {
       console.error(`Error fetching rows from ${table} (range ${from}-${to}):`, error.message);
-      throw error;
+      break;
     }
 
     if (!data || data.length === 0) {

@@ -9,7 +9,7 @@ export interface Repo {
   stars: number;
   language: string;
   topics: string[];
-  readme_snippet: string;
+  readme_snippet?: string;
   grade: number;
   graded_at: string;
   followed?: boolean;

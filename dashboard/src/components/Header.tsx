@@ -23,16 +23,36 @@ export default function Header({
 }: HeaderProps) {
   const [isDark, setIsDark] = useState(false);
 
-  /* Read the class the layout script already set — no toggle, just sync state */
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'));
+    const updateThemeState = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    updateThemeState();
+
+    window.addEventListener('themechange', updateThemeState);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      if (!localStorage.getItem('fm-theme')) {
+        document.documentElement.classList.toggle('dark', e.matches);
+        setIsDark(e.matches);
+      }
+    };
+    mediaQuery.addEventListener('change', handleMediaChange);
+
+    return () => {
+      window.removeEventListener('themechange', updateThemeState);
+      mediaQuery.removeEventListener('change', handleMediaChange);
+    };
   }, []);
 
   function toggleDark() {
-    const next = !isDark;
-    document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('fm-theme', next ? 'dark' : 'light');
-    setIsDark(next);
+    const isCurrentlyDark = document.documentElement.classList.contains('dark');
+    const nextDark = !isCurrentlyDark;
+    document.documentElement.classList.toggle('dark', nextDark);
+    localStorage.setItem('fm-theme', nextDark ? 'dark' : 'light');
+    localStorage.setItem('theme', nextDark ? 'dark' : 'light');
+    setIsDark(nextDark);
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { isDark: nextDark } }));
   }
 
   return (

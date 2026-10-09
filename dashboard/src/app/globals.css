@@ -3,60 +3,57 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --background: #FBFBFC;
+  --foreground: #16181D;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #FBFBFC;
+  --surface: #FFFFFF;
+  --ink: #16181D;
+  --muted: #6A7080;
+  --faint: #9AA0AE;
+  --line: #E7E9EE;
+  --line-strong: #D5D8E0;
+  --hover: #F4F5F8;
+  --accent: #12804A;
+  --accent-tint: #E4F4EB;
+  --warn: #9A5B00;
+  --warn-tint: #FBF0DC;
+  --r: 8px;
 }
 
 .dark {
-  --background: #0d0d0d;
-  --foreground: #f0f0f0;
-}
+  --background: #0B0C0E;
+  --foreground: #F0F2F5;
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-}
-
-/* Hide scrollbar for Chrome, Safari and Opera */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* Hide scrollbar for IE, Edge and Firefox */
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-:root {
-  --bg:#FBFBFC; --surface:#FFFFFF; --ink:#16181D; --muted:#6A7080;
-  --faint:#9AA0AE; --line:#E7E9EE; --line-strong:#D5D8E0;
-  --hover:#F4F5F8; --accent:#12804A; --accent-tint:#E4F4EB;
-  --warn:#9A5B00; --warn-tint:#FBF0DC; --r:8px;
-}
-.dark {
-  --bg:#0B0C0E; --surface:#121418; --ink:#F0F2F5; --muted:#8B92A0;
-  --faint:#555B68; --line:#20232A; --line-strong:#2D323C;
-  --hover:#181B21; --accent:#22C55E; --accent-tint:#0F291E;
-  --warn:#F59E0B; --warn-tint:#2E200C;
+  --bg: #0B0C0E;
+  --surface: #121418;
+  --ink: #F0F2F5;
+  --muted: #8B92A0;
+  --faint: #555B68;
+  --line: #20232A;
+  --line-strong: #2D323C;
+  --hover: #181B21;
+  --accent: #22C55E;
+  --accent-tint: #0F291E;
+  --warn: #F59E0B;
+  --warn-tint: #2E200C;
 }
 
 /* Base resets */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 body {
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbar (webkit) */

@@ -611,6 +611,7 @@ export async function getUserProfile() {
           Accept: 'application/vnd.github+json',
           'User-Agent': 'FollowMe-Dashboard'
         },
+        signal: AbortSignal.timeout(3500),
         next: { revalidate: 3600 }
       });
       if (res.ok) {
@@ -637,6 +638,7 @@ export async function getUserProfile() {
           Accept: 'application/vnd.github+json',
           'User-Agent': 'FollowMe-Dashboard'
         },
+        signal: AbortSignal.timeout(3500),
         next: { revalidate: 3600 }
       });
       if (res.ok) {
@@ -758,6 +760,7 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
   try {
     const res = await fetch('https://api.github.com/rate_limit', {
       headers,
+      signal: AbortSignal.timeout(3500),
       cache: 'no-store'
     });
 

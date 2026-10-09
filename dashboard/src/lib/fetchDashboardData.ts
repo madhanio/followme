@@ -14,15 +14,23 @@ export interface DashboardData {
 
 export const REPOS_SELECT = [
   'id', 'github_url', 'owner', 'name', 'stars', 'language', 'topics',
-  'readme_snippet', 'grade', 'graded_at', 'followed', 'starred',
+  'grade', 'graded_at', 'followed', 'starred',
   'followed_at', 'follow_back', 'unfollowed', 'follow_skipped',
-  'follow_skip_reason', 'created_at', 'reason', 'bio',
+  'follow_skip_reason', 'created_at', 'updated_at', 'reason', 'bio',
   'followers_count', 'following_count', 'account_created_at',
   'last_pushed_at', 'source',
 ].join(', ');
 
 export async function fetchDashboardData(options?: { checkHealth?: boolean }): Promise<DashboardData> {
-  const [userProfile, dbSettings, rateLimitRes, healthState] = await Promise.all([
+  const [
+    userProfile,
+    dbSettings,
+    rateLimitRes,
+    healthState,
+    repos,
+    logs,
+    runSummary
+  ] = await Promise.all([
     getUserProfile().catch(() => null),
     getSystemSettings().catch(() => null),
     getGitHubRateLimit().catch(() => ({ success: false, data: undefined as GitHubRateLimitData | undefined })),
@@ -38,40 +46,35 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
           lastChecked: new Date().toISOString(),
         }))
       : Promise.resolve(undefined),
+    fetchAllRows<Repo>(supabase, 'repos', REPOS_SELECT).catch((err: any) => {
+      console.error('Error fetching repos details:', err.message || err);
+      return [];
+    }),
+    Promise.resolve(
+      supabase
+        .from('logs')
+        .select('id, action, repo_id, timestamp, status, message')
+        .order('timestamp', { ascending: false })
+        .limit(100)
+    )
+      .then(({ data, error }) => (!error && data ? (data as Log[]) : []))
+      .catch((err: any) => {
+        console.error('Error fetching logs details:', err?.message || err);
+        return [];
+      }),
+    Promise.resolve(
+      supabase
+        .from('run_summary')
+        .select('*')
+        .order('ran_at', { ascending: false })
+        .limit(50)
+    )
+      .then(({ data, error }) => (!error && data ? (data as RunSummary[]) : []))
+      .catch((err: any) => {
+        console.error('Error fetching run summary details:', err?.message || err);
+        return [];
+      }),
   ]);
-
-  let repos: Repo[] = [];
-  try {
-    repos = await fetchAllRows<Repo>(supabase, 'repos', REPOS_SELECT);
-  } catch (reposError: unknown) {
-    const msg = reposError instanceof Error ? reposError.message : String(reposError);
-    console.error('Error fetching repos details:', msg);
-  }
-
-  let logs: Log[] = [];
-  try {
-    const { data: logsData, error: logsError } = await supabase
-      .from('logs')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(500);
-    if (!logsError && logsData) logs = logsData as Log[];
-  } catch (logsErr: unknown) {
-    const msg = logsErr instanceof Error ? logsErr.message : String(logsErr);
-    console.error('Error fetching logs details:', msg);
-  }
-
-  let runSummary: RunSummary[] = [];
-  try {
-    const { data: summaryData, error: summaryError } = await supabase
-      .from('run_summary')
-      .select('*')
-      .order('ran_at', { ascending: false });
-    if (!summaryError && summaryData) runSummary = summaryData as RunSummary[];
-  } catch (summaryErr: unknown) {
-    const msg = summaryErr instanceof Error ? summaryErr.message : String(summaryErr);
-    console.error('Error fetching run summary details:', msg);
-  }
 
   return {
     repos: repos || [],
