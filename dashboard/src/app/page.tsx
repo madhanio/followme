@@ -8,27 +8,10 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
   const searchParams = props.searchParams ? await props.searchParams : undefined;
   const initialTab = searchParams?.tab === 'stats' ? 'stats' : 'home';
 
-  const [userProfile, dbSettings, rateLimitRes, healthState] = await Promise.all([
+  const [userProfile, dbSettings, rateLimitRes] = await Promise.all([
     getUserProfile().catch(() => null),
     getSystemSettings().catch(() => null),
     getGitHubRateLimit().catch(() => ({ success: false, data: undefined })),
-    (async () => {
-      try {
-        const { checkSystemHealth } = await import('./actions');
-        return await checkSystemHealth();
-      } catch (err: any) {
-        return {
-          isGitHubValid: false,
-          gitHubError: err.message || 'Health check error',
-          gitHubUsername: null,
-          isDbConnected: false,
-          dbError: 'Could not connect to database',
-          isWorkerOnline: false,
-          workerError: 'Worker offline',
-          lastChecked: new Date().toISOString(),
-        };
-      }
-    })(),
   ]);
 
   // Paginated fetch to select all rows across 1000+ records
@@ -82,7 +65,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
       initialSettings={dbSettings || undefined}
       initialTab={initialTab}
       initialRateLimitData={rateLimitRes?.data || undefined}
-      initialHealthState={healthState}
+      initialHealthState={null}
     />
   );
 }

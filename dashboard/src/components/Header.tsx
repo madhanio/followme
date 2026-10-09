@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useEffect, useState } from 'react';
 
 export interface HeaderProps {
@@ -53,7 +52,12 @@ export default function Header({
 
       {/* LEFT GROUP */}
       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-        <Image src="/ghost_transparent.png" width={22} height={22} alt="FollowMe" unoptimized />
+        <div style={{
+          width:28, height:28, borderRadius:6,
+          background:'var(--accent)', color:'#fff',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontWeight:800, fontSize:14, flexShrink:0,
+        }}>F</div>
         <span style={{ color:'var(--ink)', fontWeight:600, fontSize:15, lineHeight:1 }}>FollowMe</span>
 
         {/* Status dot */}

@@ -38,11 +38,20 @@ export default function RootLayout({
       document.documentElement.classList.remove('dark');
     }
   } catch(e) {}
+  try {
+    if (document.body) {
+      document.body.classList.remove('opacity-0');
+    } else {
+      document.addEventListener('DOMContentLoaded', function(){
+        document.body.classList.remove('opacity-0');
+      });
+    }
+  } catch(e) {}
 })();
 `}} />
         <meta name="google" content="notranslate" />
       </head>
-      <body className="notranslate min-h-full flex flex-col font-sans">
+      <body className="notranslate min-h-full flex flex-col font-sans opacity-0">
         {children}
         <Analytics />
       </body>

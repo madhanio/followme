@@ -93,7 +93,7 @@ const cleanSnippet = (text: string) => {
   initialSettings?: Record<string, any>;
   initialTab?: 'home' | 'profiles' | 'repos' | 'logs' | 'stats';
   initialRateLimitData?: GitHubRateLimitData;
-  initialHealthState?: SystemHealthState;
+  initialHealthState?: SystemHealthState | null;
   isLoading?: boolean;
 }
 
