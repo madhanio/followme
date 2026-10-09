@@ -67,10 +67,17 @@ export async function checkSystemHealth(): Promise<SystemHealthState> {
   }
 
   // 2. Validate GitHub Token
-  const effectiveToken = dbSettings?.github_token || process.env.GITHUB_TOKEN;
+  let cookieGhToken: string | undefined;
+  try {
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    cookieGhToken = cookieStore.get('fm_gh_token')?.value;
+  } catch (_) {}
+
+  const effectiveToken = dbSettings?.github_token || dbSettings?.githubToken || process.env.GITHUB_TOKEN || cookieGhToken;
   if (!effectiveToken) {
     isGitHubValid = false;
-    gitHubError = 'No GitHub Personal Access Token configured.';
+    gitHubError = 'No GitHub Personal Access Token or OAuth session configured.';
   } else {
     try {
       const ghRes = await fetch('https://api.github.com/user', {
@@ -598,10 +605,19 @@ export async function getUserProfile() {
   let token = process.env.GITHUB_TOKEN;
   try {
     const settings = await getSystemSettings(true);
-    if (settings?.github_token) {
-      token = settings.github_token;
+    if (settings?.github_token || settings?.githubToken) {
+      token = settings.github_token || settings.githubToken;
     }
   } catch (_) {}
+
+  if (!token) {
+    try {
+      const { cookies } = await import('next/headers');
+      const cookieStore = await cookies();
+      const cookieGhToken = cookieStore.get('fm_gh_token')?.value;
+      if (cookieGhToken) token = cookieGhToken;
+    } catch (_) {}
+  }
 
   if (token) {
     try {
@@ -742,9 +758,18 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
   if (!token) {
     try {
       const settings = await getSystemSettings(true);
-      if (settings?.github_token) {
-        token = settings.github_token;
+      if (settings?.github_token || settings?.githubToken) {
+        token = settings.github_token || settings.githubToken;
       }
+    } catch (_) {}
+  }
+
+  if (!token) {
+    try {
+      const { cookies } = await import('next/headers');
+      const cookieStore = await cookies();
+      const cookieGhToken = cookieStore.get('fm_gh_token')?.value;
+      if (cookieGhToken) token = cookieGhToken;
     } catch (_) {}
   }
 

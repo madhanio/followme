@@ -30,9 +30,11 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: `
 (function(){
   try {
-    var t = localStorage.getItem('fm-theme') || localStorage.getItem('theme');
+    var m = document.cookie.match(/(?:^|; )fm-theme=([^;]*)/);
+    var cookieTheme = m ? decodeURIComponent(m[1]) : null;
+    var t = cookieTheme || localStorage.getItem('fm-theme') || localStorage.getItem('theme');
     var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (t === 'dark' || (!t && prefersDark)) {
+    if (t === 'dark' || (t !== 'light' && prefersDark)) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');

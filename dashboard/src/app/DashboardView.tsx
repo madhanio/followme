@@ -163,14 +163,18 @@ export default function DashboardView({
     senderName: 'FollowMe System',
   }), [userProfile]);
 
-  const [savedSettings, setSavedSettings] = useState<Record<string, any>>(() => ({
-    ...defaultSettings,
-    ...(initialSettings || {})
-  }));
-  const [tempSettings, setTempSettings] = useState<Record<string, any>>(() => ({
-    ...defaultSettings,
-    ...(initialSettings || {})
-  }));
+  const [savedSettings, setSavedSettings] = useState<Record<string, any>>(() => {
+    const combined: Record<string, any> = { ...defaultSettings, ...(initialSettings || {}) };
+    if (combined.has_github_token) combined.has_githubToken = true;
+    if (combined.has_resend_api_key) combined.has_resendApiKey = true;
+    return combined;
+  });
+  const [tempSettings, setTempSettings] = useState<Record<string, any>>(() => {
+    const combined: Record<string, any> = { ...defaultSettings, ...(initialSettings || {}) };
+    if (combined.has_github_token) combined.has_githubToken = true;
+    if (combined.has_resend_api_key) combined.has_resendApiKey = true;
+    return combined;
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Security Key Modal States
@@ -1020,8 +1024,8 @@ export default function DashboardView({
     const { githubToken, resendApiKey, _githubTokenDirty, _resendApiKeyDirty, ...restSettings } = tempSettings;
     const savePayload: Record<string, any> = {
       ...restSettings,
-      ...(_githubTokenDirty && { githubToken }),
-      ...(_resendApiKeyDirty && { resendApiKey }),
+      ...(_githubTokenDirty && { githubToken, github_token: githubToken }),
+      ...(_resendApiKeyDirty && { resendApiKey, resend_api_key: resendApiKey }),
     };
 
     await saveSystemSettings(savePayload);

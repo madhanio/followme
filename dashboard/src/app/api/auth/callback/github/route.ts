@@ -145,7 +145,7 @@ export async function GET(request: Request) {
       return renderHtmlResponse(false, `Unauthorized account (@${userData.login}). Only the owner can sign in.`, `${appUrl}/login?error=Unauthorized%20account`);
     }
 
-    // 4. Set session cookies
+    // 4. Set session cookies and persist token for background queries
     const cookieStore = await cookies();
     cookieStore.set('fm_auth', '1', {
       httpOnly: true,
@@ -162,6 +162,30 @@ export async function GET(request: Request) {
       path: '/',
       sameSite: 'lax',
     });
+
+    cookieStore.set('fm_gh_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60,
+      path: '/',
+      sameSite: 'lax',
+    });
+
+    // Optionally persist into settings table so worker / health checks can use it if no PAT exists
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (supabaseUrl && supabaseServiceKey) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        await supabase.from('settings').upsert([
+          { key: 'github_token', value: accessToken, updated_at: new Date().toISOString() },
+          { key: 'github_oauth_user', value: userData.login, updated_at: new Date().toISOString() },
+        ], { onConflict: 'key' });
+      }
+    } catch (saveErr) {
+      console.error('Failed to persist OAuth token to settings:', saveErr);
+    }
 
     return renderHtmlResponse(true, `Signed in as @${userData.login}. Redirecting...`, `${appUrl}/`, userData.login);
   } catch (err: any) {
