@@ -1168,52 +1168,6 @@ export default function DashboardView({
     URL.revokeObjectURL(url);
   }
 
-  const profileItems = useMemo(() => {
-    const seen = new Set<string>();
-    const out: ProfileItem[] = [];
-    /* Sort so the most-recent / highest-grade row wins per owner */
-    const sorted = [...repos].sort((a, b) => {
-      /* followed rows first, then by grade desc, then by created_at desc */
-      if ((b.followed ? 1 : 0) !== (a.followed ? 1 : 0))
-        return (b.followed ? 1 : 0) - (a.followed ? 1 : 0);
-      if ((b.grade ?? 0) !== (a.grade ?? 0))
-        return (b.grade ?? 0) - (a.grade ?? 0);
-      return new Date(b.created_at ?? 0).getTime() -
-             new Date(a.created_at ?? 0).getTime();
-    });
-    for (const r of sorted) {
-      const key = r.owner ?? '';
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      out.push({
-        owner:          key,
-        login:          key,
-        avatar_url:     r.owner ? `https://github.com/${r.owner}.png?size=72` : null,
-        grade:          r.grade ?? null,
-        followed:       r.followed ?? null,
-        follow_back:    r.follow_back ?? null,
-        unfollowed:     r.unfollowed ?? null,
-        language:       r.language ?? null,
-        reason:         r.reason ?? null,
-        bio:            r.bio ?? null,
-        followers_count: (r as Repo & { followers_count?: number | null }).followers_count ?? null,
-        following_count: (r as Repo & { following_count?: number | null }).following_count ?? null,
-        reposCount:     1,
-        repos:          [r],
-        avgGrade:       r.grade ?? 0,
-        followStatus: {
-          followed:       !!r.followed,
-          unfollowed:     !!r.unfollowed,
-          follow_back:    !!r.follow_back,
-          follow_skipped: !!r.follow_skipped,
-          followed_at:    r.followed_at,
-          reason:         r.reason || undefined,
-        },
-      });
-    }
-    return out;
-  }, [repos]);
-
   if (isLoading) {
     return (
       <div style={{ minHeight:'100vh', background:'var(--bg)', color:'var(--ink)' }}>
@@ -1266,7 +1220,7 @@ export default function DashboardView({
 
         {/* ── PROFILES LIST (Part D) ── */}
         <ProfilesSection
-          profiles={profileItems}
+          profiles={allProfiles}
           onProfileClick={handleProfileClick}
         />
 

@@ -64,7 +64,7 @@ export default function BandChart({ repos }: BandChartProps) {
   const n = eligible.length;
 
   return (
-    <ChartCard title="Score Band vs Follow-back" note={`n=${n}, grade 0 + synthetic excluded`}>
+    <ChartCard title="Score Band vs Follow-back" note={`n=${n}, score 0 + synthetic excluded`}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'auto', overflow:'visible' }}>
 
         {/* Y gridlines */}
@@ -106,7 +106,7 @@ export default function BandChart({ repos }: BandChartProps) {
             <text x={barX(i) + barW / 2} y={H - PAD.bottom + 14}
               textAnchor="middle"
               style={{ fontSize:10, fill:'var(--muted)' } as never}>
-              {row.grade}
+              {row.grade * 10}
             </text>
             {/* Pct label above bar */}
             {row.pct > 0 && (
@@ -123,7 +123,7 @@ export default function BandChart({ repos }: BandChartProps) {
         <text x={PAD.left + innerW / 2} y={H - 2}
           textAnchor="middle"
           style={{ fontSize:10, fill:'var(--muted)' } as never}>
-          Score (1–10)
+          Score (10–100)
         </text>
 
         {/* Legend */}
