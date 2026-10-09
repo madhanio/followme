@@ -101,18 +101,22 @@ function ProfileRow({
       </div>
 
       {/* Score */}
-      {grade !== null && (
-        <div style={{
-          flexShrink: 0, width: 32, height: 32, borderRadius: 'var(--r)',
-          background: grade >= 9 ? 'var(--accent-tint)' : 'var(--hover)',
-          border: '1px solid var(--line)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 13, fontWeight: 700,
-          color: grade >= 9 ? 'var(--accent)' : 'var(--muted)',
-        }}>
-          {grade}
-        </div>
-      )}
+      {grade !== null && (() => {
+        const displayScore = Math.min(100, Math.round((grade ?? 0) * 10));
+        const isHighScore = displayScore >= 90;
+        return (
+          <div style={{
+            flexShrink: 0, width: 32, height: 32, borderRadius: 'var(--r)',
+            background: isHighScore ? 'var(--accent-tint)' : 'var(--hover)',
+            border: '1px solid var(--line)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 700,
+            color: isHighScore ? 'var(--accent)' : 'var(--muted)',
+          }}>
+            {displayScore}
+          </div>
+        );
+      })()}
     </div>
   );
 }

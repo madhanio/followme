@@ -123,7 +123,7 @@ export default function StatStrip({ repos }: StatStripProps) {
       <StatCell
         label="Top Picks"
         primary={topPicks.length.toLocaleString()}
-        secondary="score ≥ 9"
+        secondary="score ≥ 90"
         spark={sparkTopPicks}
         sparkColor="var(--accent)"
       />

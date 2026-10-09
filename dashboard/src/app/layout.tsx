@@ -42,7 +42,7 @@ export default function RootLayout({
 `}} />
         <meta name="google" content="notranslate" />
       </head>
-      <body className="notranslate min-h-full bg-[#f9f9f9] text-[#1a1c1c] dark:bg-[#0d0d0d] dark:text-[#f0f0f0] flex flex-col font-sans">
+      <body className="notranslate min-h-full flex flex-col font-sans">
         {children}
         <Analytics />
       </body>

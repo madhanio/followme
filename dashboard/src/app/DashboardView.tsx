@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { REPOS_SELECT } from '@/lib/fetchDashboardData';
 import { 
   triggerWorker, 
   triggerCleanup, 
@@ -348,12 +349,12 @@ export default function DashboardView({
     setIsDark(nextDark);
     if (nextDark) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-      localStorage.theme = 'dark';
+      localStorage.setItem('fm-theme', 'dark');
+      localStorage['fm-theme'] = 'dark';
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-      localStorage.theme = 'light';
+      localStorage.setItem('fm-theme', 'light');
+      localStorage['fm-theme'] = 'light';
     }
   };
 
@@ -734,7 +735,7 @@ export default function DashboardView({
     setIsRefreshing(true);
     try {
       const syncRes = await triggerSyncFollowing();
-      const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+      const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
       if (freshRepos) setRepos(freshRepos);
       const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
       if (logsRes.data) setLogs(logsRes.data);
@@ -898,12 +899,12 @@ export default function DashboardView({
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
       } else {
-        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+        const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
         if (freshRepos) setRepos(freshRepos);
         alert(`Failed to delete profile: ${res.error}`);
       }
     } catch (err: any) {
-      const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+      const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
       if (freshRepos) setRepos(freshRepos);
       alert(`Failed to delete profile: ${err.message || err}`);
     } finally {
@@ -1089,7 +1090,7 @@ export default function DashboardView({
     try {
       const res = await triggerCleanup();
       if (res.success) {
-        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+        const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
         if (freshRepos) setRepos(freshRepos);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
@@ -1131,7 +1132,7 @@ export default function DashboardView({
     try {
       const res = await triggerClearStale();
       if (res.success) {
-        const freshRepos = await fetchAllRows(supabase, 'repos', '*');
+        const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
         if (freshRepos) setRepos(freshRepos);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
