@@ -597,7 +597,7 @@ export async function triggerSyncFollowing() {
 export async function getUserProfile() {
   let token = process.env.GITHUB_TOKEN;
   try {
-    const settings = await getSystemSettings();
+    const settings = await getSystemSettings(true);
     if (settings?.github_token) {
       token = settings.github_token;
     }
@@ -741,7 +741,7 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
   // If no env token, attempt to check DB settings
   if (!token) {
     try {
-      const settings = await getSystemSettings();
+      const settings = await getSystemSettings(true);
       if (settings?.github_token) {
         token = settings.github_token;
       }

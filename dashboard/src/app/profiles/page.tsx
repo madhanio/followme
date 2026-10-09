@@ -9,7 +9,7 @@ export default async function ProfilesPage() {
     'id', 'github_url', 'owner', 'name', 'stars', 'language', 'topics',
     'grade', 'graded_at', 'followed', 'starred',
     'followed_at', 'follow_back', 'unfollowed', 'follow_skipped',
-    'follow_skip_reason', 'created_at', 'updated_at', 'reason', 'bio',
+    'follow_skip_reason', 'created_at', 'reason', 'bio',
     'followers_count', 'following_count', 'account_created_at',
     'last_pushed_at', 'source',
   ].join(', ');

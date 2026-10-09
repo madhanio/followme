@@ -289,6 +289,11 @@ export default function DashboardView({
 
   useEffect(() => {
     fetchStatus();
+    checkSystemHealth()
+      .then((h) => {
+        if (h) setHealthState(h);
+      })
+      .catch(() => {});
     setMounted(true);
     const syncTheme = () => {
       setIsDark(document.documentElement.classList.contains('dark'));

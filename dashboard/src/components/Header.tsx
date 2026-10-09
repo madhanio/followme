@@ -32,7 +32,8 @@ export default function Header({
     window.addEventListener('themechange', updateThemeState);
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleMediaChange = (e: MediaQueryListEvent) => {
-      if (!localStorage.getItem('fm-theme')) {
+      const explicit = localStorage.getItem('fm-theme') || localStorage.getItem('theme');
+      if (!explicit) {
         document.documentElement.classList.toggle('dark', e.matches);
         setIsDark(e.matches);
       }

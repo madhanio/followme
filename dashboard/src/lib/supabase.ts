@@ -25,10 +25,10 @@ export async function fetchAllRows<T = any>(
       query = filterFn(query);
     }
 
-    // Guard with a 6-second timeout to avoid eternal hangs on slow or cold DB connections
+    // Guard with a 15-second timeout to allow Supabase cold starts and large rowsets
     const fetchPromise = query;
     const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout fetching ${table} page ${page}`)), 6000)
+      setTimeout(() => reject(new Error(`Timeout fetching ${table} page ${page}`)), 15000)
     );
 
     const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);

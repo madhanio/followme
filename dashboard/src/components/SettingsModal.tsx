@@ -402,8 +402,8 @@ export function SettingsModal({
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', display: 'block' }}>
                         {userProfile?.login ? `@${userProfile.login}` : 'Not Connected'}
                       </span>
-                      <span style={{ fontSize: 11, color: healthState?.isGitHubValid ? 'var(--accent)' : 'var(--warn)' }}>
-                        {healthState?.isGitHubValid ? 'Connected & Healthy' : 'Auth Expired / Invalid'}
+                      <span style={{ fontSize: 11, color: (healthState === null || healthState?.isGitHubValid !== false) ? 'var(--accent)' : 'var(--warn)' }}>
+                        {(healthState === null || healthState?.isGitHubValid !== false) ? 'Connected & Healthy' : 'Auth Expired / Invalid'}
                       </span>
                     </div>
                   </div>

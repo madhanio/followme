@@ -40,7 +40,7 @@ export default function FollowChart({ repos }: FollowChartProps) {
     const key = d.toISOString().slice(0, 10);
     labels.push(i % 7 === 0 ? d.toLocaleDateString('en', { month:'short', day:'numeric' }) : '');
     followed.push(repos.filter(r => r.followed && r.created_at?.slice(0,10) === key).length);
-    unfollowed.push(repos.filter(r => r.unfollowed && r.updated_at?.slice(0,10) === key).length);
+    unfollowed.push(repos.filter(r => r.unfollowed && (r.followed_at?.slice(0,10) === key || r.created_at?.slice(0,10) === key)).length);
   }
 
   /* SVG dimensions */

@@ -33,22 +33,22 @@ function buildEvents(repos: Repo[]): ActivityEvent[] {
       });
     }
     /* unfollowed event — use followed_at or created_at fallback */
-    if (r.unfollowed && (r.updated_at || r.created_at)) {
+    if (r.unfollowed && (r.followed_at || r.created_at)) {
       events.push({
         kind: 'unfollowed',
         login: owner,
         avatar_url: avatar,
-        timestamp: r.updated_at || r.created_at || '',
+        timestamp: r.followed_at || r.created_at || '',
         grade: r.grade ?? null,
       });
     }
     /* follow_back event */
-    if (r.follow_back && (r.updated_at || r.created_at) && !r.unfollowed) {
+    if (r.follow_back && (r.followed_at || r.created_at) && !r.unfollowed) {
       events.push({
         kind: 'follow_back',
         login: owner,
         avatar_url: avatar,
-        timestamp: r.updated_at || r.created_at || '',
+        timestamp: r.followed_at || r.created_at || '',
         grade: r.grade ?? null,
       });
     }
