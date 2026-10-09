@@ -60,8 +60,8 @@ function ensureDrawerStyles() {
 function RepoRow({ repo }: { repo: Repo }) {
   /* Bookmark (filled) toggle — no star ever */
   const [saved, setSaved] = useState(false);
-  const name = repo.repo_name ?? repo.full_name ?? repo.name ?? '(repo)';
-  const stars = repo.stargazers_count ?? repo.stars ?? null;
+  const name = repo.name ?? '(repo)';
+  const stars = repo.stars ?? null;
   const lang  = (repo.language && repo.language !== 'Profile') ? repo.language : null;
 
   return (
@@ -260,7 +260,7 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
                 Repositories ({ownerRepos.length})
               </div>
               {ownerRepos.map(r => (
-                <RepoRow key={r.id ?? r.repo_name ?? r.name} repo={r} />
+                <RepoRow key={r.id ?? r.name} repo={r} />
               ))}
             </div>
           )}

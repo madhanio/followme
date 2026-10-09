@@ -13,12 +13,12 @@ export interface DashboardData {
 }
 
 export const REPOS_SELECT = [
-  'id', 'owner', 'login', 'full_name', 'repo_name',
-  'grade', 'followed', 'unfollowed', 'follow_back',
-  'language', 'avatar_url', 'bio', 'reason',
-  'followers_count', 'following_count',
-  'stargazers_count', 'created_at', 'updated_at',
-  'source', 'account_created_at', 'last_pushed_at',
+  'id', 'github_url', 'owner', 'name', 'stars', 'language', 'topics',
+  'readme_snippet', 'grade', 'graded_at', 'followed', 'starred',
+  'followed_at', 'follow_back', 'unfollowed', 'follow_skipped',
+  'follow_skip_reason', 'created_at', 'reason', 'bio',
+  'followers_count', 'following_count', 'account_created_at',
+  'last_pushed_at', 'source',
 ].join(', ');
 
 export async function fetchDashboardData(options?: { checkHealth?: boolean }): Promise<DashboardData> {

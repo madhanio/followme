@@ -1181,13 +1181,13 @@ export default function DashboardView({
              new Date(a.created_at ?? 0).getTime();
     });
     for (const r of sorted) {
-      const key = r.owner ?? r.login ?? r.full_name?.split('/')[0] ?? '';
+      const key = r.owner ?? '';
       if (!key || seen.has(key)) continue;
       seen.add(key);
       out.push({
         owner:          key,
         login:          key,
-        avatar_url:     r.avatar_url ?? null,
+        avatar_url:     r.owner ? `https://github.com/${r.owner}.png?size=72` : null,
         grade:          r.grade ?? null,
         followed:       r.followed ?? null,
         follow_back:    r.follow_back ?? null,

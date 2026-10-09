@@ -28,11 +28,6 @@ export interface Repo {
   source?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
-  repo_name?: string | null;
-  full_name?: string | null;
-  stargazers_count?: number | null;
-  login?: string | null;
-  avatar_url?: string | null;
 }
 
 export interface Log {

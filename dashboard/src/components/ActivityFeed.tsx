@@ -19,33 +19,36 @@ function buildEvents(repos: Repo[]): ActivityEvent[] {
   const events: ActivityEvent[] = [];
 
   for (const r of repos) {
+    const owner = r.owner ?? '';
+    const avatar = owner ? `https://github.com/${owner}.png?size=72` : null;
+
     /* followed event — use created_at as proxy */
     if (r.followed && r.created_at) {
       events.push({
         kind: 'followed',
-        login: r.owner ?? r.login ?? '',
-        avatar_url: r.avatar_url ?? null,
+        login: owner,
+        avatar_url: avatar,
         timestamp: r.created_at,
         grade: r.grade ?? null,
       });
     }
-    /* unfollowed event — use updated_at */
-    if (r.unfollowed && r.updated_at) {
+    /* unfollowed event — use followed_at or created_at fallback */
+    if (r.unfollowed && (r.updated_at || r.created_at)) {
       events.push({
         kind: 'unfollowed',
-        login: r.owner ?? r.login ?? '',
-        avatar_url: r.avatar_url ?? null,
-        timestamp: r.updated_at,
+        login: owner,
+        avatar_url: avatar,
+        timestamp: r.updated_at || r.created_at || '',
         grade: r.grade ?? null,
       });
     }
-    /* follow_back event — use updated_at */
-    if (r.follow_back && r.updated_at && !r.unfollowed) {
+    /* follow_back event */
+    if (r.follow_back && (r.updated_at || r.created_at) && !r.unfollowed) {
       events.push({
         kind: 'follow_back',
-        login: r.owner ?? r.login ?? '',
-        avatar_url: r.avatar_url ?? null,
-        timestamp: r.updated_at,
+        login: owner,
+        avatar_url: avatar,
+        timestamp: r.updated_at || r.created_at || '',
         grade: r.grade ?? null,
       });
     }
