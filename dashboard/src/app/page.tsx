@@ -18,7 +18,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
     'last_pushed_at', 'source',
   ].join(', ');
 
-  // Fetch all core datasets simultaneously in parallel rather than serial sequential queries
+  // Initial SSR fetch: fetch the top 300 most recent/relevant repos for instant first paint (< 1.5s).
+  // The full dataset can be loaded or synced on demand via the Sync/Refresh button.
   const [
     userProfile,
     dbSettings,
@@ -30,7 +31,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
     getUserProfile().catch(() => null),
     getSystemSettings().catch(() => null),
     getGitHubRateLimit().catch(() => ({ success: false, data: undefined })),
-    fetchAllRows(supabase, 'repos', REPOS_SELECT).catch((err: any) => {
+    fetchAllRows(supabase, 'repos', REPOS_SELECT, undefined, 300).catch((err: any) => {
       console.error('Error fetching repos details:', err.message || err);
       return [];
     }),
