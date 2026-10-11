@@ -12,43 +12,61 @@ export async function fetchAllRows<T = any>(
   filterFn?: (query: any) => any,
   pageSize: number = 1000
 ): Promise<T[]> {
-  const allRows: T[] = [];
-  let page = 0;
-  const MAX_PAGES = 10; // Safety guard: max 10,000 rows
+  try {
+    // 1. Fetch the first page immediately with a strict 4-second timeout
+    let query0 = client.from(table).select(selectQuery).range(0, pageSize - 1);
+    if (filterFn) query0 = filterFn(query0);
 
-  while (page < MAX_PAGES) {
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
+    const timeoutPromise = (ms: number, msg: string) =>
+      new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+        setTimeout(() => reject(new Error(msg)), ms)
+      );
 
-    let query = client.from(table).select(selectQuery).range(from, to);
-    if (filterFn) {
-      query = filterFn(query);
+    const firstRes = await Promise.race([
+      query0,
+      timeoutPromise(4000, `Timeout fetching ${table} initial batch`)
+    ]);
+
+    if (firstRes.error || !firstRes.data || firstRes.data.length === 0) {
+      if (firstRes.error) console.error(`Error fetching first batch from ${table}:`, firstRes.error.message);
+      return (firstRes.data || []) as unknown as T[];
     }
 
-    // Guard with a 15-second timeout to allow Supabase cold starts and large rowsets
-    const fetchPromise = query;
-    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout fetching ${table} page ${page}`)), 15000)
-    );
-
-    const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
-    if (error) {
-      console.error(`Error fetching rows from ${table} (range ${from}-${to}):`, error.message);
-      break;
+    const firstBatch = firstRes.data as unknown as T[];
+    if (firstBatch.length < pageSize) {
+      // The dataset fits in the first 1,000 rows - return instantly without secondary round trips!
+      return firstBatch;
     }
 
-    if (!data || data.length === 0) {
-      break;
+    // 2. If table exceeds 1,000 rows, fetch remaining pages concurrently up to 5,000 max
+    const MAX_PAGES = 5;
+    const pagePromises: Promise<any>[] = [];
+
+    for (let page = 1; page < MAX_PAGES; page++) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      let q = client.from(table).select(selectQuery).range(from, to);
+      if (filterFn) q = filterFn(q);
+      pagePromises.push(
+        Promise.race([
+          q,
+          timeoutPromise(4000, `Timeout fetching ${table} page ${page}`)
+        ]).catch(() => ({ data: [] }))
+      );
     }
 
-    allRows.push(...(data as unknown as T[]));
-    if (data.length < pageSize) {
-      break;
+    const remainingPages = await Promise.all(pagePromises);
+    const allRows: T[] = [...firstBatch];
+    for (const res of remainingPages) {
+      if (res && res.data && Array.isArray(res.data)) {
+        allRows.push(...res.data);
+        if (res.data.length < pageSize) break;
+      }
     }
-
-    page++;
+    return allRows;
+  } catch (err: any) {
+    console.error(`Error in fetchAllRows for ${table}:`, err.message || err);
+    return [];
   }
-
-  return allRows;
 }
 

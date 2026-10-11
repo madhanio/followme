@@ -601,7 +601,14 @@ export async function triggerSyncFollowing() {
   }
 }
 
+let serverUserProfileCache: { data: any; timestamp: number } | null = null;
+
 export async function getUserProfile() {
+  const now = Date.now();
+  if (serverUserProfileCache && (now - serverUserProfileCache.timestamp < 300000)) {
+    return serverUserProfileCache.data;
+  }
+
   let token = process.env.GITHUB_TOKEN;
   try {
     const settings = await getSystemSettings(true);
@@ -632,12 +639,14 @@ export async function getUserProfile() {
       });
       if (res.ok) {
         const data = await res.json();
-        return {
+        const prof = {
           login: data.login || '',
           name: data.name || data.login || '',
           avatar_url: data.avatar_url || '',
           email: data.email || ''
         };
+        serverUserProfileCache = { data: prof, timestamp: now };
+        return prof;
       }
     } catch (_) {}
   }
@@ -659,20 +668,24 @@ export async function getUserProfile() {
       });
       if (res.ok) {
         const data = await res.json();
-        return {
+        const prof = {
           login: data.login || username,
           name: data.name || data.login || username,
           avatar_url: data.avatar_url || `https://github.com/${username}.png`,
           email: data.email || ''
         };
+        serverUserProfileCache = { data: prof, timestamp: now };
+        return prof;
       }
     } catch (_) {}
-    return {
+    const fallbackProf = {
       login: username,
       name: username,
       avatar_url: `https://github.com/${username}.png`,
       email: ''
     };
+    serverUserProfileCache = { data: fallbackProf, timestamp: now };
+    return fallbackProf;
   }
 
   return null;
@@ -751,7 +764,14 @@ export interface GitHubRateLimitData {
   };
 }
 
+let serverRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
+
 export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: GitHubRateLimitData; error?: string }> {
+  const now = Date.now();
+  if (serverRateLimitCache && (now - serverRateLimitCache.timestamp < 45000)) {
+    return { success: true, data: serverRateLimitCache.data };
+  }
+
   let token = process.env.GITHUB_TOKEN;
 
   // If no env token, attempt to check DB settings
@@ -785,11 +805,12 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
   try {
     const res = await fetch('https://api.github.com/rate_limit', {
       headers,
-      signal: AbortSignal.timeout(3500),
-      cache: 'no-store'
+      signal: AbortSignal.timeout(2000),
+      next: { revalidate: 60 }
     });
 
     if (!res.ok) {
+      if (serverRateLimitCache) return { success: true, data: serverRateLimitCache.data };
       return {
         success: false,
         error: `GitHub rate limit API returned status ${res.status}`
@@ -808,29 +829,28 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
     const searchRemaining = search.remaining ?? searchLimit;
     const searchUsed = typeof search.used === 'number' ? search.used : (searchLimit - searchRemaining);
 
-    return {
-      success: true,
-      data: {
-        core: {
-          limit: coreLimit,
-          used: coreUsed,
-          remaining: coreRemaining,
-          reset: core.reset ?? 0,
-        },
-        search: {
-          limit: searchLimit,
-          used: searchUsed,
-          remaining: searchRemaining,
-          reset: search.reset ?? 0,
-        }
-      }
+    const rateData: GitHubRateLimitData = {
+      core: {
+        limit: coreLimit,
+        used: coreUsed,
+        remaining: coreRemaining,
+        reset: core.reset ?? 0,
+      },
+      search: {
+        limit: searchLimit,
+        used: searchUsed,
+        remaining: searchRemaining,
+        reset: search.reset ?? 0,
+      },
     };
+
+    serverRateLimitCache = { data: rateData, timestamp: now };
+    return { success: true, data: rateData };
   } catch (err: any) {
-    console.error('Error fetching GitHub rate limit:', err);
-    return {
-      success: false,
-      error: err.message || 'Failed to fetch GitHub rate limit.'
-    };
+    if (serverRateLimitCache) {
+      return { success: true, data: serverRateLimitCache.data };
+    }
+    return { success: false, error: err.message || 'Failed to fetch GitHub rate limit' };
   }
 }
 
