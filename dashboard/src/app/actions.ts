@@ -461,6 +461,7 @@ export async function getWorkerStatus() {
       headers: {
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(1500),
       cache: 'no-store',
     });
 
