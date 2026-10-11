@@ -13,7 +13,7 @@ export async function fetchAllRows<T = any>(
   pageSize: number = 1000
 ): Promise<T[]> {
   try {
-    // 1. Fetch the first page immediately with a strict 4-second timeout
+    // 1. Fetch the first page immediately with a strict 2.5-second timeout
     let query0 = client.from(table).select(selectQuery).range(0, pageSize - 1);
     if (filterFn) query0 = filterFn(query0);
 
@@ -24,7 +24,7 @@ export async function fetchAllRows<T = any>(
 
     const firstRes = await Promise.race([
       query0,
-      timeoutPromise(4000, `Timeout fetching ${table} initial batch`)
+      timeoutPromise(2500, `Timeout fetching ${table} initial batch`)
     ]);
 
     if (firstRes.error || !firstRes.data || firstRes.data.length === 0) {
@@ -50,7 +50,7 @@ export async function fetchAllRows<T = any>(
       pagePromises.push(
         Promise.race([
           q,
-          timeoutPromise(4000, `Timeout fetching ${table} page ${page}`)
+          timeoutPromise(2500, `Timeout fetching ${table} page ${page}`)
         ]).catch(() => ({ data: [] }))
       );
     }

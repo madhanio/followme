@@ -40,7 +40,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
         .from('logs')
         .select('id, action, repo_id, timestamp, status, message')
         .order('timestamp', { ascending: false })
-        .limit(100)
+        .limit(50)
     )
       .then(({ data, error }) => (!error && data ? data : []))
       .catch((err: any) => {
@@ -52,7 +52,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
         .from('run_summary')
         .select('*')
         .order('ran_at', { ascending: false })
-        .limit(50)
+        .limit(20)
     )
       .then(({ data, error }) => (!error && data ? data : []))
       .catch((err: any) => {
