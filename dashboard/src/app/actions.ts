@@ -855,3 +855,21 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
   }
 }
 
+export async function fetchDashboardRepos(limit: number = 300) {
+  try {
+    const REPOS_SELECT = [
+      'id', 'github_url', 'owner', 'name', 'stars', 'language', 'topics',
+      'grade', 'graded_at', 'followed', 'starred',
+      'followed_at', 'follow_back', 'unfollowed', 'follow_skipped',
+      'follow_skip_reason', 'created_at', 'reason', 'bio',
+      'followers_count', 'following_count', 'account_created_at',
+      'last_pushed_at', 'source',
+    ].join(', ');
+    const { supabase, fetchAllRows } = await import('@/lib/supabase');
+    return await fetchAllRows(supabase, 'repos', REPOS_SELECT, undefined, limit);
+  } catch (err: any) {
+    console.error('Error in fetchDashboardRepos:', err);
+    return [];
+  }
+}
+

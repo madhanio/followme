@@ -19,7 +19,8 @@ import {
   saveSystemSettings,
   getGitHubRateLimit,
   sendTestAlertEmail,
-  checkSystemHealth
+  checkSystemHealth,
+  fetchDashboardRepos
 } from './actions';
 import type { 
   Repo, 
@@ -113,6 +114,7 @@ export default function DashboardView({
   const [mounted, setMounted] = useState(false);
   const [healthState, setHealthState] = useState<SystemHealthState | null>(initialHealthState || null);
   const [repos, setRepos] = useState<Repo[]>(initialRepos);
+  const [isReposLoading, setIsReposLoading] = useState<boolean>(initialRepos.length === 0);
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [runSummary, setRunSummary] = useState<RunSummary[]>(initialRunSummary);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(initialUserProfile);
@@ -327,7 +329,22 @@ export default function DashboardView({
   }, [activeTab]);
 
   useEffect(() => {
-    setRepos(initialRepos);
+    if (initialRepos.length === 0) {
+      setIsReposLoading(true);
+      fetchDashboardRepos(300)
+        .then((data) => {
+          if (data && data.length > 0) {
+            setRepos(data);
+          }
+        })
+        .catch(console.error)
+        .finally(() => {
+          setIsReposLoading(false);
+        });
+    } else {
+      setRepos(initialRepos);
+      setIsReposLoading(false);
+    }
   }, [initialRepos]);
   useEffect(() => {
     setLogs(initialLogs);
@@ -1225,23 +1242,61 @@ export default function DashboardView({
 
       <main style={{ maxWidth:1200, margin:'0 auto', padding:'24px 16px', display:'flex', flexDirection:'column', gap:24 }}>
 
-        {/* ── STAT STRIP (Part B) ── */}
-        <StatStrip repos={repos} />
+        {isReposLoading ? (
+          <>
+            {/* StatStrip Skeleton */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} style={{
+                  height: 84, borderRadius: 'var(--r)',
+                  background: 'var(--surface)', border: '1px solid var(--line)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite'
+                }} />
+              ))}
+            </div>
 
-        {/* ── CHARTS ROW (Part C) ── */}
-        <div id="charts-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-          <FollowChart repos={repos} />
-          <BandChart repos={repos} />
-        </div>
+            {/* Charts Skeleton */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{
+                height: 190, borderRadius: 'var(--r)',
+                background: 'var(--surface)', border: '1px solid var(--line)',
+                animation: 'fm-pulse 1.6s ease-in-out infinite'
+              }} />
+              <div style={{
+                height: 190, borderRadius: 'var(--r)',
+                background: 'var(--surface)', border: '1px solid var(--line)',
+                animation: 'fm-pulse 1.6s ease-in-out infinite'
+              }} />
+            </div>
 
-        {/* ── PROFILES LIST (Part D) ── */}
-        <ProfilesSection
-          profiles={allProfiles}
-          onProfileClick={handleProfileClick}
-        />
+            {/* Profiles Skeleton */}
+            <div style={{
+              height: 380, borderRadius: 'var(--r)',
+              background: 'var(--surface)', border: '1px solid var(--line)',
+              animation: 'fm-pulse 1.6s ease-in-out infinite'
+            }} />
+          </>
+        ) : (
+          <>
+            {/* ── STAT STRIP (Part B) ── */}
+            <StatStrip repos={repos} />
 
-        {/* ── ACTIVITY FEED (Part G) ── */}
-        <ActivityFeed repos={repos} />
+            {/* ── CHARTS ROW (Part C) ── */}
+            <div id="charts-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+              <FollowChart repos={repos} />
+              <BandChart repos={repos} />
+            </div>
+
+            {/* ── PROFILES LIST (Part D) ── */}
+            <ProfilesSection
+              profiles={allProfiles}
+              onProfileClick={handleProfileClick}
+            />
+
+            {/* ── ACTIVITY FEED (Part G) ── */}
+            <ActivityFeed repos={repos} />
+          </>
+        )}
 
       </main>
 

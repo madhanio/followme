@@ -18,23 +18,18 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
     'last_pushed_at', 'source',
   ].join(', ');
 
-  // Initial SSR fetch: fetch the top 300 most recent/relevant repos for instant first paint (< 1.5s).
-  // The full dataset can be loaded or synced on demand via the Sync/Refresh button.
+  // Instant SSR: User profile, settings, and rate limit render immediately (< 500ms).
+  // Repositories stream asynchronously on mount with a smooth skeleton loader so initial paint is instant.
   const [
     userProfile,
     dbSettings,
     rateLimitRes,
-    repos,
     logs,
     runSummary
   ] = await Promise.all([
     getUserProfile().catch(() => null),
     getSystemSettings().catch(() => null),
     getGitHubRateLimit().catch(() => ({ success: false, data: undefined })),
-    fetchAllRows(supabase, 'repos', REPOS_SELECT, undefined, 300).catch((err: any) => {
-      console.error('Error fetching repos details:', err.message || err);
-      return [];
-    }),
     Promise.resolve(
       supabase
         .from('logs')
@@ -63,7 +58,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
 
   return (
     <DashboardView 
-      initialRepos={repos || []} 
+      initialRepos={[]} 
       initialLogs={logs || []} 
       initialRunSummary={runSummary || []}
       initialUserProfile={userProfile}
