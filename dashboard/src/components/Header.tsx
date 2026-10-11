@@ -50,10 +50,12 @@ export default function Header({
     const isCurrentlyDark = document.documentElement.classList.contains('dark');
     const nextDark = !isCurrentlyDark;
     document.documentElement.classList.toggle('dark', nextDark);
+    document.documentElement.style.colorScheme = nextDark ? 'dark' : 'light';
     const val = nextDark ? 'dark' : 'light';
     localStorage.setItem('fm-theme', val);
     localStorage.setItem('theme', val);
     document.cookie = `fm-theme=${val}; path=/; max-age=31536000; SameSite=Lax`;
+    document.cookie = `theme=${val}; path=/; max-age=31536000; SameSite=Lax`;
     setIsDark(nextDark);
     window.dispatchEvent(new CustomEvent('themechange', { detail: { isDark: nextDark } }));
   }

@@ -10,34 +10,44 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+import { cookies } from 'next/headers';
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const cookieTheme = cookieStore.get('fm-theme')?.value || cookieStore.get('theme')?.value;
+  const isServerDark = cookieTheme === 'dark';
+
   return (
     <html
       lang="en"
       translate="no"
-      className="notranslate h-full antialiased"
+      className={`notranslate h-full antialiased ${isServerDark ? 'dark' : ''}`}
       suppressHydrationWarning
       style={{
         WebkitFontSmoothing: 'antialiased',
         MozOsxFontSmoothing: 'grayscale',
+        colorScheme: isServerDark ? 'dark' : 'light',
       }}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
 (function(){
   try {
-    var m = document.cookie.match(/(?:^|; )fm-theme=([^;]*)/);
+    var m = document.cookie.match(/(?:^|; )fm-theme=([^;]*)/) || document.cookie.match(/(?:^|; )theme=([^;]*)/);
     var cookieTheme = m ? decodeURIComponent(m[1]) : null;
     var t = cookieTheme || localStorage.getItem('fm-theme') || localStorage.getItem('theme');
     var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (t === 'dark' || (t !== 'light' && prefersDark)) {
+    var isDark = t === 'dark' || (!t && prefersDark);
+    if (isDark) {
       document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
     }
   } catch(e) {}
 })();
