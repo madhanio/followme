@@ -1242,61 +1242,24 @@ export default function DashboardView({
 
       <main style={{ maxWidth:1200, margin:'0 auto', padding:'24px 16px', display:'flex', flexDirection:'column', gap:24 }}>
 
-        {isReposLoading ? (
-          <>
-            {/* StatStrip Skeleton */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} style={{
-                  height: 84, borderRadius: 'var(--r)',
-                  background: 'var(--surface)', border: '1px solid var(--line)',
-                  animation: 'fm-pulse 1.6s ease-in-out infinite'
-                }} />
-              ))}
-            </div>
+        {/* ── STAT STRIP (Part B) ── */}
+        <StatStrip repos={repos} isLoading={isReposLoading} />
 
-            {/* Charts Skeleton */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div style={{
-                height: 190, borderRadius: 'var(--r)',
-                background: 'var(--surface)', border: '1px solid var(--line)',
-                animation: 'fm-pulse 1.6s ease-in-out infinite'
-              }} />
-              <div style={{
-                height: 190, borderRadius: 'var(--r)',
-                background: 'var(--surface)', border: '1px solid var(--line)',
-                animation: 'fm-pulse 1.6s ease-in-out infinite'
-              }} />
-            </div>
+        {/* ── CHARTS ROW (Part C) ── */}
+        <div id="charts-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          <FollowChart repos={repos} isLoading={isReposLoading} />
+          <BandChart repos={repos} isLoading={isReposLoading} />
+        </div>
 
-            {/* Profiles Skeleton */}
-            <div style={{
-              height: 380, borderRadius: 'var(--r)',
-              background: 'var(--surface)', border: '1px solid var(--line)',
-              animation: 'fm-pulse 1.6s ease-in-out infinite'
-            }} />
-          </>
-        ) : (
-          <>
-            {/* ── STAT STRIP (Part B) ── */}
-            <StatStrip repos={repos} />
+        {/* ── PROFILES LIST (Part D) ── */}
+        <ProfilesSection
+          profiles={allProfiles}
+          onProfileClick={handleProfileClick}
+          isLoading={isReposLoading}
+        />
 
-            {/* ── CHARTS ROW (Part C) ── */}
-            <div id="charts-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-              <FollowChart repos={repos} />
-              <BandChart repos={repos} />
-            </div>
-
-            {/* ── PROFILES LIST (Part D) ── */}
-            <ProfilesSection
-              profiles={allProfiles}
-              onProfileClick={handleProfileClick}
-            />
-
-            {/* ── ACTIVITY FEED (Part G) ── */}
-            <ActivityFeed repos={repos} />
-          </>
-        )}
+        {/* ── ACTIVITY FEED (Part G) ── */}
+        <ActivityFeed repos={repos} isLoading={isReposLoading} />
 
       </main>
 

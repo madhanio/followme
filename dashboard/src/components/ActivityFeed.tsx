@@ -169,9 +169,10 @@ const COLLAPSED_LIMIT = 10;
 
 export interface ActivityFeedProps {
   repos: Repo[];
+  isLoading?: boolean;
 }
 
-export default function ActivityFeed({ repos }: ActivityFeedProps) {
+export default function ActivityFeed({ repos, isLoading }: ActivityFeedProps) {
   const [expanded, setExpanded] = useState(false);
   const allEvents = buildEvents(repos);
   const visible = expanded ? allEvents : allEvents.slice(0, COLLAPSED_LIMIT);
@@ -198,13 +199,68 @@ export default function ActivityFeed({ repos }: ActivityFeedProps) {
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
           Recent Activity
         </span>
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-          {allEvents.length} events
-        </span>
+        {!isLoading && (
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            {allEvents.length} events
+          </span>
+        )}
       </div>
 
       {/* Rows */}
-      {visible.length === 0 ? (
+      {isLoading ? (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 16px',
+                borderBottom: '1px solid var(--line)',
+              }}
+            >
+              <div
+                style={{
+                  width: 80,
+                  height: 20,
+                  borderRadius: 99,
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                }}
+              />
+              <div
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                }}
+              />
+              <div
+                style={{
+                  width: 120,
+                  height: 14,
+                  borderRadius: 4,
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                  flex: 1,
+                }}
+              />
+              <div
+                style={{
+                  width: 50,
+                  height: 12,
+                  borderRadius: 4,
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
         <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
           No activity yet.
         </div>

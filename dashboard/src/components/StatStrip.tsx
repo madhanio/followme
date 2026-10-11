@@ -40,13 +40,14 @@ function dailyCounts(
 }
 
 function StatCell({
-  label, primary, secondary, spark, sparkColor,
+  label, primary, secondary, spark, sparkColor, isLoading,
 }: {
   label: string;
   primary: string;
   secondary?: string;
   spark: number[];
   sparkColor: string;
+  isLoading?: boolean;
 }) {
   return (
     <div style={{
@@ -64,23 +65,48 @@ function StatCell({
         <span style={{ fontSize:11, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.04em', fontWeight:500 }}>
           {label}
         </span>
-        <span style={{ fontSize:22, fontWeight:600, color:'var(--ink)', lineHeight:1.1 }}>
-          {primary}
-        </span>
-        {secondary && (
-          <span style={{ fontSize:12, color:'var(--muted)' }}>{secondary}</span>
+        {isLoading ? (
+          <div style={{
+            width: 72, height: 24, borderRadius: 4,
+            background: 'var(--hover)',
+            animation: 'fm-pulse 1.6s ease-in-out infinite',
+            marginTop: 2,
+          }} />
+        ) : (
+          <span style={{ fontSize:22, fontWeight:600, color:'var(--ink)', lineHeight:1.1 }}>
+            {primary}
+          </span>
         )}
+        {isLoading ? (
+          <div style={{
+            width: 50, height: 12, borderRadius: 3,
+            background: 'var(--hover)',
+            animation: 'fm-pulse 1.6s ease-in-out infinite',
+            marginTop: 4,
+          }} />
+        ) : secondary ? (
+          <span style={{ fontSize:12, color:'var(--muted)' }}>{secondary}</span>
+        ) : null}
       </div>
-      <Sparkline values={spark} color={sparkColor} />
+      {isLoading ? (
+        <div style={{
+          width: 64, height: 24, borderRadius: 4,
+          background: 'var(--hover)',
+          animation: 'fm-pulse 1.6s ease-in-out infinite',
+        }} />
+      ) : (
+        <Sparkline values={spark} color={sparkColor} />
+      )}
     </div>
   );
 }
 
 export interface StatStripProps {
   repos: Repo[];
+  isLoading?: boolean;
 }
 
-export default function StatStrip({ repos }: StatStripProps) {
+export default function StatStrip({ repos, isLoading }: StatStripProps) {
 
   /* ── Derive rows ── */
   const followed   = repos.filter(r => r.followed && !r.unfollowed);
@@ -112,6 +138,7 @@ export default function StatStrip({ repos }: StatStripProps) {
         primary={followedTotal.toLocaleString()}
         spark={sparkFollowed}
         sparkColor="var(--accent)"
+        isLoading={isLoading}
       />
       <StatCell
         label="Followed Back"
@@ -119,6 +146,7 @@ export default function StatStrip({ repos }: StatStripProps) {
         secondary={`${pct}% conversion`}
         spark={sparkFollowBack}
         sparkColor="var(--accent)"
+        isLoading={isLoading}
       />
       <StatCell
         label="Top Picks"
@@ -126,12 +154,14 @@ export default function StatStrip({ repos }: StatStripProps) {
         secondary="score ≥ 90"
         spark={sparkTopPicks}
         sparkColor="var(--accent)"
+        isLoading={isLoading}
       />
       <StatCell
         label="Unfollowed"
         primary={unfollowed.length.toLocaleString()}
         spark={sparkUnfollowed}
         sparkColor="var(--warn)"
+        isLoading={isLoading}
       />
     </div>
   );

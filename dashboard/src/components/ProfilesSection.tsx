@@ -126,9 +126,10 @@ const PAGE_SIZE = 20;
 export interface ProfilesSectionProps {
   profiles: ProfileItem[];
   onProfileClick: (profile: ProfileItem) => void;
+  isLoading?: boolean;
 }
 
-export default function ProfilesSection({ profiles, onProfileClick }: ProfilesSectionProps) {
+export default function ProfilesSection({ profiles, onProfileClick, isLoading }: ProfilesSectionProps) {
   const [segment, setSegment] = useState<Segment>('all');
   const [query,   setQuery]   = useState('');
   const [page,    setPage]    = useState(1);
@@ -189,7 +190,7 @@ export default function ProfilesSection({ profiles, onProfileClick }: ProfilesSe
                 fontSize: 12, fontWeight: 500, cursor: 'pointer',
               }}>
               {s.label}
-              <span style={{ marginLeft: 5, opacity: 0.7 }}>({counts[s.key]})</span>
+              {!isLoading && <span style={{ marginLeft: 5, opacity: 0.7 }}>({counts[s.key]})</span>}
             </button>
           ))}
         </div>
@@ -213,7 +214,45 @@ export default function ProfilesSection({ profiles, onProfileClick }: ProfilesSe
       </div>
 
       {/* ── Rows ── */}
-      {visible.length === 0 ? (
+      {isLoading ? (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--line)',
+            }}>
+              {/* Skeleton Avatar */}
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'var(--hover)',
+                animation: 'fm-pulse 1.6s ease-in-out infinite',
+                flexShrink: 0,
+              }} />
+              {/* Skeleton Info */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{
+                  width: 140, height: 14, borderRadius: 4,
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                }} />
+                <div style={{
+                  width: 220, height: 11, borderRadius: 4,
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                }} />
+              </div>
+              {/* Skeleton Score badge */}
+              <div style={{
+                width: 32, height: 32, borderRadius: 'var(--r)',
+                background: 'var(--hover)',
+                animation: 'fm-pulse 1.6s ease-in-out infinite',
+                flexShrink: 0,
+              }} />
+            </div>
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
         <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
           No profiles match this filter.
         </div>

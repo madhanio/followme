@@ -24,9 +24,12 @@ function ChartCard({ title, note, children }: {
   );
 }
 
-export interface FollowChartProps { repos: Repo[] }
+export interface FollowChartProps {
+  repos: Repo[];
+  isLoading?: boolean;
+}
 
-export default function FollowChart({ repos }: FollowChartProps) {
+export default function FollowChart({ repos, isLoading }: FollowChartProps) {
   /* Last 30 days buckets */
   const today = new Date();
   const days = 30;
@@ -59,7 +62,14 @@ export default function FollowChart({ repos }: FollowChartProps) {
   const n = repos.filter(r => r.followed || r.unfollowed).length;
 
   return (
-    <ChartCard title="30-day Follow Activity" note={`n=${n}`}>
+    <ChartCard title="30-day Follow Activity" note={isLoading ? undefined : `n=${n}`}>
+      {isLoading ? (
+        <div style={{
+          width: '100%', height: 140, borderRadius: 6,
+          background: 'var(--hover)',
+          animation: 'fm-pulse 1.6s ease-in-out infinite',
+        }} />
+      ) : (
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'auto', overflow:'visible' }}>
 
         {/* Y gridlines (3 lines) */}
@@ -105,6 +115,7 @@ export default function FollowChart({ repos }: FollowChartProps) {
         </g>
 
       </svg>
+      )}
     </ChartCard>
   );
 }

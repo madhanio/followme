@@ -24,9 +24,12 @@ function ChartCard({ title, note, children }: {
   );
 }
 
-export interface BandChartProps { repos: Repo[] }
+export interface BandChartProps {
+  repos: Repo[];
+  isLoading?: boolean;
+}
 
-export default function BandChart({ repos }: BandChartProps) {
+export default function BandChart({ repos, isLoading }: BandChartProps) {
   /* Exclude grade 0 (prefilter skip) and synthetic inbound rows (language === 'Profile') */
   const eligible = repos.filter(r =>
     (r.grade ?? 0) > 0 && r.language !== 'Profile'
@@ -64,7 +67,14 @@ export default function BandChart({ repos }: BandChartProps) {
   const n = eligible.length;
 
   return (
-    <ChartCard title="Score Band vs Follow-back" note={`n=${n}, score 0 + synthetic excluded`}>
+    <ChartCard title="Score Band vs Follow-back" note={isLoading ? undefined : `n=${n}, score 0 + synthetic excluded`}>
+      {isLoading ? (
+        <div style={{
+          width: '100%', height: 160, borderRadius: 6,
+          background: 'var(--hover)',
+          animation: 'fm-pulse 1.6s ease-in-out infinite',
+        }} />
+      ) : (
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'auto', overflow:'visible' }}>
 
         {/* Y gridlines */}
@@ -135,6 +145,7 @@ export default function BandChart({ repos }: BandChartProps) {
         </g>
 
       </svg>
+      )}
     </ChartCard>
   );
 }
