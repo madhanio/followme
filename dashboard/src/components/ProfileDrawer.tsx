@@ -127,9 +127,55 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const [isFetching, setIsFetching] = useState(false);
+  const [telemetryMsg, setTelemetryMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [liveData, setLiveData] = useState<{
+    bio?: string | null;
+    followers_count?: number;
+    following_count?: number;
+  } | null>(null);
+
+  // Reset telemetry message when profile changes
+  useEffect(() => {
+    setTelemetryMsg(null);
+    setLiveData(null);
+  }, [profile]);
+
   if (!profile) return null;
 
   const login = profile.login || profile.owner;
+
+  async function handleFetchTelemetry() {
+    setIsFetching(true);
+    setTelemetryMsg(null);
+    try {
+      const res = await fetch('/api/profile/fetch-telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner: login }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to fetch GitHub profile telemetry');
+      }
+
+      setLiveData({
+        bio: data.data.bio,
+        followers_count: data.data.followers_count,
+        following_count: data.data.following_count,
+      });
+
+      const topRepoStr = data.data.top_repo ? ` · Top repo: ${data.data.top_repo.name} (${data.data.top_repo.stars}★)` : '';
+      setTelemetryMsg({
+        type: 'success',
+        text: `✓ Telemetry synced: ${data.data.followers_count} followers · ${data.data.languages.join(', ') || 'Code'}${topRepoStr}`,
+      });
+    } catch (err: any) {
+      setTelemetryMsg({ type: 'error', text: `⚠️ ${err.message}` });
+    } finally {
+      setIsFetching(false);
+    }
+  }
 
   /* Repos belonging to this owner — exclude synthetic language='Profile' rows */
   const ownerRepos = repos.filter(
@@ -139,6 +185,13 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
   const isMutual     = profile.followed && profile.follow_back && !profile.unfollowed;
   const isUnfollowed = profile.unfollowed === true;
   const grade        = profile.grade ?? null;
+
+  const currentBio = liveData?.bio !== undefined ? liveData.bio : profile.bio;
+  const currentFollowers = liveData?.followers_count !== undefined ? liveData.followers_count : profile.followers_count;
+  const currentFollowing = liveData?.following_count !== undefined ? liveData.following_count : profile.following_count;
+  const currentRatio = (currentFollowers && currentFollowing)
+    ? (currentFollowers / Math.max(1, currentFollowing)).toFixed(1)
+    : '1.0';
 
   /* Follow-back label */
   const statusLabel = isUnfollowed
@@ -213,19 +266,69 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
                   </span>
                 )}
               </div>
-              {profile.bio && (
+              {currentBio && (
                 <p style={{ fontSize:13, color:'var(--muted)', marginTop:4, lineHeight:1.4 }}>
-                  {profile.bio}
+                  {currentBio}
                 </p>
               )}
             </div>
           </div>
 
-          {/* AI Evaluation Breakdown (Read-Only) */}
+          {/* AI Evaluation Breakdown */}
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 8 }}>
-              AI Evaluation Breakdown
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500 }}>
+                AI Evaluation Breakdown
+              </span>
+              <button
+                onClick={handleFetchTelemetry}
+                disabled={isFetching}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px solid var(--line-strong)',
+                  background: isFetching ? 'var(--hover)' : 'var(--bg)',
+                  color: isFetching ? 'var(--muted)' : 'var(--ink)',
+                  cursor: isFetching ? 'wait' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {isFetching ? (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}>
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                    </svg>
+                    <span>Fetching...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡ Re-score</span>
+                  </>
+                )}
+              </button>
             </div>
+
+            {telemetryMsg && (
+              <div style={{
+                fontSize: 11.5,
+                padding: '6px 10px',
+                borderRadius: 6,
+                background: telemetryMsg.type === 'success' ? 'var(--accent-tint)' : 'var(--warn-tint)',
+                color: telemetryMsg.type === 'success' ? 'var(--accent)' : 'var(--warn)',
+                marginBottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <span>{telemetryMsg.text}</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
               <b style={{ fontSize: 34, letterSpacing: '-.02em', color: 'var(--ink)' }}>
                 {Math.min(100, Math.round((grade ?? 0) * 10))}
@@ -283,14 +386,9 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
             marginBottom: 20, overflow: 'hidden',
           }}>
             {[
-              { label: 'Followers', value: profile.followers_count?.toLocaleString() ?? '—' },
-              { label: 'Following', value: profile.following_count?.toLocaleString() ?? '—' },
-              {
-                label: 'Ratio',
-                value: profile.followers_count && profile.following_count
-                  ? (profile.followers_count / Math.max(1, profile.following_count)).toFixed(1)
-                  : '1.0'
-              },
+              { label: 'Followers', value: currentFollowers?.toLocaleString() ?? '—' },
+              { label: 'Following', value: currentFollowing?.toLocaleString() ?? '—' },
+              { label: 'Ratio', value: currentRatio },
             ].map(({ label, value }, idx) => (
               <div key={label} style={{
                 padding: '11px 13px',
