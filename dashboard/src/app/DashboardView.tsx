@@ -1242,94 +1242,79 @@ export default function DashboardView({
 
       <main style={{ maxWidth: 1120, margin: '0 auto', padding: '24px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* ── OPTION 1: AI AGENT DIGEST & COMMAND BANNER ── */}
-        <section
-          aria-label="Agent Digest"
-          style={{
-            border: '1px solid var(--line)',
-            borderRadius: 'var(--r)',
-            background: 'var(--surface)',
-            padding: '16px 20px',
-            boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-            flexWrap: 'wrap',
-            transition: 'background 0.25s ease, border-color 0.25s ease',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 260, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                color: runStatus === 'running' ? 'var(--accent)' : 'var(--ink)',
-                background: runStatus === 'running' ? 'var(--accent-tint)' : 'var(--hover)',
-                padding: '3px 9px',
-                borderRadius: 999,
-                border: '1px solid var(--line)',
-              }}>
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: runStatus === 'running' ? 'var(--accent)' : 'var(--accent)',
-                  display: 'inline-block',
-                }} />
-                {runStatus === 'running' ? 'Worker running actively' : `Agent completed • ${lastRunLabel || 'Recent run'}`}
-              </span>
-              <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-                Evaluated {runSummary[0]?.profiles_evaluated ?? (allProfiles.length || 18)} candidates
-              </span>
-            </div>
-            <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45, marginTop: 2 }}>
-              {runSummary[0]
-                ? `Last execution reviewed ${runSummary[0].profiles_evaluated || 0} candidate repos: followed ${runSummary[0].profiles_followed || 0} high-signal builders, unfollowed ${runSummary[0].profiles_unfollowed || 0} non-mutuals.`
-                : `AI Agent actively discovers high-signal developers across trending repositories, scores code quality & repo cadence, and automatically prunes non-reciprocal accounts.`}
-            </p>
-          </div>
+        {/* ── OPEN WELCOME HERO (Matching Demo Layout & Typography) ── */}
+        <section aria-label="Welcome" style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ maxWidth: 700 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.25, color: 'var(--ink)' }}>
+                Find developers worth following, automatically
+              </h1>
+              <p style={{ color: 'var(--muted)', marginTop: 6, fontSize: 14, lineHeight: 1.5 }}>
+                FollowMe scores GitHub profiles with an LLM, follows the strong ones, and removes anyone who never follows back.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleTrigger}
+                  disabled={isTriggering || runStatus === 'running'}
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    padding: '6px 14px',
+                    borderRadius: 7,
+                    background: 'var(--ink)',
+                    color: 'var(--surface)',
+                    border: '1px solid var(--ink)',
+                    cursor: (isTriggering || runStatus === 'running') ? 'not-allowed' : 'pointer',
+                    opacity: (isTriggering || runStatus === 'running') ? 0.6 : 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
+                  }}
+                >
+                  <RotateCw className={`h-3.5 w-3.5 ${isTriggering ? 'animate-spin' : ''}`} />
+                  {isTriggering ? 'Running...' : 'Run Agent Now'}
+                </button>
+                <button
+                  onClick={() => setShowOnboardingTest(prev => !prev)}
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    padding: '6px 12px',
+                    borderRadius: 7,
+                    border: '1px solid var(--line-strong)',
+                    background: 'var(--surface)',
+                    color: 'var(--ink)',
+                    cursor: 'pointer',
+                    transition: 'all 0.16s ease',
+                  }}
+                >
+                  How scoring works
+                </button>
+              </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              onClick={handleTrigger}
-              disabled={isTriggering || runStatus === 'running'}
-              style={{
-                fontSize: 12.5,
-                fontWeight: 600,
-                padding: '7px 14px',
-                borderRadius: 7,
-                border: '1px solid var(--ink)',
-                background: 'var(--ink)',
-                color: 'var(--surface)',
-                cursor: (isTriggering || runStatus === 'running') ? 'not-allowed' : 'pointer',
-                opacity: (isTriggering || runStatus === 'running') ? 0.6 : 1,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
-              }}
-            >
-              <RotateCw className={`h-3.5 w-3.5 ${isTriggering ? 'animate-spin' : ''}`} />
-              {isTriggering ? 'Triggering...' : 'Trigger Agent Run'}
-            </button>
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              style={{
-                fontSize: 12.5,
-                fontWeight: 600,
-                padding: '7px 12px',
-                borderRadius: 7,
-                border: '1px solid var(--line-strong)',
-                background: 'var(--surface)',
-                color: 'var(--ink)',
-                cursor: 'pointer',
-                transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
-              }}
-            >
-              Configure
-            </button>
+              {showOnboardingTest && (
+                <div style={{
+                  marginTop: 14,
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--r)',
+                  background: 'var(--surface)',
+                  padding: '14px 18px',
+                  maxWidth: 640,
+                  fontSize: 13.5,
+                  color: 'var(--muted)',
+                  boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+                }}>
+                  <b style={{ color: 'var(--ink)', fontWeight: 600 }}>Each profile gets a score from 0 to 100.</b>
+                  <ol style={{ margin: '8px 0 0 18px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <li>The worker pulls recent activity, repos and follower patterns.</li>
+                    <li>An LLM rates activity, code quality, relevance and reach, and writes a one-line reason.</li>
+                    <li>Scores of 60 and above are queued to follow. Lower scores are skipped. Scores of 90 and above are marked as top picks.</li>
+                    <li>Accounts that don't follow back are cleaned up on a schedule.</li>
+                  </ol>
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
