@@ -28,19 +28,19 @@
   --foreground: #F0F2F5;
 
   --bg: #0B0C0E;
-  --surface: #14171D;
+  --surface: #121418;
   --ink: #F0F2F5;
   --muted: #8B92A0;
   --faint: #555B68;
-  --line: #222631;
-  --line-strong: #2F3543;
-  --hover: #1A1E26;
+  --line: #20232A;
+  --line-strong: #2D323C;
+  --hover: #181B21;
   --accent: #22C55E;
-  --accent-tint: rgba(34, 197, 94, 0.12);
+  --accent-tint: #0F291E;
   --warn: #F59E0B;
   --warn-tint: #2E200C;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
-  --shadow-hover: 0 6px 16px -2px rgba(0,0,0,0.55);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-hover: 0 6px 16px -2px rgba(0,0,0,0.45);
 }
 
 /* Base resets */

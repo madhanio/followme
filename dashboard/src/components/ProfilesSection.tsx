@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import type { ProfileItem } from '@/lib/types';
 
 type Segment = 'all' | 'top' | 'followed' | 'mutual' | 'unfollowed';
+type QuickPill = 'stars' | 'active' | 'highvol' | null;
 
 const SEGMENTS: { key: Segment; label: string }[] = [
   { key: 'all',        label: 'All' },
@@ -21,6 +22,43 @@ function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
     case 'unfollowed': return items.filter(p => p.unfollowed === true);
     default:           return items;
   }
+}
+
+function matchesPill(p: ProfileItem, pill: QuickPill): boolean {
+  if (!pill) return true;
+  if (pill === 'stars') {
+    return p.repos.some(r => (r.stars || 0) >= 100);
+  }
+  if (pill === 'active') {
+    const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    return p.repos.some(r => r.last_pushed_at && new Date(r.last_pushed_at).getTime() >= fourteenDaysAgo);
+  }
+  if (pill === 'highvol') {
+    return p.reposCount >= 3 || (p.followers_count || 0) >= 500;
+  }
+  return true;
+}
+
+function synthesizeReason(p: ProfileItem): string {
+  if (p.reason && !p.reason.toLowerCase().includes('high repository quality and active commit cadence')) {
+    return p.reason;
+  }
+  if (p.bio && p.bio.trim().length > 5) {
+    return p.bio.trim();
+  }
+  const topRepo = p.repos[0];
+  const lang = p.language && p.language !== 'Profile' ? p.language : topRepo?.language;
+  const stars = topRepo?.stars || 0;
+  if (stars >= 100 && lang) {
+    return `Maintains ${topRepo.name} with ${stars.toLocaleString()} stars in ${lang}.`;
+  }
+  if (lang) {
+    return `Active ${lang} contributor with ${p.reposCount} public projects.`;
+  }
+  if (p.reposCount >= 3) {
+    return `Consistent open-source output across ${p.reposCount} repositories.`;
+  }
+  return `Consistent open-source contributions and active cadence.`;
 }
 
 function ProfileRow({
@@ -44,7 +82,7 @@ function ProfileRow({
     ? { text: 'Skipped', bg: 'var(--warn-tint)', color: 'var(--warn)' }
     : { text: 'Queued', bg: 'var(--hover)', color: 'var(--muted)' };
 
-  const reason = profile.reason || (profile.bio ? profile.bio : 'High repository quality and active commit cadence');
+  const reason = synthesizeReason(profile);
 
   return (
     <div
@@ -151,18 +189,22 @@ export interface ProfilesSectionProps {
 
 export default function ProfilesSection({ profiles, onProfileClick, isLoading }: ProfilesSectionProps) {
   const [segment, setSegment] = useState<Segment>('all');
+  const [activePill, setActivePill] = useState<QuickPill>(null);
   const [query,   setQuery]   = useState('');
   const [page,    setPage]    = useState(1);
 
   const filtered = useMemo(() => {
-    const seg = applySegment(profiles, segment);
-    if (!query.trim()) return seg;
+    let list = applySegment(profiles, segment);
+    if (activePill) {
+      list = list.filter(p => matchesPill(p, activePill));
+    }
+    if (!query.trim()) return list;
     const q = query.toLowerCase();
-    return seg.filter(p => {
+    return list.filter(p => {
       const name = p.login || p.owner;
       return name.toLowerCase().includes(q) || (p.bio ?? '').toLowerCase().includes(q);
     });
-  }, [profiles, segment, query]);
+  }, [profiles, segment, activePill, query]);
 
   /* Reset page when filter changes */
   const visibleCount = page * PAGE_SIZE;
@@ -175,6 +217,10 @@ export default function ProfilesSection({ profiles, onProfileClick, isLoading }:
   }
   function handleQuery(v: string) {
     setQuery(v);
+    setPage(1);
+  }
+  function togglePill(pill: 'stars' | 'active' | 'highvol') {
+    setActivePill(prev => prev === pill ? null : pill);
     setPage(1);
   }
 
@@ -201,42 +247,105 @@ export default function ProfilesSection({ profiles, onProfileClick, isLoading }:
         flexWrap: 'wrap',
         borderBottom: '1px solid var(--line)',
       }}>
-        {/* Segmented control */}
-        <div style={{
-          display: 'inline-flex',
-          border: '1px solid var(--line-strong)',
-          borderRadius: 8,
-          padding: 2,
-          background: 'var(--bg)',
-        }}>
-          {SEGMENTS.map(s => {
-            const isSelected = segment === s.key;
-            return (
-              <button
-                key={s.key}
-                onClick={() => handleSegment(s.key)}
-                style={{
-                  padding: '5px 11px',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: isSelected ? 600 : 500,
-                  color: isSelected ? 'var(--ink)' : 'var(--muted)',
-                  background: isSelected ? 'var(--surface)' : 'transparent',
-                  boxShadow: isSelected ? '0 0 0 1px var(--line-strong)' : 'none',
-                  cursor: 'pointer',
-                  border: 'none',
-                  transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
-                }}
-              >
-                {s.label}
-                {!isLoading && (
-                  <span style={{ color: isSelected ? 'var(--muted)' : 'var(--faint)', marginLeft: 5, fontWeight: 400 }}>
-                    {counts[s.key]}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Segmented control + Quick pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'inline-flex',
+            border: '1px solid var(--line-strong)',
+            borderRadius: 8,
+            padding: 2,
+            background: 'var(--bg)',
+          }}>
+            {SEGMENTS.map(s => {
+              const isSelected = segment === s.key;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => handleSegment(s.key)}
+                  style={{
+                    padding: '5px 11px',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: isSelected ? 600 : 500,
+                    color: isSelected ? 'var(--ink)' : 'var(--muted)',
+                    background: isSelected ? 'var(--surface)' : 'transparent',
+                    boxShadow: isSelected ? '0 0 0 1px var(--line-strong)' : 'none',
+                    cursor: 'pointer',
+                    border: 'none',
+                    transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
+                  }}
+                >
+                  {s.label}
+                  {!isLoading && (
+                    <span style={{ color: isSelected ? 'var(--muted)' : 'var(--faint)', marginLeft: 5, fontWeight: 400 }}>
+                      {counts[s.key]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick evidence filter pills matching demo */}
+          <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => togglePill('stars')}
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                padding: '4px 9px',
+                borderRadius: 6,
+                border: activePill === 'stars' ? '1px solid var(--ink)' : '1px solid var(--line)',
+                background: activePill === 'stars' ? 'var(--ink)' : 'var(--surface)',
+                color: activePill === 'stars' ? 'var(--surface)' : 'var(--muted)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                transition: 'all 0.16s ease',
+              }}
+            >
+              ⭐ &gt;100 Stars
+            </button>
+            <button
+              onClick={() => togglePill('active')}
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                padding: '4px 9px',
+                borderRadius: 6,
+                border: activePill === 'active' ? '1px solid var(--ink)' : '1px solid var(--line)',
+                background: activePill === 'active' ? 'var(--ink)' : 'var(--surface)',
+                color: activePill === 'active' ? 'var(--surface)' : 'var(--muted)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                transition: 'all 0.16s ease',
+              }}
+            >
+              ⚡ Active (&lt;14d)
+            </button>
+            <button
+              onClick={() => togglePill('highvol')}
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                padding: '4px 9px',
+                borderRadius: 6,
+                border: activePill === 'highvol' ? '1px solid var(--ink)' : '1px solid var(--line)',
+                background: activePill === 'highvol' ? 'var(--ink)' : 'var(--surface)',
+                color: activePill === 'highvol' ? 'var(--surface)' : 'var(--muted)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                transition: 'all 0.16s ease',
+              }}
+            >
+              🔥 High Commits
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -258,7 +367,7 @@ export default function ProfilesSection({ profiles, onProfileClick, isLoading }:
         />
       </div>
 
-      {/* Table Column Header */}
+      {/* Table Column Header in clean title-case */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(200px, 1.4fr) 110px minmax(180px, 2fr) 100px 140px',
@@ -271,11 +380,11 @@ export default function ProfilesSection({ profiles, onProfileClick, isLoading }:
         borderBottom: '1px solid var(--line)',
         background: 'var(--hover)',
       }}>
-        <span>DEVELOPER</span>
-        <span>SCORE</span>
-        <span>EVALUATION SUMMARY</span>
-        <span>STATUS</span>
-        <span style={{ textAlign: 'right' }}>ACTION</span>
+        <span>Developer</span>
+        <span>Score</span>
+        <span>Why this score</span>
+        <span>Status</span>
+        <span style={{ textAlign: 'right' }}>Action</span>
       </div>
 
       {/* ── Rows ── */}

@@ -136,61 +136,6 @@ export default function Header({
             <span style={{ color: 'var(--muted)', fontSize: 13 }}>{lastRunLabel}</span>
           )}
 
-          {/* Run Now Action Pill */}
-          <button
-            onClick={onRunNow}
-            disabled={status === 'running'}
-            style={{
-              fontSize: 12.5,
-              fontWeight: 600,
-              padding: '5px 11px',
-              borderRadius: 7,
-              background: 'var(--ink)',
-              color: 'var(--surface)',
-              border: '1px solid var(--ink)',
-              cursor: status === 'running' ? 'not-allowed' : 'pointer',
-              opacity: status === 'running' ? 0.6 : 1,
-              transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
-            }}
-          >
-            Run Now
-          </button>
-
-          {/* Quick Actions Dropdown / Secondary */}
-          <button
-            onClick={status === 'paused' ? onUnpause : onPause}
-            style={{
-              fontSize: 12.5,
-              fontWeight: 600,
-              padding: '5px 10px',
-              borderRadius: 7,
-              border: '1px solid var(--line-strong)',
-              background: 'var(--surface)',
-              color: 'var(--ink)',
-              cursor: 'pointer',
-              transition: 'all 0.16s ease',
-            }}
-          >
-            {status === 'paused' ? 'Resume' : 'Pause'}
-          </button>
-
-          <button
-            onClick={onUnfollowOpen}
-            style={{
-              fontSize: 12.5,
-              fontWeight: 600,
-              padding: '5px 10px',
-              borderRadius: 7,
-              border: '1px solid var(--line-strong)',
-              background: 'var(--surface)',
-              color: 'var(--ink)',
-              cursor: 'pointer',
-              transition: 'all 0.16s ease',
-            }}
-          >
-            Unfollow
-          </button>
-
           {/* Settings */}
           <button
             onClick={onSettingsOpen}

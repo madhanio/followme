@@ -1255,7 +1255,7 @@ export default function DashboardView({
               <p style={{ color: 'var(--muted)', marginTop: 6, fontSize: 14, lineHeight: 1.5 }}>
                 FollowMe scores GitHub profiles with an LLM, follows the strong ones, and removes anyone who never follows back.
               </p>
-              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   onClick={handleTrigger}
                   disabled={isTriggering || runStatus === 'running'}
@@ -1293,6 +1293,38 @@ export default function DashboardView({
                   }}
                 >
                   How scoring works
+                </button>
+                <button
+                  onClick={runStatus === 'paused' ? handleUnpause : handlePause}
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 500,
+                    padding: '6px 11px',
+                    borderRadius: 7,
+                    border: '1px solid var(--line)',
+                    background: 'transparent',
+                    color: 'var(--muted)',
+                    cursor: 'pointer',
+                    transition: 'all 0.16s ease',
+                  }}
+                >
+                  {runStatus === 'paused' ? 'Resume Worker' : 'Pause Worker'}
+                </button>
+                <button
+                  onClick={() => setIsCleanupOpen(true)}
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 500,
+                    padding: '6px 11px',
+                    borderRadius: 7,
+                    border: '1px solid var(--line)',
+                    background: 'transparent',
+                    color: 'var(--muted)',
+                    cursor: 'pointer',
+                    transition: 'all 0.16s ease',
+                  }}
+                >
+                  Cleanup Assistant
                 </button>
               </div>
 

@@ -124,6 +124,11 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
     ? Math.round((followedBackTotal / followedEver) * 100)
     : 0;
 
+  // Real 7-day delta calculation
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const followedThisWeek = repos.filter(r => r.followed && (r.followed_at || r.created_at || '') >= sevenDaysAgo).length;
+  const weekDeltaLabel = followedThisWeek > 0 ? `+${followedThisWeek} this week` : 'Active connections';
+
   /* ── Sparklines (daily counts, last 30 days, using created_at) ── */
   const sparkFollowed    = dailyCounts(followed);
   const sparkFollowBack  = dailyCounts(followedBack);
@@ -144,7 +149,7 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
       <StatCell
         label="Followed"
         primary={followedTotal.toLocaleString()}
-        note="Active connections"
+        note={weekDeltaLabel}
         spark={sparkFollowed}
         sparkColor="var(--accent)"
         isFirst={true}
