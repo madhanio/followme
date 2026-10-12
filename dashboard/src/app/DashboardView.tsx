@@ -1240,7 +1240,10 @@ export default function DashboardView({
         onSettingsOpen={() => setIsSettingsOpen(true)}
       />
 
-      <main className="max-w-[1120px] mx-auto px-4 sm:px-6 py-6 flex flex-col gap-5">
+      <main
+        style={{ maxWidth: 1120, margin: '0 auto', width: '100%', padding: '24px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}
+        className="px-4 sm:px-6"
+      >
 
         {/* ── OPEN WELCOME HERO (Matching Demo Layout & Typography) ── */}
         <section aria-label="Welcome" style={{ marginTop: 8 }}>

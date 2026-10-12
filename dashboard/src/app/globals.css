@@ -75,6 +75,12 @@ input:focus, select:focus, textarea:focus {
 /* Button base */
 button { font-family: inherit; }
 
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
 @keyframes fm-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
