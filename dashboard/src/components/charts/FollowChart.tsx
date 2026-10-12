@@ -44,7 +44,7 @@ export default function FollowChart({ repos, isLoading }: FollowChartProps) {
     d.setDate(today.getDate() - (days - 1 - i));
     dayObjs.push(d);
     const key = d.toISOString().slice(0, 10);
-    followed.push(repos.filter(r => r.followed && r.created_at?.slice(0, 10) === key).length);
+    followed.push(repos.filter(r => r.followed && (r.followed_at?.slice(0, 10) === key || (!r.followed_at && (r.graded_at?.slice(0, 10) === key || r.created_at?.slice(0, 10) === key)))).length);
     unfollowed.push(repos.filter(r => r.unfollowed && (r.followed_at?.slice(0, 10) === key || r.created_at?.slice(0, 10) === key)).length);
   }
 

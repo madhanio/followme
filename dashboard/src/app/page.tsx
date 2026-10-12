@@ -24,12 +24,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
     userProfile,
     dbSettings,
     rateLimitRes,
+    repos,
     logs,
     runSummary
   ] = await Promise.all([
     getUserProfile().catch(() => null),
     getSystemSettings().catch(() => null),
     getGitHubRateLimit().catch(() => ({ success: false, data: undefined })),
+    fetchAllRows(supabase, 'repos', REPOS_SELECT, undefined, 300).catch((err: any) => {
+      console.error('Error fetching repos details:', err?.message || err);
+      return [];
+    }),
     Promise.resolve(
       supabase
         .from('logs')
@@ -58,7 +63,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ta
 
   return (
     <DashboardView 
-      initialRepos={[]} 
+      initialRepos={repos || []} 
       initialLogs={logs || []} 
       initialRunSummary={runSummary || []}
       initialUserProfile={userProfile}

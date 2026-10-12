@@ -3,25 +3,31 @@
 import type { Repo } from '@/lib/types';
 
 function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return null;
-  const W = 64, H = 24;
-  const max = Math.max(...values, 1);
+  if (!values || values.length < 2) return null;
+  const w = 84, h = 28;
+  const mx = Math.max(...values);
+  const mn = Math.min(...values);
+  const r = mx - mn || (mx > 0 ? mx : 1);
   const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * W;
-    const y = H - (v / max) * H;
-    return `${x},${y}`;
+    const x = (i / (values.length - 1)) * w;
+    const y = mx === mn && mx === 0 
+      ? h - 4 
+      : (h - 3 - ((v - mn) / r) * (h - 6));
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
+
   return (
-    <svg width={W} height={H} style={{ display:'block', overflow:'visible' }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block', flexShrink: 0 }} aria-hidden="true">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
 
 /* Returns a 30-element array (oldest → today) of daily counts.
-   isoDate field: the date column to bucket by (YYYY-MM-DD prefix match on created_at). */
+   dateGetter: extracts the ISO date string to bucket by. */
 function dailyCounts(
-  rows: Array<{ created_at?: string | null }>,
+  rows: Array<Record<string, any>>,
+  dateGetter: (row: Record<string, any>) => string | null | undefined,
   days = 30
 ): number[] {
   const today = new Date();
@@ -32,8 +38,9 @@ function dailyCounts(
     buckets[d.toISOString().slice(0, 10)] = 0;
   }
   for (const row of rows) {
-    if (!row.created_at) continue;
-    const key = row.created_at.slice(0, 10);
+    const raw = dateGetter(row);
+    if (!raw) continue;
+    const key = raw.slice(0, 10);
     if (key in buckets) buckets[key]++;
   }
   return Object.values(buckets);
@@ -129,11 +136,11 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
     ? Math.round((followedBackTotal / followedEver) * 100)
     : 0;
 
-  /* ── Sparklines (daily counts, last 30 days, using created_at) ── */
-  const sparkFollowed    = dailyCounts(followed);
-  const sparkFollowBack  = dailyCounts(followedBack);
-  const sparkTopPicks    = dailyCounts(topPicks);
-  const sparkUnfollowed  = dailyCounts(unfollowed);
+  /* ── Sparklines (daily counts, last 30 days) ── */
+  const sparkFollowed   = dailyCounts(followed, r => r.followed_at || r.graded_at || r.created_at);
+  const sparkFollowBack = dailyCounts(followedBack, r => r.followed_at || r.graded_at || r.created_at);
+  const sparkTopPicks   = dailyCounts(topPicks, r => r.graded_at || r.created_at);
+  const sparkUnfollowed = dailyCounts(unfollowed, r => r.followed_at || r.created_at);
 
   return (
     <div
