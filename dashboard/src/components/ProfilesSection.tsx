@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import type { ProfileItem } from '@/lib/types';
 
-type Segment = 'all' | 'top' | 'followed' | 'mutual' | 'unfollowed';
+type Segment = 'all' | 'top' | 'followed' | 'mutual';
 type QuickPill = 'stars' | 'active' | 'highvol' | null;
 
 const SEGMENTS: { key: Segment; label: string }[] = [
@@ -11,7 +11,6 @@ const SEGMENTS: { key: Segment; label: string }[] = [
   { key: 'top',        label: 'Top Picks' },
   { key: 'followed',   label: 'Followed' },
   { key: 'mutual',     label: 'Mutual' },
-  { key: 'unfollowed', label: 'Unfollowed' },
 ];
 
 function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
@@ -19,7 +18,6 @@ function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
     case 'top':        return items.filter(p => (p.grade ?? 0) >= 9 && p.language !== 'Profile');
     case 'followed':   return items.filter(p => p.followed && !p.follow_back && !p.unfollowed);
     case 'mutual':     return items.filter(p => p.followed && p.follow_back && !p.unfollowed);
-    case 'unfollowed': return items.filter(p => p.unfollowed === true);
     default:           return items;
   }
 }
