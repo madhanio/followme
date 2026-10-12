@@ -67,13 +67,15 @@ export default function BandChart({ repos, isLoading }: BandChartProps) {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '14px 18px 0',
-      }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Follow-back by score</h2>
+      <div
+        className="flex items-center justify-between flex-wrap gap-2 overflow-visible"
+        style={{
+          padding: '14px 18px 0',
+        }}
+      >
+        <h2 className="text-[14px] font-semibold overflow-visible whitespace-nowrap" style={{ color: 'var(--ink)' }}>
+          Follow-back by score
+        </h2>
       </div>
 
       {isLoading ? (

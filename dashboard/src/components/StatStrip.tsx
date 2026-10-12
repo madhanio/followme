@@ -40,7 +40,7 @@ function dailyCounts(
 }
 
 function StatCell({
-  label, primary, note, spark, sparkColor, isFirst, isLoading,
+  label, primary, note, spark, sparkColor, isFirst, index, isLoading,
 }: {
   label: string;
   primary: string;
@@ -48,23 +48,28 @@ function StatCell({
   spark: number[];
   sparkColor: string;
   isFirst?: boolean;
+  index?: number;
   isLoading?: boolean;
 }) {
   return (
     <div
+      className={`p-3.5 sm:p-4 sm:px-4.5 flex flex-col gap-0.5 min-w-0 transition-colors duration-150 ${
+        index !== undefined && index % 2 !== 0 ? 'border-l border-[var(--line)] sm:border-l' : ''
+      } ${
+        index !== undefined && index >= 2 ? 'border-t border-[var(--line)] sm:border-t-0' : ''
+      } ${
+        index !== undefined && index > 0 ? 'sm:border-l sm:border-[var(--line)]' : ''
+      }`}
       style={{
-        padding: '16px 18px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        minWidth: 0,
-        borderLeft: isFirst ? 'none' : '1px solid var(--line)',
         transition: 'background 0.18s ease',
       }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      <span style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 500 }}>
+      <span
+        className="text-[13px] font-medium leading-tight whitespace-normal break-words"
+        style={{ color: 'var(--muted)' }}
+      >
         {label}
       </span>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 2 }}>
@@ -131,23 +136,24 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
   const sparkUnfollowed  = dailyCounts(unfollowed);
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(4, 1fr)',
-      border: '1px solid var(--line)',
-      borderRadius: 'var(--r)',
-      background: 'var(--surface)',
-      boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
-      transition: 'background 0.25s ease, border-color 0.25s ease',
-      overflow: 'hidden',
-    }}>
+    <div
+      className="grid grid-cols-2 sm:grid-cols-4 w-full"
+      style={{
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--r)',
+        background: 'var(--surface)',
+        boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+        transition: 'background 0.25s ease, border-color 0.25s ease',
+        overflow: 'hidden',
+      }}
+    >
       <StatCell
         label="Followed"
         primary={followedTotal.toLocaleString()}
         note="Active connections"
         spark={sparkFollowed}
         sparkColor="var(--accent)"
-        isFirst={true}
+        index={0}
         isLoading={isLoading}
       />
       <StatCell
@@ -156,6 +162,7 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
         note={`${followedBackTotal} of ${followedEver}`}
         spark={sparkFollowBack}
         sparkColor="var(--ink)"
+        index={1}
         isLoading={isLoading}
       />
       <StatCell
@@ -164,6 +171,7 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
         note="Quality score ≥ 90"
         spark={sparkTopPicks}
         sparkColor="var(--accent)"
+        index={2}
         isLoading={isLoading}
       />
       <StatCell
@@ -172,6 +180,7 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
         note="Past grace period"
         spark={sparkUnfollowed}
         sparkColor="var(--faint)"
+        index={3}
         isLoading={isLoading}
       />
     </div>
