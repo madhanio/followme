@@ -65,6 +65,44 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
 .how ol{margin:8px 0 0 18px;display:flex;flex-direction:column;gap:4px}
 .how b{color:var(--ink);font-weight:600}
 
+/* profile score checker tool */
+.scorer-card{
+  margin-top:16px;background:var(--surface);border:1px solid var(--line-strong);
+  border-radius:var(--r);padding:14px 18px;max-width:640px;box-shadow:var(--shadow-sm);
+  display:flex;flex-direction:column;gap:10px;
+}
+.scorer-title{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--ink)}
+.scorer-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.scorer-input-wrap{position:relative;flex:1;min-width:200px}
+.scorer-input-prefix{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--faint);font-weight:600;font-size:13px;pointer-events:none}
+.scorer-input{
+  width:100%;border:1px solid var(--line-strong);border-radius:7px;
+  padding:7px 10px 7px 24px;background:var(--bg);font-size:13px;
+  transition:border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.scorer-input:focus{border-color:var(--ink);box-shadow:0 0 0 3px var(--line);outline:none}
+.scorer-msg{font-size:12.5px;margin-top:2px}
+.scorer-msg.error{color:#DC2626}
+.scorer-msg.info{color:var(--muted)}
+.you-badge{
+  font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;
+  background:var(--ink);color:var(--surface);margin-left:6px;
+  letter-spacing:0.04em;text-transform:uppercase;
+}
+.evaluated-pill{
+  display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;
+  background:var(--hover);border:1px solid var(--line-strong);font-size:12.5px;
+  cursor:pointer;transition:all 0.16s cubic-bezier(0.16,1,0.3,1);color:var(--ink);
+  font-weight:600;margin-top:6px;
+}
+.evaluated-pill:hover{background:var(--surface);border-color:var(--ink);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.header-you-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
+  background:var(--hover);border:1px solid var(--line-strong);font-size:12px;
+  font-weight:600;color:var(--ink);cursor:pointer;transition:all 0.16s ease;
+}
+.header-you-btn:hover{background:var(--surface);border-color:var(--ink);transform:scale(1.03)}
+
 @keyframes slideDown{
   from{opacity:0;transform:translateY(-6px)}
   to{opacity:1;transform:translateY(0)}
@@ -208,26 +246,8 @@ footer{border-top:1px solid var(--line);background:var(--surface);padding:32px 0
 .f-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .f-right a{color:var(--muted);text-decoration:none;transition:color 0.16s ease;display:inline-flex;align-items:center;gap:6px;line-height:1}
 .f-right a:hover{color:var(--ink)}
-.license-badge {
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ink);
-  background: var(--bg);
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
-  text-decoration: none;
-  transition: all 0.16s ease;
-}
+.license-badge{border:1px solid var(--line-strong);border-radius:6px;padding:4px 8px;font-size:11.5px;font-weight:600;color:var(--ink);background:var(--bg);display:inline-flex;align-items:center;line-height:1}
 
-.license-badge:hover {
-  background: var(--hover);
-  border-color: var(--ink);
-  color: var(--ink);
-}
 /* hide injected vercel toolbar and badges */
 vercel-live-feedback, #__vercel-toolbar, [data-vercel-toolbar], [data-testid="vercel-toolbar"] {
   display: none !important;
@@ -312,6 +332,7 @@ body.open .drawer{transform:none}
     <div class="status">
       <span><span class="dot" id="dot"></span><span id="wstate">Worker idle</span></span>
       <span class="hide-m" id="lastrun">Last run 2h ago, next in 4h</span>
+      <span id="headerVisitor"></span>
       <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" title="Toggle theme">
         <svg id="themeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="5"/>
@@ -379,7 +400,7 @@ body.open .drawer{transform:none}
       <div>Designed &amp; engineered by <a href="https://github.com/madhanio" target="_blank" rel="noopener" style="color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:3px;">Madhan (@madhanio) <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg></a>.</div>
     </div>
     <div class="f-right">
-      <a href="https://github.com/madhanio/followme/blob/main/LICENSE" target="_blank" rel="noopener" class="license-badge">MIT License</a>
+      <span class="license-badge">MIT License</span>
       <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
         View Source on GitHub <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg>
@@ -508,7 +529,7 @@ P.forEach(p=>{
 const state={filter:"picks",pill:null,q:"",limit:20,open:null,how:false};
 
 /* single source of truth for filtering */
-const matches=(p,f)=> f==="all" ? true : f==="picks" ? (p.starred && p.status!=="skipped") : p.status===f;
+const matches=(p,f)=> f==="all" ? true : f==="you" ? Boolean(p.isVisitor) : f==="picks" ? (p.starred && p.status!=="skipped") : p.status===f;
 const matchesPill=(p,pill)=>{
   if(!pill) return true;
   if(pill==="stars") return p.repoData.some(r=>r.stars>=100);
@@ -520,6 +541,7 @@ const visible=()=>P.filter(p=>matches(p,state.filter) && matchesPill(p,state.pil
 
 function hue(s){let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h}
 const av=(p,cls="")=>{
+  if(p.avatar) return `<span class="av ${cls}" aria-hidden="true"><img src="${p.avatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></span>`;
   const r=rng(h32(p.user+"x")); let cells="";
   for(let y=0;y<5;y++)for(let x=0;x<3;x++){ if(r()>.5){ cells+=`<rect x="${x}" y="${y}" width="1" height="1"/>`; if(x<2) cells+=`<rect x="${4-x}" y="${y}" width="1" height="1"/>`; } }
   return `<span class="av ${cls}" aria-hidden="true"><svg viewBox="-.75 -.75 6.5 6.5" fill="hsl(${hue(p.user)} 45% 48%)">${cells}</svg></span>`;
@@ -547,7 +569,11 @@ function renderStats(){
 }
 
 function renderSeg(){
-  const defs=[["picks","Top picks"],["queued","Queued"],["followed","Followed"],["skipped","Skipped"],["all","All"]];
+  const hasVisitor = P.some(p => p.isVisitor);
+  const defs=[
+    ...(hasVisitor ? [["you","Your Profile"]] : []),
+    ["picks","Top picks"],["queued","Queued"],["followed","Followed"],["skipped","Skipped"],["all","All"]
+  ];
   $("#seg").innerHTML=defs.map(([k,t])=>`<button data-k="${k}" aria-pressed="${state.filter===k}">${t}<span class="c">${P.filter(p=>matches(p,k)).length}</span></button>`).join("");
 }
 
@@ -564,7 +590,7 @@ function renderList(){
   }
   $("#list").innerHTML=L.map(p=>`
    <div class="item" role="listitem" tabindex="0" data-u="${p.user}">
-     <div class="who">${av(p)}<div><div class="n">${p.name}${p.starred?starIcon:""}</div><div class="u">@${p.user}</div></div></div>
+     <div class="who">${av(p)}<div><div class="n">${p.name}${p.starred?starIcon:""}${p.isVisitor?`<span class="you-badge">YOU</span>`:""}</div><div class="u">@${p.user}</div></div></div>
      <div class="score"><span>${p.score}</span><span class="bar-s"><i style="width:${p.score}%"></i></span></div>
      <div class="reason" title="${p.reason}">${p.reason}</div>
      <div class="st"><span class="chip ${p.status}">${label[p.status]}</span></div>
@@ -616,14 +642,15 @@ function recalcScore(p){
   p.score = Math.round((p.subs.activity * 0.3) + (p.subs.codeQuality * 0.35) + (p.subs.relevance * 0.2) + (p.subs.reach * 0.15));
   p.starred = p.score >= 90 && p.status !== "skipped";
 }
-
 function openDrawer(u){
   const p=P.find(x=>x.user===u); if(!p)return; state.open=u;
-  const ratio=(p.followers/Math.max(1,p.following)).toFixed(1);
+  const ratio = p.following === 0 
+    ? (p.followers > 0 ? "—" : "0.0") 
+    : (p.followers / p.following).toFixed(1);
   
   const renderDrawerBody = () => {
     return `
-     <div class="d-head">${av(p)}<div><h3 style="display:flex;align-items:center;gap:6px">${p.name}${p.starred?starIcon:""}</h3><div class="u">@${p.user}</div></div><button class="x" id="close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
+     <div class="d-head">${av(p)}<div><h3 style="display:flex;align-items:center;gap:6px">${p.name}${p.starred?starIcon:""}${p.isVisitor?`<span class="you-badge">YOU</span>`:""}</h3><div class="u">@${p.user}</div></div><button class="x" id="close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
      <div class="d-body">
        <div>
          <h4>AI Evaluation Breakdown <span style="font-weight:400;color:var(--faint)">(interactive)</span></h4>
@@ -634,8 +661,8 @@ function openDrawer(u){
          <div class="sub"><span>Reach</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.reach}" data-key="reach"><span id="v_reach">${p.subs.reach}</span></div>
        </div>
        <div><h4>Why this score</h4><p>${p.reason}</p><div class="evi">${evidence(p).map(e=>`<span class="ev-chip ${e[0]}">${e[1]}</span>`).join("")}</div></div>
-       ${p.bio?`<div><h4>Bio</h4><p>${p.bio}</p></div>`:""}
-       <div><h4>Top repos</h4><div class="repos">${p.repoData.map(r=>`<div class="repo"><div class="rn"><span>${r.n}</span><span class="rs"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>${r.stars.toLocaleString()}</span></div><div class="rd">${r.desc}</div><div class="rm">${r.lang}, pushed ${r.pushed} day${r.pushed>1?"s":""} ago</div></div>`).join("")}</div></div>
+       ${p.bio && p.bio.trim() ? `<div><h4>Bio</h4><p>${p.bio}</p></div>` : ""}
+       <div><h4>Top repos</h4><div class="repos">${p.repoData.length ? p.repoData.map(r=>`<div class="repo"><div class="rn"><span>${r.n}</span><span class="rs"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>${r.stars.toLocaleString()}</span></div><div class="rd">${r.desc}</div><div class="rm">${r.lang}, pushed ${r.pushed} day${r.pushed>1?"s":""} ago</div></div>`).join("") : `<div class="repo" style="color:var(--muted);font-size:13px">No public repositories found.</div>`}</div></div>
        <div class="facts"><div><b>${p.followers.toLocaleString()}</b><span>Followers</span></div><div><b>${p.following.toLocaleString()}</b><span>Following</span></div><div><b>${ratio}</b><span>Ratio</span></div></div>
        <div><h4>Languages</h4><div class="lbar"><i style="width:${p.mix[0]}%"></i></div><div class="lleg">${p.langs.map((l,i)=>`<span>${l} ${p.mix[i]}%</span>`).join("")}</div></div>
        <div><h4>Found by</h4><p>${p.src}, account is ${p.age} year${p.age>1?"s":""} old</p></div>
@@ -670,11 +697,22 @@ function closeDrawer(){document.body.classList.remove("open");$("#drawer").setAt
 function evidence(p){
   const out=[], big=p.repoData.filter(r=>r.stars>=100).length;
   if(big) out.push(["good",`${big} repo${big>1?"s":""} with 100+ stars`]);
-  const last=Math.min(...p.repoData.map(r=>r.pushed));
-  out.push([last<=14?"good":last>90?"warn":"",`Last push ${last} day${last>1?"s":""} ago`]);
-  if(p.commits>=60) out.push(["good",`${p.commits} commits in 90 days`]);
-  else if(p.commits<10) out.push(["warn",`Only ${p.commits} commits in 90 days`]);
-  if(p.following>p.followers*8) out.push(["warn","Follows far more than follow back"]);
+  
+  if(p.repoData.length > 0){
+    const last=Math.min(...p.repoData.map(r=>r.pushed));
+    if(last <= 14) out.push(["good",`Last push ${last} day${last>1?"s":""} ago`]);
+    else if(last <= 90) out.push(["",`Last push ${last} days ago`]);
+    else out.push(["warn",`Last push ${last} days ago`]);
+  }
+  
+  if(p.commits >= 30) out.push(["good",`${p.commits} public commits in 90 days`]);
+  else if(p.commits > 0) out.push(["",`${p.commits} public commits in 90 days`]);
+  else out.push(["warn",`No recent commits in 90 days`]);
+  
+  if(p.following > 0 && p.followers === 0) out.push(["warn","Follows accounts with 0 followers"]);
+  else if(p.following > Math.max(1, p.followers) * 8) out.push(["warn","Follows far more than follow back"]);
+  else if(p.followers > 50 && p.followers >= p.following * 1.5) out.push(["good","Strong organic follow ratio"]);
+  
   return out;
 }
 
@@ -707,11 +745,316 @@ function renderWelcome(){
     </div>
     ${state.how?`<div class="how"><b>Each profile gets a score from 0 to 100.</b>
       <ol><li>The worker pulls recent activity, repos and follower patterns.</li><li>An LLM rates activity, code quality, relevance and reach, and writes a one-line reason.</li><li>Scores of 60 and above are queued to follow. Lower scores are skipped. Scores of 90 and above are marked as top picks.</li><li>Accounts that don't follow back are cleaned up on a schedule.</li></ol></div>`:""}
+    
+    <div class="scorer-card">
+      <div class="scorer-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span>Check your GitHub profile score</span>
+      </div>
+      <form class="scorer-form" id="scorerForm">
+        <div class="scorer-input-wrap">
+          <span class="scorer-input-prefix">@</span>
+          <input class="scorer-input" id="ghUser" type="text" placeholder="your-github-username" autocomplete="off" spellcheck="false" required>
+        </div>
+        <button class="btn primary" id="scorerBtn" type="submit">Score my profile</button>
+      </form>
+      <div id="scorerMsg" class="scorer-msg"></div>
+      <div id="revisitSlot"></div>
+    </div>
   </div>`;
   $("#howbtn").onclick=()=>{state.how=!state.how;renderWelcome()};
+  $("#scorerForm").onsubmit=handleScoreSubmit;
+  renderVisitorBadges();
 }
 
-function renderAll(){renderStats();renderBands();renderSeg();renderList();}
+function renderVisitorBadges(){
+  const visitor = P.find(p => p.isVisitor);
+  const rSlot = $("#revisitSlot");
+  const hSlot = $("#headerVisitor");
+
+  if(!visitor){
+    if(rSlot) rSlot.innerHTML = "";
+    if(hSlot) hSlot.innerHTML = "";
+    return;
+  }
+
+  // Scorer Card Revisit Pill
+  if(rSlot){
+    rSlot.innerHTML = `
+      <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--muted)">Evaluated profile:</span>
+        <button class="evaluated-pill" id="revisitBtn" title="Click to view full evaluation details">
+          ${av(visitor)}
+          <span>@${visitor.user}</span>
+          <span style="padding:1px 6px;border-radius:4px;background:var(--ink);color:var(--surface);font-size:11px">${visitor.score}</span>
+          <span style="color:var(--muted);font-weight:400;font-size:11.5px">Revisit analysis →</span>
+        </button>
+      </div>`;
+    const rBtn = $("#revisitBtn");
+    if(rBtn) rBtn.onclick = () => openDrawer(visitor.user);
+  }
+
+  // Header Bar Quick-Access Badge
+  if(hSlot){
+    hSlot.innerHTML = `
+      <button class="header-you-btn" id="headYouBtn" title="View your evaluated profile">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block"></span>
+        <span>YOU (@${visitor.user})</span>
+        <span style="font-weight:700">${visitor.score}</span>
+      </button>`;
+    const hBtn = $("#headYouBtn");
+    if(hBtn) hBtn.onclick = () => openDrawer(visitor.user);
+  }
+}
+
+async function handleScoreSubmit(e){
+  e.preventDefault();
+  const inp = $("#ghUser");
+  const btn = $("#scorerBtn");
+  const msg = $("#scorerMsg");
+  const user = inp.value.trim().replace(/^@/,'');
+  if(!user) return;
+
+  btn.disabled = true;
+  btn.textContent = "Scoring...";
+  msg.className = "scorer-msg info";
+  msg.textContent = "Fetching GitHub profile and analyzing repositories...";
+
+  try {
+    const userRes = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}`);
+    if(userRes.status === 404){
+      throw new Error(`GitHub user "@${user}" not found. Please check spelling.`);
+    }
+    if(userRes.status === 403){
+      throw new Error("GitHub API rate limit exceeded. Please wait a minute and try again.");
+    }
+    if(!userRes.ok){
+      throw new Error(`Failed to fetch profile (HTTP ${userRes.status}).`);
+    }
+    const uData = await userRes.json();
+
+    const reposRes = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=30`);
+    const repos = reposRes.ok ? await reposRes.json() : [];
+
+    // Fetch real recent activity from user's public event log (reliable & free of search API collisions)
+    let realCommits90d = 0;
+    try {
+      const eventsRes = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}/events/public?per_page=100`);
+      if(eventsRes.ok){
+        const events = await eventsRes.json();
+        const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+        events.forEach(e => {
+          if(new Date(e.created_at).getTime() >= ninetyDaysAgo && e.type === 'PushEvent'){
+            realCommits90d += (e.payload?.commits?.length || e.payload?.size || e.payload?.distinct_size || 1);
+          }
+        });
+      }
+    } catch(_){}
+
+    // Calculate dynamic sub-scores (0-100) strictly from real data with calibrated, discerning thresholds
+    const originalRepos = repos.filter(r => !r.fork);
+    const totalStars = repos.reduce((acc, r) => acc + (r.stargazers_count || 0), 0);
+    const now = Date.now();
+    
+    // 1. Activity (30% weight): push recency + verified 90-day commits
+    let daysSinceLastPush = 999;
+    if(repos.length > 0 && repos[0].pushed_at){
+      daysSinceLastPush = Math.max(0, Math.floor((now - new Date(repos[0].pushed_at).getTime()) / (1000 * 60 * 60 * 24)));
+    }
+    
+    let activity = 20;
+    if(daysSinceLastPush <= 2) activity += 32;
+    else if(daysSinceLastPush <= 7) activity += 24;
+    else if(daysSinceLastPush <= 21) activity += 16;
+    else if(daysSinceLastPush <= 45) activity += 8;
+
+    if(realCommits90d >= 80) activity += 40;
+    else if(realCommits90d >= 30) activity += 30;
+    else if(realCommits90d >= 10) activity += 20;
+    else if(realCommits90d >= 2) activity += 10;
+    activity = Math.min(96, Math.max(15, activity));
+
+    // 2. Code Quality (35% weight): stars + originality ratio + documentation quality
+    let codeQuality = 25;
+    if(totalStars >= 300) codeQuality += 42;
+    else if(totalStars >= 100) codeQuality += 34;
+    else if(totalStars >= 40) codeQuality += 25;
+    else if(totalStars >= 15) codeQuality += 16;
+    else if(totalStars >= 3) codeQuality += 8;
+
+    const descCount = repos.filter(r => r.description && r.description.trim().length > 15).length;
+    const descRatio = repos.length ? descCount / repos.length : 0;
+    if(descRatio >= 0.7) codeQuality += 14;
+    else if(descRatio >= 0.4) codeQuality += 7;
+
+    const origRatio = repos.length ? originalRepos.length / repos.length : 0;
+    if(origRatio >= 0.8 && originalRepos.length >= 4) codeQuality += 12;
+    else if(origRatio < 0.4) codeQuality -= 12;
+    codeQuality = Math.min(96, Math.max(15, codeQuality));
+
+    // 3. Relevance (20% weight): bio clarity + multi-language/stack depth + repository breadth
+    const realBio = uData.bio ? uData.bio.trim() : "";
+    const languages = [...new Set(repos.map(r => r.language).filter(Boolean))];
+    let relevance = 30;
+    if(realBio.length >= 50) relevance += 25;
+    else if(realBio.length >= 15) relevance += 15;
+
+    if(languages.length >= 2 && languages.length <= 5) relevance += 20;
+    else if(languages.length === 1) relevance += 10;
+
+    if(repos.length >= 5) relevance += 15;
+    else if(repos.length <= 1) relevance -= 8;
+    relevance = Math.min(92, Math.max(20, relevance));
+
+    // 4. Reach (15% weight): organic followers & healthy follower-to-following ratio
+    const followers = typeof uData.followers === "number" ? uData.followers : 0;
+    const following = typeof uData.following === "number" ? uData.following : 0;
+    let reach = 20;
+    if(followers >= 1000) reach += 58;
+    else if(followers >= 400) reach += 46;
+    else if(followers >= 150) reach += 35;
+    else if(followers >= 40) reach += 24;
+    else if(followers >= 10) reach += 14;
+    else if(followers >= 2) reach += 6;
+
+    if(following > 0){
+      const fRatio = followers / following;
+      if(fRatio >= 2.0 && followers >= 40) reach += 14;
+      else if(fRatio >= 1.0) reach += 8;
+      else if(fRatio < 0.3 && following > 80) reach -= 14;
+    }
+    reach = Math.min(94, Math.max(15, reach));
+
+    // Calibrated Composite Score (0-100)
+    const score = Math.round((activity * 0.3) + (codeQuality * 0.35) + (relevance * 0.2) + (reach * 0.15));
+    const status = score < 60 ? "skipped" : "queued";
+    const starred = score >= 90;
+
+    // Professional AI assessment reason (matches FollowMe LLM agent tone across all score tiers)
+    const isStudent = /student|learning|b\.?tech|college|university|learner/i.test(realBio);
+    const isML = /ml|machine learning|data science|ai|analytics|deep learning/i.test(realBio) || languages.includes('Jupyter Notebook');
+    const isWeb = /full-stack|frontend|backend|next\.js|react|vue|web/i.test(realBio);
+    const mainLangs = languages.filter(l => l !== 'Jupyter Notebook').slice(0, 2).join(' and ') || languages[0] || 'code';
+
+    let reason = "";
+
+    // ── TIER 1: SKIPPED (Score < 60) — Critical, honest evaluation of why they are not queued ──
+    if (score < 60) {
+      if (repos.length === 0) {
+        reason = "No public repositories found; account is currently inactive.";
+      } else if (originalRepos.length === 0 || origRatio < 0.35) {
+        reason = "Mostly forks and starter templates; little original code committed.";
+      } else if (daysSinceLastPush > 60 && realCommits90d === 0) {
+        reason = `No recent public commits in 90 days (${daysSinceLastPush}d since last push).`;
+      } else if (following > 100 && followers < 10) {
+        reason = "Asymmetric follow ratio with low public repository engagement.";
+      } else if (totalStars === 0 && realCommits90d <= 15) {
+        reason = `Early-stage ${mainLangs} exercises with limited original commits or stars.`;
+      } else if (daysSinceLastPush > 25) {
+        reason = `Infrequent push cadence (${daysSinceLastPush}d ago); below the threshold for queueing.`;
+      } else {
+        reason = "Early-stage profile with low community traction and sparse original output.";
+      }
+    } 
+    // ── TIER 2: TOP PICKS (Score >= 90) ──
+    else if (score >= 90 || totalStars >= 100) {
+      reason = `High-impact open-source contributor with ${totalStars} stars and consistent repo hygiene.`;
+    }
+    // ── TIER 3: QUEUED (Score 60 - 89) — Solid, genuine reasons for why they deserve a follow ──
+    else if (isStudent && isML) {
+      reason = daysSinceLastPush <= 21
+        ? `Data science student building active ${mainLangs} projects with steady commits.`
+        : `Data science student portfolio; solid fundamentals across ${mainLangs}.`;
+    } else if (isStudent) {
+      reason = `Student builder actively learning in public across ${mainLangs} repos.`;
+    } else if (isML) {
+      reason = `Applied ML and data tooling portfolio with reproducible repositories.`;
+    } else if (isWeb && totalStars >= 10) {
+      reason = `Full-stack portfolio with steady ${mainLangs} commits and clean documentation.`;
+    } else if (totalStars >= 15 && daysSinceLastPush <= 21) {
+      reason = `Consistent builder with ${totalStars} stars across ${mainLangs} repositories.`;
+    } else if (daysSinceLastPush <= 14 && realCommits90d >= 15) {
+      reason = `Active open-source developer with steady commits and healthy repo hygiene.`;
+    } else if (daysSinceLastPush > 35) {
+      reason = `Solid fundamentals and clean repos, though activity has slowed recently.`;
+    } else {
+      reason = `Active ${mainLangs} developer portfolio with promising original projects.`;
+    }
+
+    // Top repos for drawer (sort by stars descending, then pushed)
+    const sortedRepos = [...repos].sort((a,b) => (b.stargazers_count || 0) - (a.stargazers_count || 0));
+    const repoData = sortedRepos.slice(0, 3).map(r => ({
+      n: r.name,
+      stars: r.stargazers_count || 0,
+      lang: r.language || "Code",
+      desc: r.description || "Public repository.",
+      pushed: Math.max(0, Math.floor((now - new Date(r.pushed_at || now).getTime()) / (1000 * 60 * 60 * 24)))
+    }));
+
+    const accountAgeYears = Math.max(1, Math.round((now - new Date(uData.created_at).getTime()) / (1000 * 60 * 60 * 24 * 365)));
+
+    const visitorProfile = {
+      user: uData.login.toLowerCase(),
+      name: uData.name || uData.login,
+      avatar: uData.avatar_url,
+      isVisitor: true,
+      score,
+      reason,
+      status,
+      starred,
+      back: false,
+      bio: realBio,
+      repos: repos.slice(0, 3).map(r => r.name),
+      repoData,
+      langs: languages.slice(0, 3).length ? languages.slice(0, 3) : ["Code"],
+      mix: languages.length > 1 ? [65, 35] : [100],
+      followers,
+      following,
+      src: "Visitor GitHub Profile Audit",
+      age: accountAgeYears,
+      commits: realCommits90d,
+      subs: { activity, codeQuality, relevance, reach }
+    };
+
+    // Remove any previous entry for this visitor and insert at the top of P
+    const existingIdx = P.findIndex(p => p.user === visitorProfile.user);
+    if(existingIdx >= 0) P.splice(existingIdx, 1);
+    P.unshift(visitorProfile);
+
+    msg.className = "scorer-msg info";
+    msg.innerHTML = `✓ Graded <b>@${visitorProfile.user}</b> with a score of <b>${score}/100</b> (${score >= 90 ? "Top Pick ⭐" : score >= 60 ? "Queued to Follow" : "Skipped"}).`;
+
+    // Save to sessionStorage so the evaluated profile persists if visitor refreshes or navigates
+    try {
+      sessionStorage.setItem("followme_visitor_profile", JSON.stringify(visitorProfile));
+    } catch(_){}
+
+    // Reset filters to view all so visitor is immediately visible at the top
+    state.filter = "all";
+    state.pill = null;
+    state.q = "";
+    $("#q").value = "";
+    $("#pills").querySelectorAll(".pill").forEach(p => p.setAttribute("aria-pressed","false"));
+
+    renderAll();
+    openDrawer(visitorProfile.user);
+
+  } catch(err){
+    msg.className = "scorer-msg error";
+    msg.textContent = err.message || "Failed to score GitHub profile.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Score my profile";
+  }
+}
+
+function renderAll(){
+  renderStats();
+  renderBands();
+  renderSeg();
+  renderList();
+  renderVisitorBadges();
+}
 
 /* events */
 $("#seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.filter=b.dataset.k;state.limit=20;renderAll()});
@@ -738,6 +1081,17 @@ $("#list").addEventListener("click",e=>{
 $("#list").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.classList.contains("item"))openDrawer(e.target.dataset.u)});
 $("#scrim").onclick=closeDrawer;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();}});
+
+// Restore previously evaluated visitor profile across reloads
+try {
+  const savedVisitor = sessionStorage.getItem("followme_visitor_profile");
+  if(savedVisitor){
+    const vParsed = JSON.parse(savedVisitor);
+    if(vParsed && vParsed.user){
+      P.unshift(vParsed);
+    }
+  }
+} catch(_){}
 
 renderChart();renderFeed();renderWelcome();renderAll();
 </script>
