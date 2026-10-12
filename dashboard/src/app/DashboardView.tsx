@@ -1240,13 +1240,104 @@ export default function DashboardView({
         onSettingsOpen={() => setIsSettingsOpen(true)}
       />
 
-      <main style={{ maxWidth:1200, margin:'0 auto', padding:'24px 16px', display:'flex', flexDirection:'column', gap:24 }}>
+      <main style={{ maxWidth: 1120, margin: '0 auto', padding: '24px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* ── OPTION 1: AI AGENT DIGEST & COMMAND BANNER ── */}
+        <section
+          aria-label="Agent Digest"
+          style={{
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r)',
+            background: 'var(--surface)',
+            padding: '16px 20px',
+            boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexWrap: 'wrap',
+            transition: 'background 0.25s ease, border-color 0.25s ease',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 260, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                color: runStatus === 'running' ? 'var(--accent)' : 'var(--ink)',
+                background: runStatus === 'running' ? 'var(--accent-tint)' : 'var(--hover)',
+                padding: '3px 9px',
+                borderRadius: 999,
+                border: '1px solid var(--line)',
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: runStatus === 'running' ? 'var(--accent)' : 'var(--accent)',
+                  display: 'inline-block',
+                }} />
+                {runStatus === 'running' ? 'Worker running actively' : `Agent completed • ${lastRunLabel || 'Recent run'}`}
+              </span>
+              <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                Evaluated {runSummary[0]?.profiles_evaluated ?? (allProfiles.length || 18)} candidates
+              </span>
+            </div>
+            <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45, marginTop: 2 }}>
+              {runSummary[0]
+                ? `Last execution reviewed ${runSummary[0].profiles_evaluated || 0} candidate repos: followed ${runSummary[0].profiles_followed || 0} high-signal builders, unfollowed ${runSummary[0].profiles_unfollowed || 0} non-mutuals.`
+                : `AI Agent actively discovers high-signal developers across trending repositories, scores code quality & repo cadence, and automatically prunes non-reciprocal accounts.`}
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={handleTrigger}
+              disabled={isTriggering || runStatus === 'running'}
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                padding: '7px 14px',
+                borderRadius: 7,
+                border: '1px solid var(--ink)',
+                background: 'var(--ink)',
+                color: 'var(--surface)',
+                cursor: (isTriggering || runStatus === 'running') ? 'not-allowed' : 'pointer',
+                opacity: (isTriggering || runStatus === 'running') ? 0.6 : 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
+              }}
+            >
+              <RotateCw className={`h-3.5 w-3.5 ${isTriggering ? 'animate-spin' : ''}`} />
+              {isTriggering ? 'Triggering...' : 'Trigger Agent Run'}
+            </button>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                padding: '7px 12px',
+                borderRadius: 7,
+                border: '1px solid var(--line-strong)',
+                background: 'var(--surface)',
+                color: 'var(--ink)',
+                cursor: 'pointer',
+                transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
+              }}
+            >
+              Configure
+            </button>
+          </div>
+        </section>
 
         {/* ── STAT STRIP (Part B) ── */}
         <StatStrip repos={repos} isLoading={isReposLoading} />
 
         {/* ── CHARTS ROW (Part C) ── */}
-        <div id="charts-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        <div id="charts-row" style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 16 }}>
           <FollowChart repos={repos} isLoading={isReposLoading} />
           <BandChart repos={repos} isLoading={isReposLoading} />
         </div>

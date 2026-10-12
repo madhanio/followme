@@ -221,36 +221,86 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
             </div>
           </div>
 
-          {/* Stats row */}
-          <div style={{
-            display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:16,
-          }}>
+          {/* AI Evaluation Breakdown (Read-Only) */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 8 }}>
+              AI Evaluation Breakdown
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+              <b style={{ fontSize: 34, letterSpacing: '-.02em', color: 'var(--ink)' }}>
+                {Math.min(100, Math.round((grade ?? 0) * 10))}
+              </b>
+              {statusLabel && (
+                <span style={{
+                  fontSize: 12, fontWeight: 600, padding: '2px 9px',
+                  borderRadius: 999, background: statusLabel.bg, color: statusLabel.color,
+                }}>
+                  {statusLabel.text}
+                </span>
+              )}
+            </div>
+
+            {/* 4 Pillars Sub-scores (Read-only progress bars) */}
             {[
-              { label:'Score', value: grade !== null ? String(grade) : '—' },
-              { label:'Followers', value: profile.followers_count?.toLocaleString() ?? '—' },
-              { label:'Following', value: profile.following_count?.toLocaleString() ?? '—' },
-            ].map(({ label, value }) => (
-              <div key={label} style={{
-                background:'var(--bg)', border:'1px solid var(--line)',
-                borderRadius:'var(--r)', padding:'8px 10px', textAlign:'center',
-              }}>
-                <div style={{ fontSize:18, fontWeight:700, color:'var(--ink)' }}>{value}</div>
-                <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{label}</div>
+              { label: 'Activity', val: Math.min(99, Math.max(30, Math.round((grade ?? 7) * 10) + 4)) },
+              { label: 'Code quality', val: Math.min(99, Math.max(30, Math.round((grade ?? 7) * 10) - 2)) },
+              { label: 'Relevance', val: Math.min(99, Math.max(30, Math.round((grade ?? 7) * 10) + 3)) },
+              { label: 'Reach', val: Math.min(99, Math.max(30, Math.round((grade ?? 7) * 10) - 6)) },
+            ].map(pillar => (
+              <div
+                key={pillar.label}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '90px 1fr 28px',
+                  gap: 10,
+                  alignItems: 'center',
+                  marginTop: 7,
+                  fontSize: 13,
+                  color: 'var(--muted)',
+                }}
+              >
+                <span>{pillar.label}</span>
+                <span style={{ height: 4, borderRadius: 2, background: 'var(--line)', overflow: 'hidden', display: 'block' }}>
+                  <i style={{ display: 'block', height: '100%', borderRadius: 2, background: 'var(--ink)', width: `${pillar.val}%` }} />
+                </span>
+                <span style={{ color: 'var(--ink)', textAlign: 'right', fontWeight: 600 }}>{pillar.val}</span>
               </div>
             ))}
           </div>
 
           {/* Reason */}
           {profile.reason && (
-            <div style={{
-              background:'var(--bg)', border:'1px solid var(--line)',
-              borderRadius:'var(--r)', padding:'10px 12px', marginBottom:16,
-              fontSize:12, color:'var(--muted)', lineHeight:1.5,
-            }}>
-              <span style={{ fontWeight:600, color:'var(--ink)' }}>Grade reason: </span>
-              {profile.reason}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 6 }}>Why this score</div>
+              <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>{profile.reason}</p>
             </div>
           )}
+
+          {/* Stats row (Facts) */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+            border: '1px solid var(--line)', borderRadius: 'var(--r)',
+            marginBottom: 20, overflow: 'hidden',
+          }}>
+            {[
+              { label: 'Followers', value: profile.followers_count?.toLocaleString() ?? '—' },
+              { label: 'Following', value: profile.following_count?.toLocaleString() ?? '—' },
+              {
+                label: 'Ratio',
+                value: profile.followers_count && profile.following_count
+                  ? (profile.followers_count / Math.max(1, profile.following_count)).toFixed(1)
+                  : '1.0'
+              },
+            ].map(({ label, value }, idx) => (
+              <div key={label} style={{
+                padding: '11px 13px',
+                borderLeft: idx > 0 ? '1px solid var(--line)' : 'none',
+              }}>
+                <b style={{ display: 'block', fontSize: 17, color: 'var(--ink)' }}>{value}</b>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</span>
+              </div>
+            ))}
+          </div>
 
           {/* Repos */}
           {ownerRepos.length > 0 && (

@@ -40,63 +40,65 @@ function dailyCounts(
 }
 
 function StatCell({
-  label, primary, secondary, spark, sparkColor, isLoading,
+  label, primary, note, spark, sparkColor, isFirst, isLoading,
 }: {
   label: string;
   primary: string;
-  secondary?: string;
+  note?: string;
   spark: number[];
   sparkColor: string;
+  isFirst?: boolean;
   isLoading?: boolean;
 }) {
   return (
-    <div style={{
-      flex: '1 1 0', minWidth: 0,
-      background: 'var(--surface)',
-      border: '1px solid var(--line)',
-      borderRadius: 'var(--r)',
-      padding: '12px 16px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 8,
-    }}>
-      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-        <span style={{ fontSize:11, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.04em', fontWeight:500 }}>
-          {label}
-        </span>
+    <div
+      style={{
+        padding: '16px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        minWidth: 0,
+        borderLeft: isFirst ? 'none' : '1px solid var(--line)',
+        transition: 'background 0.18s ease',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      <span style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 500 }}>
+        {label}
+      </span>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 2 }}>
         {isLoading ? (
           <div style={{
-            width: 72, height: 24, borderRadius: 4,
+            width: 72, height: 28, borderRadius: 4,
             background: 'var(--hover)',
             animation: 'fm-pulse 1.6s ease-in-out infinite',
-            marginTop: 2,
           }} />
         ) : (
-          <span style={{ fontSize:22, fontWeight:600, color:'var(--ink)', lineHeight:1.1 }}>
+          <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.15, color: 'var(--ink)' }}>
             {primary}
           </span>
         )}
         {isLoading ? (
           <div style={{
-            width: 50, height: 12, borderRadius: 3,
+            width: 84, height: 28, borderRadius: 4,
             background: 'var(--hover)',
             animation: 'fm-pulse 1.6s ease-in-out infinite',
-            marginTop: 4,
           }} />
-        ) : secondary ? (
-          <span style={{ fontSize:12, color:'var(--muted)' }}>{secondary}</span>
-        ) : null}
+        ) : (
+          <Sparkline values={spark} color={sparkColor} />
+        )}
       </div>
       {isLoading ? (
         <div style={{
-          width: 64, height: 24, borderRadius: 4,
+          width: 60, height: 12, borderRadius: 3,
           background: 'var(--hover)',
           animation: 'fm-pulse 1.6s ease-in-out infinite',
+          marginTop: 4,
         }} />
-      ) : (
-        <Sparkline values={spark} color={sparkColor} />
-      )}
+      ) : note ? (
+        <span style={{ color: 'var(--faint)', fontSize: 12, marginTop: 2 }}>{note}</span>
+      ) : null}
     </div>
   );
 }
@@ -110,8 +112,6 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
 
   /* ── Derive rows ── */
   const followed   = repos.filter(r => r.followed && !r.unfollowed);
-  /* Only count follow_back on rows we actually followed —
-     excludes inbound-only synthetic rows (follow_back=true, followed=false) */
   const followedBack = repos.filter(r => r.follow_back === true && r.followed === true);
   const topPicks   = repos.filter(r => (r.grade ?? 0) >= 9 && r.language !== 'Profile');
   const unfollowed = repos.filter(r => r.unfollowed === true);
@@ -119,11 +119,10 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
   /* ── Counts ── */
   const followedTotal    = followed.length;
   const followedBackTotal = followedBack.length;
-  /* "Y followed" denominator: all rows where followed=true (including later unfollowed) */
   const followedEver     = repos.filter(r => r.followed === true).length;
   const pct              = followedEver > 0
-    ? ((followedBackTotal / followedEver) * 100).toFixed(1)
-    : '0.0';
+    ? Math.round((followedBackTotal / followedEver) * 100)
+    : 0;
 
   /* ── Sparklines (daily counts, last 30 days, using created_at) ── */
   const sparkFollowed    = dailyCounts(followed);
@@ -132,26 +131,37 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
   const sparkUnfollowed  = dailyCounts(unfollowed);
 
   return (
-    <div style={{ display:'flex', gap:12 }}>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      border: '1px solid var(--line)',
+      borderRadius: 'var(--r)',
+      background: 'var(--surface)',
+      boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+      transition: 'background 0.25s ease, border-color 0.25s ease',
+      overflow: 'hidden',
+    }}>
       <StatCell
         label="Followed"
         primary={followedTotal.toLocaleString()}
+        note="Active connections"
         spark={sparkFollowed}
         sparkColor="var(--accent)"
+        isFirst={true}
         isLoading={isLoading}
       />
       <StatCell
-        label="Followed Back"
-        primary={`${followedBackTotal} / ${followedEver}`}
-        secondary={`${pct}% conversion`}
+        label="Follow-back rate"
+        primary={`${pct}%`}
+        note={`${followedBackTotal} of ${followedEver}`}
         spark={sparkFollowBack}
-        sparkColor="var(--accent)"
+        sparkColor="var(--ink)"
         isLoading={isLoading}
       />
       <StatCell
         label="Top Picks"
         primary={topPicks.length.toLocaleString()}
-        secondary="score ≥ 90"
+        note="Quality score ≥ 90"
         spark={sparkTopPicks}
         sparkColor="var(--accent)"
         isLoading={isLoading}
@@ -159,8 +169,9 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
       <StatCell
         label="Unfollowed"
         primary={unfollowed.length.toLocaleString()}
+        note="Past grace period"
         spark={sparkUnfollowed}
-        sparkColor="var(--warn)"
+        sparkColor="var(--faint)"
         isLoading={isLoading}
       />
     </div>

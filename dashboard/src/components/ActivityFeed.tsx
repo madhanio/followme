@@ -83,84 +83,103 @@ const KIND_META: Record<EventKind, { label: string; color: string; bg: string; i
 
 function EventRow({ event }: { event: ActivityEvent }) {
   const meta = KIND_META[event.kind];
+  const displayScore = event.grade !== null && event.grade !== undefined
+    ? Math.min(100, Math.round(event.grade * 10))
+    : null;
+
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '9px 16px',
+        justifyContent: 'space-between',
+        gap: 16,
+        padding: '11px 18px',
         borderBottom: '1px solid var(--line)',
+        color: 'var(--muted)',
+        fontSize: 13.5,
+        transition: 'background 0.15s ease',
       }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      {/* Kind pill */}
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          padding: '2px 8px',
-          borderRadius: 99,
-          background: meta.bg,
-          color: meta.color,
-          flexShrink: 0,
-          minWidth: 80,
-          textAlign: 'center',
-        }}
-      >
-        {meta.icon} {meta.label}
-      </span>
-
-      {/* Avatar */}
-      {event.avatar_url ? (
-        <img
-          src={event.avatar_url}
-          alt={event.login}
-          width={24}
-          height={24}
-          style={{ borderRadius: '50%', flexShrink: 0, border: '1px solid var(--line)' }}
-        />
-      ) : (
-        <div
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+        {/* Kind pill */}
+        <span
           style={{
-            width: 24,
-            height: 24,
-            borderRadius: '50%',
-            flexShrink: 0,
-            background: 'var(--hover)',
-            border: '1px solid var(--line)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 10,
-            color: 'var(--muted)',
+            fontSize: 11.5,
             fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: 99,
+            background: meta.bg,
+            color: meta.color,
+            flexShrink: 0,
+            textAlign: 'center',
           }}
         >
-          {event.login[0]?.toUpperCase()}
-        </div>
-      )}
-
-      {/* Login */}
-      <a
-        href={`https://github.com/${event.login}`}
-        target="_blank"
-        rel="noreferrer"
-        style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', textDecoration: 'none', flex: 1 }}
-      >
-        {event.login}
-      </a>
-
-      {/* Grade */}
-      {event.grade !== null && event.grade !== undefined && (
-        <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>
-          score {event.grade}
+          {meta.label}
         </span>
-      )}
 
-      {/* Time */}
-      <span style={{ fontSize: 11, color: 'var(--faint)', flexShrink: 0 }}>
+        {/* Avatar */}
+        {event.avatar_url ? (
+          <img
+            src={event.avatar_url}
+            alt={event.login}
+            width={24}
+            height={24}
+            style={{ borderRadius: '50%', flexShrink: 0, border: '1px solid var(--line)' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              flexShrink: 0,
+              background: 'var(--hover)',
+              border: '1px solid var(--line)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 10,
+              color: 'var(--muted)',
+              fontWeight: 600,
+            }}
+          >
+            {event.login[0]?.toUpperCase()}
+          </div>
+        )}
+
+        {/* Login */}
+        <a
+          href={`https://github.com/${event.login}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            fontSize: 13.5,
+            fontWeight: 600,
+            color: 'var(--ink)',
+            textDecoration: 'none',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {event.login}
+        </a>
+
+        {/* Score */}
+        {displayScore !== null && (
+          <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>
+            (score {displayScore})
+          </span>
+        )}
+      </div>
+
+      {/* Relative Time */}
+      <time style={{ color: 'var(--faint)', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>
         {relTime(event.timestamp)}
-      </span>
+      </time>
     </div>
   );
 }

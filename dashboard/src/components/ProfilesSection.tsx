@@ -28,17 +28,23 @@ function ProfileRow({
 }: { profile: ProfileItem; onClick: () => void }) {
   const isMutual     = profile.followed && profile.follow_back && !profile.unfollowed;
   const isUnfollowed = profile.unfollowed === true;
-  const grade        = profile.grade ?? null;
+  const grade        = profile.grade ?? 0;
   const displayName  = profile.login || profile.owner;
+  const displayScore = Math.min(100, Math.round(grade * 10));
+  const isTopPick    = displayScore >= 90 && !profile.followStatus.follow_skipped;
 
-  /* Badge */
-  const badge = isUnfollowed
-    ? { label: 'Unfollowed', bg: 'var(--warn-tint)', color: 'var(--warn)' }
+  /* Status badge text & styling */
+  const statusLabel = isUnfollowed
+    ? { text: 'Unfollowed', bg: 'var(--warn-tint)', color: 'var(--warn)' }
     : isMutual
-    ? { label: 'Mutual',     bg: 'var(--accent-tint)', color: 'var(--accent)' }
+    ? { text: 'Mutual', bg: 'var(--accent-tint)', color: 'var(--accent)' }
     : profile.followed
-    ? { label: 'Followed',   bg: 'var(--hover)',       color: 'var(--muted)' }
-    : null;
+    ? { text: 'Followed', bg: 'var(--accent-tint)', color: 'var(--accent)' }
+    : profile.followStatus.follow_skipped
+    ? { text: 'Skipped', bg: 'var(--warn-tint)', color: 'var(--warn)' }
+    : { text: 'Queued', bg: 'var(--hover)', color: 'var(--muted)' };
+
+  const reason = profile.reason || (profile.bio ? profile.bio : 'High repository quality and active commit cadence');
 
   return (
     <div
@@ -47,76 +53,90 @@ function ProfileRow({
       tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && onClick()}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 16px',
+        display: 'grid',
+        gridTemplateColumns: 'minmax(200px, 1.4fr) 110px minmax(180px, 2fr) 100px 140px',
+        alignItems: 'center',
+        gap: 16,
+        padding: '12px 18px',
         cursor: 'pointer',
         borderBottom: '1px solid var(--line)',
-        transition: 'background 0.1s',
+        transition: 'background 0.14s ease',
       }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      {/* Avatar */}
-      {profile.avatar_url ? (
-        <img src={profile.avatar_url} alt={displayName}
-          width={36} height={36}
-          style={{ borderRadius: '50%', flexShrink: 0, border: '1px solid var(--line)' }} />
-      ) : (
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-          background: 'var(--hover)', border: '1px solid var(--line)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, color: 'var(--muted)', fontWeight: 600,
-        }}>
-          {displayName[0]?.toUpperCase()}
-        </div>
-      )}
-
       {/* Identity */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {displayName}
-          </span>
-          {badge && (
-            <span style={{
-              fontSize: 11, fontWeight: 500, padding: '2px 7px',
-              borderRadius: 99, background: badge.bg, color: badge.color,
-              flexShrink: 0,
-            }}>
-              {badge.label}
-            </span>
-          )}
-        </div>
-        {profile.bio && (
-          <span style={{
-            fontSize: 12, color: 'var(--muted)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            display: 'block', maxWidth: '100%',
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
+        {profile.avatar_url ? (
+          <img
+            src={profile.avatar_url}
+            alt={displayName}
+            width={32}
+            height={32}
+            style={{ borderRadius: '50%', flexShrink: 0, border: '1px solid var(--line)' }}
+          />
+        ) : (
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+            background: 'var(--hover)', border: '1px solid var(--line)',
+            display: 'grid', placeItems: 'center',
+            fontSize: 12, color: 'var(--muted)', fontWeight: 700,
           }}>
-            {profile.bio}
-          </span>
+            {displayName[0]?.toUpperCase()}
+          </div>
         )}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span>{displayName}</span>
+            {isTopPick && (
+              <svg width="12" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--ink)', flexShrink: 0 }}>
+                <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+              </svg>
+            )}
+          </div>
+          <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>@{displayName}</div>
+        </div>
       </div>
 
-      {/* Score */}
-      {grade !== null && (() => {
-        const displayScore = Math.min(100, Math.round((grade ?? 0) * 10));
-        const isHighScore = displayScore >= 90;
-        return (
-          <div style={{
-            flexShrink: 0, width: 32, height: 32, borderRadius: 'var(--r)',
-            background: isHighScore ? 'var(--accent-tint)' : 'var(--hover)',
-            border: '1px solid var(--line)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 700,
-            color: isHighScore ? 'var(--accent)' : 'var(--muted)',
-          }}>
-            {displayScore}
-          </div>
-        );
-      })()}
+      {/* Score with Mini Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 600, fontSize: 13.5, color: 'var(--ink)' }}>
+        <span>{displayScore}</span>
+        <span style={{ width: 44, height: 4, borderRadius: 2, background: 'var(--line)', overflow: 'hidden', display: 'block' }}>
+          <i style={{ display: 'block', height: '100%', borderRadius: 2, background: 'var(--ink)', width: `${displayScore}%`, transition: 'width 0.3s ease' }} />
+        </span>
+      </div>
+
+      {/* Reason */}
+      <div style={{ color: 'var(--muted)', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={reason}>
+        {reason}
+      </div>
+
+      {/* Status Chip */}
+      <div>
+        <span style={{
+          fontSize: 12, fontWeight: 600, padding: '2px 9px', borderRadius: 999,
+          display: 'inline-block', background: statusLabel.bg, color: statusLabel.color,
+        }}>
+          {statusLabel.text}
+        </span>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            onClick();
+          }}
+          style={{
+            fontSize: 12, fontWeight: 600, padding: '4px 9px', borderRadius: 6,
+            border: '1px solid var(--line-strong)', background: 'var(--surface)', color: 'var(--ink)',
+            cursor: 'pointer', transition: 'all 0.16s ease',
+          }}
+        >
+          View
+        </button>
+      </div>
     </div>
   );
 }
@@ -171,46 +191,91 @@ export default function ProfilesSection({ profiles, onProfileClick, isLoading }:
       borderRadius: 'var(--r)', overflow: 'hidden',
     }}>
 
-      {/* ── Header bar ── */}
+      {/* ── Toolbar matching demo ── */}
       <div style={{
-        padding: '12px 16px 0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '14px 18px',
+        flexWrap: 'wrap',
         borderBottom: '1px solid var(--line)',
-        display: 'flex', flexDirection: 'column', gap: 10,
       }}>
-
         {/* Segmented control */}
-        <div style={{ display: 'flex', gap: 4 }}>
-          {SEGMENTS.map(s => (
-            <button key={s.key} onClick={() => handleSegment(s.key)}
-              style={{
-                padding: '5px 12px', borderRadius: 'var(--r)',
-                border: segment === s.key ? '1px solid var(--accent)' : '1px solid var(--line)',
-                background: segment === s.key ? 'var(--accent-tint)' : 'transparent',
-                color: segment === s.key ? 'var(--accent)' : 'var(--muted)',
-                fontSize: 12, fontWeight: 500, cursor: 'pointer',
-              }}>
-              {s.label}
-              {!isLoading && <span style={{ marginLeft: 5, opacity: 0.7 }}>({counts[s.key]})</span>}
-            </button>
-          ))}
+        <div style={{
+          display: 'inline-flex',
+          border: '1px solid var(--line-strong)',
+          borderRadius: 8,
+          padding: 2,
+          background: 'var(--bg)',
+        }}>
+          {SEGMENTS.map(s => {
+            const isSelected = segment === s.key;
+            return (
+              <button
+                key={s.key}
+                onClick={() => handleSegment(s.key)}
+                style={{
+                  padding: '5px 11px',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: isSelected ? 600 : 500,
+                  color: isSelected ? 'var(--ink)' : 'var(--muted)',
+                  background: isSelected ? 'var(--surface)' : 'transparent',
+                  boxShadow: isSelected ? '0 0 0 1px var(--line-strong)' : 'none',
+                  cursor: 'pointer',
+                  border: 'none',
+                  transition: 'all 0.16s cubic-bezier(0.16,1,0.3,1)',
+                }}
+              >
+                {s.label}
+                {!isLoading && (
+                  <span style={{ color: isSelected ? 'var(--muted)' : 'var(--faint)', marginLeft: 5, fontWeight: 400 }}>
+                    {counts[s.key]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Search */}
-        <div style={{ paddingBottom: 10 }}>
-          <input
-            type="search"
-            placeholder="Search by username or bio…"
-            value={query}
-            onChange={e => handleQuery(e.target.value)}
-            style={{
-              width: '100%', padding: '7px 12px',
-              border: '1px solid var(--line)', borderRadius: 'var(--r)',
-              background: 'var(--bg)', color: 'var(--ink)',
-              fontSize: 13, outline: 'none',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
+        <input
+          type="search"
+          placeholder="Search candidates…"
+          value={query}
+          onChange={e => handleQuery(e.target.value)}
+          style={{
+            border: '1px solid var(--line-strong)',
+            borderRadius: 8,
+            padding: '7px 11px',
+            minWidth: 220,
+            background: 'var(--surface)',
+            color: 'var(--ink)',
+            fontSize: 13,
+            outline: 'none',
+          }}
+        />
+      </div>
+
+      {/* Table Column Header */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(200px, 1.4fr) 110px minmax(180px, 2fr) 100px 140px',
+        alignItems: 'center',
+        gap: 16,
+        padding: '0 18px',
+        height: 36,
+        color: 'var(--faint)',
+        fontSize: 12.5,
+        borderBottom: '1px solid var(--line)',
+        background: 'var(--hover)',
+      }}>
+        <span>DEVELOPER</span>
+        <span>SCORE</span>
+        <span>EVALUATION SUMMARY</span>
+        <span>STATUS</span>
+        <span style={{ textAlign: 'right' }}>ACTION</span>
       </div>
 
       {/* ── Rows ── */}

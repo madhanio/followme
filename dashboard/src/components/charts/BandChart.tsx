@@ -32,120 +32,99 @@ export interface BandChartProps {
 export default function BandChart({ repos, isLoading }: BandChartProps) {
   /* Exclude grade 0 (prefilter skip) and synthetic inbound rows (language === 'Profile') */
   const eligible = repos.filter(r =>
-    (r.grade ?? 0) > 0 && r.language !== 'Profile'
+    (r.grade ?? 0) > 0 && r.language !== 'Profile' && r.followed === true
   );
 
-  /* Grade bands 1-10 */
-  const BANDS = [1,2,3,4,5,6,7,8,9,10];
+  /* Grade bands 60-69, 70-79, 80-89, 90-100 (matching demo scale) */
+  const bands = [
+    { label: '60–69', min: 6, max: 6.9 },
+    { label: '70–79', min: 7, max: 7.9 },
+    { label: '80–89', min: 8, max: 8.9 },
+    { label: '90+',   min: 9, max: 10 },
+  ];
 
-  interface BandRow {
-    grade: number;
-    total: number;
-    followBack: number;
-    pct: number;
-  }
+  const rows = bands.map(b => {
+    const group = eligible.filter(r => (r.grade ?? 0) >= b.min && (r.grade ?? 0) <= b.max);
+    const count = group.length;
+    const backCount = group.filter(r => r.follow_back === true).length;
+    const rate = count > 0 ? Math.round((backCount / count) * 100) : null;
+    return { label: b.label, count, rate };
+  });
 
-  const rows: BandRow[] = BANDS.map(g => {
-    const total     = eligible.filter(r => r.grade === g).length;
-    const followBack = eligible.filter(r => r.grade === g && r.follow_back === true).length;
-    return { grade: g, total, followBack, pct: total > 0 ? followBack / total : 0 };
-  }).filter(r => r.total > 0);   /* hide empty bands */
-
-  /* SVG bar chart */
-  const W = 480, H = 160, PAD = { top:8, right:8, bottom:32, left:36 };
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-  const maxTotal = Math.max(...rows.map(r => r.total), 1);
-
-  const bandW = rows.length > 0 ? innerW / rows.length : innerW;
-  const barW  = Math.max(bandW * 0.55, 6);
-
-  function barX(i: number) { return PAD.left + i * bandW + (bandW - barW) / 2; }
-  function barH(v: number) { return (v / maxTotal) * innerH; }
-  function barY(v: number) { return PAD.top + innerH - barH(v); }
-
-  const n = eligible.length;
+  const firstValid = rows.find(r => r.rate !== null && r.rate > 0);
+  const lastValid = [...rows].reverse().find(r => r.rate !== null);
+  const comparisonText = (firstValid && lastValid && firstValid !== lastValid && lastValid.rate! > firstValid.rate!)
+    ? `Profiles scoring ${lastValid.label} follow back ${(lastValid.rate! / firstValid.rate!).toFixed(1)}x as often as ${firstValid.label}.`
+    : 'Comparison trends will calibrate dynamically as candidate sample size increases.';
 
   return (
-    <ChartCard title="Score Band vs Follow-back" note={isLoading ? undefined : `n=${n}, score 0 + synthetic excluded`}>
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 'var(--r)',
+      boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+      transition: 'background 0.25s ease, border-color 0.25s ease',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '14px 18px 0',
+      }}>
+        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Follow-back by score</h2>
+      </div>
+
       {isLoading ? (
-        <div style={{
-          width: '100%', height: 160, borderRadius: 6,
-          background: 'var(--hover)',
-          animation: 'fm-pulse 1.6s ease-in-out infinite',
-        }} />
+        <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} style={{ height: 28, borderRadius: 4, background: 'var(--hover)', animation: 'fm-pulse 1.6s ease-in-out infinite' }} />
+          ))}
+        </div>
       ) : (
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'auto', overflow:'visible' }}>
+        <>
+          <div style={{ padding: '14px 18px 6px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {rows.map(r => (
+              <div
+                key={r.label}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '48px 1fr 40px',
+                  gridTemplateAreas: '"l t v" ". n ."',
+                  gap: '2px 10px',
+                  alignItems: 'center',
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ gridArea: 'l', color: 'var(--muted)', fontWeight: 500 }}>{r.label}</span>
+                <span style={{ gridArea: 't', height: 8, borderRadius: 4, background: 'var(--line)', overflow: 'hidden', display: 'block' }}>
+                  <i
+                    style={{
+                      display: 'block',
+                      height: '100%',
+                      borderRadius: 4,
+                      background: 'var(--accent)',
+                      width: `${r.rate || 0}%`,
+                      transition: 'width 0.4s cubic-bezier(0.16,1,0.3,1)',
+                    }}
+                  />
+                </span>
+                <span style={{ gridArea: 'v', textAlign: 'right', fontWeight: 600, color: 'var(--ink)' }}>
+                  {r.rate === null ? '—' : `${r.rate}%`}
+                </span>
+                <span style={{ gridArea: 'n', color: 'var(--faint)', fontSize: 12 }}>
+                  {r.count} followed
+                </span>
+              </div>
+            ))}
+          </div>
 
-        {/* Y gridlines */}
-        {[0.25, 0.5, 0.75, 1].map(f => {
-          const y = PAD.top + innerH - f * innerH;
-          return (
-            <g key={f}>
-              <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
-                stroke="var(--line)" strokeWidth={1} />
-              <text x={PAD.left - 4} y={y + 4} textAnchor="end"
-                style={{ fontSize:10, fill:'var(--muted)' } as never}>
-                {Math.round(maxTotal * f)}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Bars */}
-        {rows.map((row, i) => (
-          <g key={row.grade}>
-            {/* Total bar (background, faint) */}
-            <rect
-              x={barX(i)} y={barY(row.total)}
-              width={barW} height={barH(row.total)}
-              rx={3}
-              fill="var(--accent-tint)"
-              stroke="var(--line)" strokeWidth={1}
-            />
-            {/* Follow-back bar (overlay, solid) */}
-            {row.followBack > 0 && (
-              <rect
-                x={barX(i)} y={barY(row.followBack)}
-                width={barW} height={barH(row.followBack)}
-                rx={3}
-                fill="var(--accent)"
-              />
-            )}
-            {/* Grade label */}
-            <text x={barX(i) + barW / 2} y={H - PAD.bottom + 14}
-              textAnchor="middle"
-              style={{ fontSize:10, fill:'var(--muted)' } as never}>
-              {row.grade * 10}
-            </text>
-            {/* Pct label above bar */}
-            {row.pct > 0 && (
-              <text x={barX(i) + barW / 2} y={barY(row.total) - 3}
-                textAnchor="middle"
-                style={{ fontSize:9, fill:'var(--faint)' } as never}>
-                {(row.pct * 100).toFixed(0)}%
-              </text>
-            )}
-          </g>
-        ))}
-
-        {/* X axis label */}
-        <text x={PAD.left + innerW / 2} y={H - 2}
-          textAnchor="middle"
-          style={{ fontSize:10, fill:'var(--muted)' } as never}>
-          Score (10–100)
-        </text>
-
-        {/* Legend */}
-        <g transform={`translate(${W - PAD.right - 120}, ${PAD.top})`}>
-          <rect width={12} height={10} rx={2} fill="var(--accent-tint)" stroke="var(--line)" strokeWidth={1}/>
-          <text x={16} y={9} style={{ fontSize:10, fill:'var(--muted)' } as never}>Total</text>
-          <rect y={14} width={12} height={10} rx={2} fill="var(--accent)"/>
-          <text x={16} y={23} style={{ fontSize:10, fill:'var(--muted)' } as never}>Followed back</text>
-        </g>
-
-      </svg>
+          <p style={{ padding: '6px 18px 16px', color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.45 }}>
+            {comparisonText} Based on {eligible.length} followed profiles.
+          </p>
+        </>
       )}
-    </ChartCard>
+    </div>
   );
 }
