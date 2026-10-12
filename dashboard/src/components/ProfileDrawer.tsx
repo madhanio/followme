@@ -133,6 +133,16 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
     bio?: string | null;
     followers_count?: number;
     following_count?: number;
+    account_age_years?: number;
+    last_pushed_at?: string | null;
+    languages?: Array<{ name: string; pct: number }>;
+    top_repos?: Array<{
+      name: string;
+      stars: number;
+      language?: string;
+      description?: string;
+      pushed_at?: string;
+    }>;
   } | null>(null);
 
   // Reset telemetry message when profile changes
@@ -163,12 +173,16 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
         bio: data.data.bio,
         followers_count: data.data.followers_count,
         following_count: data.data.following_count,
+        account_age_years: data.data.account_age_years,
+        last_pushed_at: data.data.last_pushed_at,
+        languages: data.data.languages,
+        top_repos: data.data.top_repos,
       });
 
-      const topRepoStr = data.data.top_repo ? ` · Top repo: ${data.data.top_repo.name} (${data.data.top_repo.stars}★)` : '';
+      const langStr = data.data.languages?.map((l: any) => l.name).join(', ') || 'Code';
       setTelemetryMsg({
         type: 'success',
-        text: `✓ Telemetry synced: ${data.data.followers_count} followers · ${data.data.languages.join(', ') || 'Code'}${topRepoStr}`,
+        text: `✓ Saved to Supabase: ${data.data.followers_count} followers · ${langStr}`,
       });
     } catch (err: any) {
       setTelemetryMsg({ type: 'error', text: `⚠️ ${err.message}` });
@@ -399,6 +413,51 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
               </div>
             ))}
           </div>
+
+          {/* Languages Distribution matching demo */}
+          {liveData?.languages && liveData.languages.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 8 }}>
+                Languages
+              </div>
+              <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden', display: 'flex', gap: 2, marginBottom: 6 }}>
+                {liveData.languages.map((l, i) => (
+                  <div
+                    key={l.name}
+                    style={{
+                      height: '100%',
+                      width: `${l.pct}%`,
+                      background: i === 0 ? 'var(--ink)' : i === 1 ? 'var(--accent)' : 'var(--muted)',
+                    }}
+                  />
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--muted)' }}>
+                {liveData.languages.map((l) => (
+                  <span key={l.name}>
+                    {l.name} {l.pct}%
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Found by / Account Age metadata matching demo */}
+          {liveData?.account_age_years && (
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: 8,
+              background: 'var(--bg)',
+              border: '1px solid var(--line)',
+              marginBottom: 20,
+              fontSize: 12.5,
+              color: 'var(--muted)',
+              lineHeight: 1.5,
+            }}>
+              <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Account Profile: </span>
+              Account is {liveData.account_age_years} years old on GitHub with {liveData.followers_count} followers.
+            </div>
+          )}
 
           {/* Repos */}
           {ownerRepos.length > 0 && (
