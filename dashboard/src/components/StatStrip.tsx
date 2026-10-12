@@ -110,30 +110,61 @@ export interface StatStripProps {
 
 export default function StatStrip({ repos, isLoading }: StatStripProps) {
 
-  /* ── Derive rows ── */
-  const followed   = repos.filter(r => r.followed && !r.unfollowed);
-  const followedBack = repos.filter(r => r.follow_back === true && r.followed === true);
-  const topPicks   = repos.filter(r => (r.grade ?? 0) >= 9 && r.language !== 'Profile');
-  const unfollowed = repos.filter(r => r.unfollowed === true);
+  /* ── Deduplicate repos by owner for profile-accurate metrics ── */
+  const ownersMap = new Map<string, {
+    followed: boolean;
+    follow_back: boolean;
+    unfollowed: boolean;
+    grade: number;
+    created_at?: string | null;
+    followed_at?: string | null;
+  }>();
+
+  for (const r of repos) {
+    const key = (r.owner || '').toLowerCase();
+    if (!key) continue;
+    const existing = ownersMap.get(key);
+    if (!existing) {
+      ownersMap.set(key, {
+        followed: !!r.followed,
+        follow_back: !!r.follow_back,
+        unfollowed: !!r.unfollowed,
+        grade: r.grade ?? 0,
+        created_at: r.created_at,
+        followed_at: r.followed_at,
+      });
+    } else {
+      if (r.followed) existing.followed = true;
+      if (r.follow_back) existing.follow_back = true;
+      if (r.unfollowed) existing.unfollowed = true;
+      if ((r.grade ?? 0) > existing.grade) existing.grade = r.grade ?? 0;
+      if (r.followed_at && !existing.followed_at) existing.followed_at = r.followed_at;
+    }
+  }
+
+  const profiles = Array.from(ownersMap.values());
+
+  /* ── Derive profile categories ── */
+  const followedProfiles   = profiles.filter(p => p.followed && !p.unfollowed);
+  const mutualProfiles     = profiles.filter(p => p.followed && p.follow_back && !p.unfollowed);
+  const pendingProfiles    = profiles.filter(p => p.followed && !p.follow_back && !p.unfollowed);
+  const topPickProfiles    = profiles.filter(p => p.grade >= 9);
 
   /* ── Counts ── */
-  const followedTotal    = followed.length;
-  const followedBackTotal = followedBack.length;
-  const followedEver     = repos.filter(r => r.followed === true).length;
-  const pct              = followedEver > 0
-    ? Math.round((followedBackTotal / followedEver) * 100)
+  const followedTotal = followedProfiles.length;
+  const mutualTotal   = mutualProfiles.length;
+  const pendingTotal  = pendingProfiles.length;
+  const topPicksTotal = topPickProfiles.length;
+
+  const pct = followedTotal > 0
+    ? Math.round((mutualTotal / followedTotal) * 100)
     : 0;
 
-  // Real 7-day delta calculation
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const followedThisWeek = repos.filter(r => r.followed && (r.followed_at || r.created_at || '') >= sevenDaysAgo).length;
-  const weekDeltaLabel = followedThisWeek > 0 ? `+${followedThisWeek} this week` : 'Active connections';
-
   /* ── Sparklines (daily counts, last 30 days, using created_at) ── */
-  const sparkFollowed    = dailyCounts(followed);
-  const sparkFollowBack  = dailyCounts(followedBack);
-  const sparkTopPicks    = dailyCounts(topPicks);
-  const sparkUnfollowed  = dailyCounts(unfollowed);
+  const sparkFollowed = dailyCounts(followedProfiles);
+  const sparkMutual   = dailyCounts(mutualProfiles);
+  const sparkTopPicks = dailyCounts(topPickProfiles);
+  const sparkPending  = dailyCounts(pendingProfiles);
 
   return (
     <div style={{
@@ -149,7 +180,7 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
       <StatCell
         label="Followed"
         primary={followedTotal.toLocaleString()}
-        note={weekDeltaLabel}
+        note={`${pendingTotal} pending · ${mutualTotal} mutual`}
         spark={sparkFollowed}
         sparkColor="var(--accent)"
         isFirst={true}
@@ -158,24 +189,24 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
       <StatCell
         label="Follow-back rate"
         primary={`${pct}%`}
-        note={`${followedBackTotal} of ${followedEver}`}
-        spark={sparkFollowBack}
+        note={`${mutualTotal} of ${followedTotal} active`}
+        spark={sparkMutual}
         sparkColor="var(--ink)"
         isLoading={isLoading}
       />
       <StatCell
         label="Top Picks"
-        primary={topPicks.length.toLocaleString()}
+        primary={topPicksTotal.toLocaleString()}
         note="Quality score ≥ 90"
         spark={sparkTopPicks}
         sparkColor="var(--accent)"
         isLoading={isLoading}
       />
       <StatCell
-        label="Unfollowed"
-        primary={unfollowed.length.toLocaleString()}
-        note="Past grace period"
-        spark={sparkUnfollowed}
+        label="Pending Response"
+        primary={pendingTotal.toLocaleString()}
+        note="Awaiting follow-back"
+        spark={sparkPending}
         sparkColor="var(--faint)"
         isLoading={isLoading}
       />

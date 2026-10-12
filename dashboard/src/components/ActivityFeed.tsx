@@ -20,22 +20,13 @@ function buildEvents(repos: Repo[]): ActivityEvent[] {
 
   for (const r of repos) {
     const owner = r.owner ?? '';
-    const avatar = owner ? `https://github.com/${owner}.png?size=72` : null;
+    if (!owner) continue;
+    const avatar = `https://github.com/${owner}.png?size=72`;
 
-    /* followed event — use created_at as proxy */
-    if (r.followed && r.created_at) {
+    /* followed event */
+    if (r.followed && !r.unfollowed && (r.followed_at || r.created_at)) {
       events.push({
         kind: 'followed',
-        login: owner,
-        avatar_url: avatar,
-        timestamp: r.created_at,
-        grade: r.grade ?? null,
-      });
-    }
-    /* unfollowed event — use followed_at or created_at fallback */
-    if (r.unfollowed && (r.followed_at || r.created_at)) {
-      events.push({
-        kind: 'unfollowed',
         login: owner,
         avatar_url: avatar,
         timestamp: r.followed_at || r.created_at || '',
@@ -43,7 +34,7 @@ function buildEvents(repos: Repo[]): ActivityEvent[] {
       });
     }
     /* follow_back event */
-    if (r.follow_back && (r.followed_at || r.created_at) && !r.unfollowed) {
+    if (r.follow_back && !r.unfollowed && (r.followed_at || r.created_at)) {
       events.push({
         kind: 'follow_back',
         login: owner,
