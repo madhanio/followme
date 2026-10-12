@@ -3,31 +3,25 @@
 import type { Repo } from '@/lib/types';
 
 function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (!values || values.length < 2) return null;
-  const w = 84, h = 28;
-  const mx = Math.max(...values);
-  const mn = Math.min(...values);
-  const r = mx - mn || (mx > 0 ? mx : 1);
+  if (values.length < 2) return null;
+  const W = 64, H = 24;
+  const max = Math.max(...values, 1);
   const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * w;
-    const y = mx === mn && mx === 0 
-      ? h - 4 
-      : (h - 3 - ((v - mn) / r) * (h - 6));
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
+    const x = (i / (values.length - 1)) * W;
+    const y = H - (v / max) * H;
+    return `${x},${y}`;
   }).join(' ');
-
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block', flexShrink: 0 }} aria-hidden="true">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
+    <svg width={W} height={H} style={{ display:'block', overflow:'visible' }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
 
 /* Returns a 30-element array (oldest → today) of daily counts.
-   dateGetter: extracts the ISO date string to bucket by. */
+   isoDate field: the date column to bucket by (YYYY-MM-DD prefix match on created_at). */
 function dailyCounts(
-  rows: Array<Record<string, any>>,
-  dateGetter: (row: Record<string, any>) => string | null | undefined,
+  rows: Array<{ created_at?: string | null }>,
   days = 30
 ): number[] {
   const today = new Date();
@@ -38,16 +32,15 @@ function dailyCounts(
     buckets[d.toISOString().slice(0, 10)] = 0;
   }
   for (const row of rows) {
-    const raw = dateGetter(row);
-    if (!raw) continue;
-    const key = raw.slice(0, 10);
+    if (!row.created_at) continue;
+    const key = row.created_at.slice(0, 10);
     if (key in buckets) buckets[key]++;
   }
   return Object.values(buckets);
 }
 
 function StatCell({
-  label, primary, note, spark, sparkColor, isFirst, index, isLoading,
+  label, primary, note, spark, sparkColor, isFirst, isLoading,
 }: {
   label: string;
   primary: string;
@@ -55,28 +48,23 @@ function StatCell({
   spark: number[];
   sparkColor: string;
   isFirst?: boolean;
-  index?: number;
   isLoading?: boolean;
 }) {
   return (
     <div
-      className={`p-3.5 sm:p-4 sm:px-4.5 flex flex-col gap-0.5 min-w-0 transition-colors duration-150 ${
-        index !== undefined && index % 2 !== 0 ? 'border-l border-[var(--line)] sm:border-l' : ''
-      } ${
-        index !== undefined && index >= 2 ? 'border-t border-[var(--line)] sm:border-t-0' : ''
-      } ${
-        index !== undefined && index > 0 ? 'sm:border-l sm:border-[var(--line)]' : ''
-      }`}
       style={{
+        padding: '16px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        minWidth: 0,
+        borderLeft: isFirst ? 'none' : '1px solid var(--line)',
         transition: 'background 0.18s ease',
       }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      <span
-        className="text-[13px] font-medium leading-tight whitespace-normal break-words"
-        style={{ color: 'var(--muted)' }}
-      >
+      <span style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 500 }}>
         {label}
       </span>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 2 }}>
@@ -136,31 +124,30 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
     ? Math.round((followedBackTotal / followedEver) * 100)
     : 0;
 
-  /* ── Sparklines (daily counts, last 30 days) ── */
-  const sparkFollowed   = dailyCounts(followed, r => r.followed_at || r.graded_at || r.created_at);
-  const sparkFollowBack = dailyCounts(followedBack, r => r.followed_at || r.graded_at || r.created_at);
-  const sparkTopPicks   = dailyCounts(topPicks, r => r.graded_at || r.created_at);
-  const sparkUnfollowed = dailyCounts(unfollowed, r => r.followed_at || r.created_at);
+  /* ── Sparklines (daily counts, last 30 days, using created_at) ── */
+  const sparkFollowed    = dailyCounts(followed);
+  const sparkFollowBack  = dailyCounts(followedBack);
+  const sparkTopPicks    = dailyCounts(topPicks);
+  const sparkUnfollowed  = dailyCounts(unfollowed);
 
   return (
-    <div
-      className="grid grid-cols-2 sm:grid-cols-4 w-full"
-      style={{
-        border: '1px solid var(--line)',
-        borderRadius: 'var(--r)',
-        background: 'var(--surface)',
-        boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
-        transition: 'background 0.25s ease, border-color 0.25s ease',
-        overflow: 'hidden',
-      }}
-    >
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      border: '1px solid var(--line)',
+      borderRadius: 'var(--r)',
+      background: 'var(--surface)',
+      boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+      transition: 'background 0.25s ease, border-color 0.25s ease',
+      overflow: 'hidden',
+    }}>
       <StatCell
         label="Followed"
         primary={followedTotal.toLocaleString()}
         note="Active connections"
         spark={sparkFollowed}
         sparkColor="var(--accent)"
-        index={0}
+        isFirst={true}
         isLoading={isLoading}
       />
       <StatCell
@@ -169,7 +156,6 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
         note={`${followedBackTotal} of ${followedEver}`}
         spark={sparkFollowBack}
         sparkColor="var(--ink)"
-        index={1}
         isLoading={isLoading}
       />
       <StatCell
@@ -178,7 +164,6 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
         note="Quality score ≥ 90"
         spark={sparkTopPicks}
         sparkColor="var(--accent)"
-        index={2}
         isLoading={isLoading}
       />
       <StatCell
@@ -187,7 +172,6 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
         note="Past grace period"
         spark={sparkUnfollowed}
         sparkColor="var(--faint)"
-        index={3}
         isLoading={isLoading}
       />
     </div>

@@ -1325,7 +1325,7 @@ export default function DashboardView({
         <StatStrip repos={repos} isLoading={isReposLoading} />
 
         {/* ── CHARTS ROW (Part C) ── */}
-        <div id="charts-row" className="grid grid-cols-1 md:grid-cols-[1.7fr_1fr] gap-4 w-full">
+        <div id="charts-row" style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 16 }}>
           <FollowChart repos={repos} isLoading={isReposLoading} />
           <BandChart repos={repos} isLoading={isReposLoading} />
         </div>
