@@ -17,7 +17,7 @@ const SEGMENTS: { key: Segment; label: string }[] = [
 function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
   switch (seg) {
     case 'top':        return items.filter(p => (p.grade ?? 0) >= 9 && p.language !== 'Profile');
-    case 'followed':   return items.filter(p => p.followed && !p.unfollowed);
+    case 'followed':   return items.filter(p => p.followed && !p.follow_back && !p.unfollowed);
     case 'mutual':     return items.filter(p => p.followed && p.follow_back && !p.unfollowed);
     case 'unfollowed': return items.filter(p => p.unfollowed === true);
     default:           return items;
