@@ -305,6 +305,35 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
                   {currentBio}
                 </p>
               )}
+              {/* Activity pill badges matching demo */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <span style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  background: 'var(--accent-tint)',
+                  color: 'var(--accent)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  {liveData?.last_pushed_at ? `Last push ${Math.max(1, Math.floor((Date.now() - new Date(liveData.last_pushed_at).getTime()) / (1000 * 60 * 60 * 24)))} days ago` : 'Active recently'}
+                </span>
+                <span style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  background: 'var(--hover)',
+                  color: 'var(--muted)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  {`${ownerRepos.length} public projects`}
+                </span>
+              </div>
             </div>
           </div>
 

@@ -18,7 +18,7 @@ function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
     case 'top':        return items.filter(p => (p.grade ?? 0) >= 9 && p.language !== 'Profile');
     case 'followed':   return items.filter(p => p.followed && !p.follow_back && !p.unfollowed);
     case 'mutual':     return items.filter(p => p.followed && p.follow_back && !p.unfollowed);
-    default:           return items;
+    default:           return items.filter(p => p.followed && !p.unfollowed);
   }
 }
 
