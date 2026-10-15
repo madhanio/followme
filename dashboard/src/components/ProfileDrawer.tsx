@@ -55,7 +55,10 @@ function ensureDrawerStyles() {
       display: flex; align-items: center; gap: 6px; margin: 0;
     }
     .fm-d-head .fm-u {
-      color: var(--muted); font-size: 13.5px;
+      color: var(--muted); font-size: 13.5px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .fm-d-head a.fm-u:hover {
+      color: var(--ink); text-decoration: underline;
     }
     .fm-x {
       margin-left: auto; width: 32px; height: 32px; border-radius: 8px;
@@ -517,7 +520,20 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
                 <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
               </svg>
             </h3>
-            <div className="fm-u">@{login}</div>
+            <a
+              href={`https://github.com/${login}`}
+              target="_blank"
+              rel="noreferrer"
+              className="fm-u"
+              title={`View @${login} on GitHub`}
+            >
+              @{login}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }}>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
           </div>
           <button className="fm-x" onClick={onClose} aria-label="Close">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

@@ -72,25 +72,47 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at timestamptz DEFAULT now()
 );
 
-ALTER TABLE repos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE run_summary ENABLE ROW LEVEL SECURITY;
-ALTER TABLE incident_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+-- Create profiles table (First-class developer candidate store)
+CREATE TABLE IF NOT EXISTS profiles (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner TEXT UNIQUE NOT NULL,
+    display_name TEXT,
+    avatar_url TEXT,
+    bio TEXT,
+    followers_count INTEGER DEFAULT 0,
+    following_count INTEGER DEFAULT 0,
+    public_repos_count INTEGER DEFAULT 0,
+    account_created_at TIMESTAMPTZ,
+    account_age_years NUMERIC,
+    last_pushed_at TIMESTAMPTZ,
+    top_repos JSONB DEFAULT '[]'::jsonb,      -- strictly top 3 projects
+    languages JSONB DEFAULT '[]'::jsonb,      -- top language breakdown
+    found_by TEXT DEFAULT 'GitHub topic & open-source discovery',
+    whitelisted BOOLEAN DEFAULT FALSE,        -- protected from auto-unfollow
+    ai_evaluation JSONB,                      -- editorial LLM scorecard & rationale
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-CREATE POLICY "Allow select" ON repos FOR SELECT USING (true);
-CREATE POLICY "Allow select" ON logs FOR SELECT USING (true);
-CREATE POLICY "Allow select" ON run_summary FOR SELECT USING (true);
+-- Ensure repos table has all enriched columns including whitelisted
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS whitelisted BOOLEAN DEFAULT FALSE;
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS display_name TEXT;
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS following_count INTEGER DEFAULT 0;
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS account_created_at TIMESTAMPTZ;
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS last_pushed_at TIMESTAMPTZ;
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS reason TEXT;
 
--- Protect sensitive keys in settings: anon client cannot read sensitive tokens/keys
-DROP POLICY IF EXISTS "Allow select non-sensitive settings" ON settings;
-CREATE POLICY "Allow select non-sensitive settings" ON settings
-  FOR SELECT USING (
-    lower(replace(key, '_', '')) NOT IN (
-      'githubtoken', 'resendapikey', 'dashboardpassword', 'webhooksecret'
-    )
-  );
+-- Indexing for performance
+CREATE INDEX IF NOT EXISTS idx_profiles_owner ON profiles(owner);
+CREATE INDEX IF NOT EXISTS idx_profiles_whitelisted ON profiles(whitelisted);
+CREATE INDEX IF NOT EXISTS idx_profiles_last_pushed_at ON profiles(last_pushed_at);
+CREATE INDEX IF NOT EXISTS idx_repos_whitelisted ON repos(whitelisted);
 
--- incident_log is service-role only, but allow select if needed for diagnostic views
-CREATE POLICY "Allow select incident_log" ON incident_log FOR SELECT USING (true);
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow select profiles" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Allow service_role full profiles" ON profiles FOR ALL USING (true);
+
 

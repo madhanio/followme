@@ -1081,19 +1081,24 @@ async function cleanupNonFollowbacks(runtimeConfig?: SystemRuntimeConfig) {
     }
 
     // Fetch followed profiles from Supabase where we set followed = true
-    const dbRepos = await fetchAllRows<{ owner: string; followed_at: string | null }>(
+    const dbRepos = await fetchAllRows<{ owner: string; followed_at: string | null; whitelisted?: boolean }>(
       'repos',
-      'owner, followed_at',
+      'owner, followed_at, whitelisted',
       q => q.eq('followed', true)
     );
 
     const followedAtMap = new Map<string, number>();
     const isFollowedByBot = new Set<string>();
+    const whitelistedSet = new Set<string>();
     if (dbRepos) {
       for (const r of dbRepos) {
-        isFollowedByBot.add(r.owner.toLowerCase());
+        const o = r.owner.toLowerCase();
+        isFollowedByBot.add(o);
+        if (r.whitelisted) {
+          whitelistedSet.add(o);
+        }
         if (r.followed_at) {
-          followedAtMap.set(r.owner.toLowerCase(), new Date(r.followed_at).getTime());
+          followedAtMap.set(o, new Date(r.followed_at).getTime());
         }
       }
     }
@@ -1102,9 +1107,13 @@ async function cleanupNonFollowbacks(runtimeConfig?: SystemRuntimeConfig) {
     const graceDays = config.unfollowGracePeriod && config.unfollowGracePeriod > 0 ? config.unfollowGracePeriod : 7;
     const gracePeriodCutoff = Date.now() - graceDays * 24 * 60 * 60 * 1000;
 
-    // Filter: allow non-followers who are past the grace period AND were followed by the bot
+    // Filter: allow non-followers who are past the grace period AND were followed by the bot (excluding whitelisted)
     const eligibleUnfollows = nonFollowbacks.filter(user => {
       const lower = user.toLowerCase();
+      // Shield whitelisted profiles explicitly saved by user
+      if (whitelistedSet.has(lower)) {
+        return false;
+      }
       // Shield accounts not followed by the bot (protect personal/manual follows)
       if (!isFollowedByBot.has(lower)) {
         return false;
@@ -1233,6 +1242,7 @@ async function runCleanupJob(runtimeConfig?: SystemRuntimeConfig) {
         .eq('follow_back', false)
         .eq('unfollowed', false)
         .eq('followed', true)
+        .neq('whitelisted', true)
         .lt('followed_at', cutoffDate)
     );
 

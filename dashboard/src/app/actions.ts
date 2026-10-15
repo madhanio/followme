@@ -505,6 +505,36 @@ export async function triggerClearStale() {
   }
 }
 
+export async function toggleWhitelist(username: string, whitelisted: boolean) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return { success: false, error: 'Supabase credentials not configured' };
+    }
+    const { createClient } = await import('@supabase/supabase-js');
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // 1. Update profiles table
+    const { error: profileErr } = await serviceClient
+      .from('profiles')
+      .update({ whitelisted })
+      .ilike('owner', username);
+
+    // 2. Also update repos table for consistency
+    await serviceClient
+      .from('repos')
+      .update({ whitelisted })
+      .ilike('owner', username);
+
+    revalidatePath('/');
+    return { success: true, whitelisted, error: profileErr ? profileErr.message : null };
+  } catch (err: any) {
+    console.error('Error in toggleWhitelist:', err);
+    return { success: false, error: err.message || 'Failed to update whitelist' };
+  }
+}
+
 export async function triggerDeleteProfile(username: string) {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
   const secret = getWorkerSecret();

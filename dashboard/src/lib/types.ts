@@ -27,6 +27,7 @@ export interface Repo {
   account_created_at?: string | null;
   last_pushed_at?: string | null;
   source?: string | null;
+  whitelisted?: boolean;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -70,7 +71,7 @@ export interface ProfileItem {
   language?: string | null;
   reposCount: number;
   repos: Repo[];
-  languages?: string[];
+  languages?: Array<{ name: string; pct?: number } | string>;
   avgGrade: number;
   totalGrade?: number;
   latestGradedAt?: string;
@@ -85,6 +86,7 @@ export interface ProfileItem {
   last_pushed_at?: string | null;
   found_by?: string | null;
   top_repos?: any[];
+  whitelisted?: boolean;
   followStatus: {
     followed: boolean;
     unfollowed: boolean;

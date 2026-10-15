@@ -103,6 +103,7 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
       source: p.found_by || r.source || null,
       top_repos: p.top_repos || (r as any).top_repos || null,
       languages: p.languages || (r as any).languages || null,
+      whitelisted: p.whitelisted ?? (r as any).whitelisted ?? false,
     };
   });
 

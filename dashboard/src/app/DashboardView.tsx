@@ -493,8 +493,11 @@ export default function DashboardView({
           repos: [repo],
           reason: repo.reason || repo.follow_skip_reason || null,
           bio: repo.bio || null,
+          display_name: repo.display_name || null,
           followers_count: repo.followers_count || null,
           following_count: repo.following_count || null,
+          last_pushed_at: repo.last_pushed_at || null,
+          whitelisted: !!repo.whitelisted,
           followStatus: ownerStatus,
         });
       } else {
@@ -562,9 +565,11 @@ export default function DashboardView({
       follow_back: p.followStatus.follow_back,
       unfollowed: p.followStatus.unfollowed,
       language: p.repos[0]?.language || null,
+      last_pushed_at: p.last_pushed_at || p.repos[0]?.last_pushed_at || null,
       found_by: p.found_by || (p.repos[0] as any)?.source || null,
       top_repos: p.top_repos || (p.repos[0] as any)?.top_repos || null,
       languages: p.languages || (p.repos[0] as any)?.languages || null,
+      whitelisted: p.whitelisted ?? p.repos.some(r => !!r.whitelisted),
     }));
   }, [repos]);
 

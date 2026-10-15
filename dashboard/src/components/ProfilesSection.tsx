@@ -25,38 +25,54 @@ function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
 function matchesPill(p: ProfileItem, pill: QuickPill): boolean {
   if (!pill) return true;
   if (pill === 'stars') {
-    return p.repos.some(r => (r.stars || 0) >= 100);
+    const hasInRepos = p.repos.some(r => (r.stars || 0) >= 100);
+    const hasInTopRepos = Array.isArray(p.top_repos) && p.top_repos.some((r: any) => (r.stars || r.stargazers_count || 0) >= 100);
+    return hasInRepos || hasInTopRepos;
   }
   if (pill === 'active') {
     const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-    return p.repos.some(r => r.last_pushed_at && new Date(r.last_pushed_at).getTime() >= fourteenDaysAgo);
+    const hasActivePush = p.last_pushed_at && new Date(p.last_pushed_at).getTime() >= fourteenDaysAgo;
+    const hasRepoPush = p.repos.some(r => r.last_pushed_at && new Date(r.last_pushed_at).getTime() >= fourteenDaysAgo);
+    const hasTopRepoPush = Array.isArray(p.top_repos) && p.top_repos.some((r: any) => r.pushed_at && new Date(r.pushed_at).getTime() >= fourteenDaysAgo);
+    return Boolean(hasActivePush || hasRepoPush || hasTopRepoPush);
   }
   if (pill === 'highvol') {
-    return p.reposCount >= 3 || (p.followers_count || 0) >= 500;
+    const hasManyRepos = (p.public_repos_count || 0) >= 5 || p.reposCount >= 3;
+    const hasManyFollowers = (p.followers_count || 0) >= 100;
+    return hasManyRepos || hasManyFollowers;
   }
   return true;
 }
 
 function synthesizeReason(p: ProfileItem): string {
+  // If we have an AI evaluation or high quality graded reason, display it
   if (p.reason && !p.reason.toLowerCase().includes('high repository quality and active commit cadence')) {
     return p.reason;
   }
-  if (p.bio && p.bio.trim().length > 5) {
-    return p.bio.trim();
+  // Check if profile was skipped
+  if (p.followStatus.follow_skipped && p.followStatus.reason) {
+    return `Skipped: ${p.followStatus.reason}`;
   }
-  const topRepo = p.repos[0];
-  const lang = p.language && p.language !== 'Profile' ? p.language : topRepo?.language;
-  const stars = topRepo?.stars || 0;
+  // Evidence-based dynamic synthesis from top repositories & languages
+  const topRepo = (Array.isArray(p.top_repos) && p.top_repos[0]) || p.repos[0];
+  const firstLang = Array.isArray(p.languages) ? p.languages[0] : null;
+  const lang = (typeof firstLang === 'object' && firstLang !== null ? (firstLang as any).name : firstLang)
+    || (p.language && p.language !== 'Profile' ? p.language : topRepo?.language);
+  const stars = topRepo?.stars || (topRepo as any)?.stargazers_count || 0;
+  
   if (stars >= 100 && lang) {
     return `Maintains ${topRepo.name} with ${stars.toLocaleString()} stars in ${lang}.`;
   }
+  if (lang && p.reposCount >= 2) {
+    return `Active ${lang} open-source contributor with ${p.reposCount} public projects.`;
+  }
   if (lang) {
-    return `Active ${lang} contributor with ${p.reposCount} public projects.`;
+    return `Active ${lang} developer shipping public repositories.`;
   }
-  if (p.reposCount >= 3) {
-    return `Consistent open-source output across ${p.reposCount} repositories.`;
+  if (stars >= 50 && topRepo?.name) {
+    return `Created ${topRepo.name} with ${stars.toLocaleString()} stars.`;
   }
-  return `Consistent open-source contributions and active cadence.`;
+  return `Consistent open-source contributions and active commit cadence.`;
 }
 
 function ProfileRow({
@@ -82,6 +98,37 @@ function ProfileRow({
     : { text: 'Queued', bg: 'var(--hover)', color: 'var(--muted)' };
 
   const reason = synthesizeReason(profile);
+
+  const [isWhitelisted, setIsWhitelisted] = useState(profile.whitelisted ?? false);
+  const [isTogglingWhitelist, setIsTogglingWhitelist] = useState(false);
+
+  // Sync state if profile prop updates
+  React.useEffect(() => {
+    setIsWhitelisted(profile.whitelisted ?? false);
+  }, [profile.whitelisted]);
+
+  const hasDistinctName = Boolean(fullName && fullName.trim().toLowerCase() !== username.toLowerCase());
+
+  const handleToggleWhitelist = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isTogglingWhitelist) return;
+    const nextVal = !isWhitelisted;
+    setIsWhitelisted(nextVal);
+    setIsTogglingWhitelist(true);
+    try {
+      const { toggleWhitelist } = await import('@/app/actions');
+      const res = await toggleWhitelist(username, nextVal);
+      if (!res.success) {
+        setIsWhitelisted(!nextVal); // revert
+      } else {
+        profile.whitelisted = nextVal;
+      }
+    } catch {
+      setIsWhitelisted(!nextVal);
+    } finally {
+      setIsTogglingWhitelist(false);
+    }
+  };
 
   return (
     <div
@@ -123,15 +170,38 @@ function ProfileRow({
           </div>
         )}
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            <span>{fullName || username}</span>
-            {isTopPick && (
-              <svg width="12" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--ink)', flexShrink: 0 }}>
-                <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+          <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span>{hasDistinctName ? fullName : `@${username}`}</span>
+            {/* Interactive Bookmark / Whitelist Button */}
+            <button
+              type="button"
+              onClick={handleToggleWhitelist}
+              title={isWhitelisted ? 'Whitelisted (Saved from auto-unfollow) — Click to remove' : 'Add to Whitelist (Protect from auto-unfollow)'}
+              aria-label={isWhitelisted ? 'Remove from whitelist' : 'Add to whitelist'}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '2px 4px',
+                borderRadius: 4,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                color: isWhitelisted ? 'var(--ink)' : 'var(--muted)',
+                opacity: isWhitelisted ? 1 : 0.45,
+                transition: 'all 0.16s ease',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = isWhitelisted ? '1' : '0.45'; }}
+            >
+              <svg width="13" height="14" viewBox="0 0 24 24" fill={isWhitelisted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
               </svg>
-            )}
+            </button>
           </div>
-          <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>@{username}</div>
+          {hasDistinctName && (
+            <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>@{username}</div>
+          )}
         </div>
       </div>
 
