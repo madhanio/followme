@@ -71,27 +71,44 @@ export async function POST(request: Request) {
       ? Math.max(1, Math.round((Date.now() - new Date(accountCreatedAt).getTime()) / (365.25 * 24 * 60 * 60 * 1000)))
       : 1;
 
-    // 4. Save/update telemetry placeholders in Supabase
-    const { data: updatedRows, error: dbErr } = await supabase
-      .from('repos')
-      .update({
-        bio,
-        followers_count: followers,
-        following_count: following,
-        account_created_at: accountCreatedAt,
-        last_pushed_at: latestPush,
-      })
-      .ilike('owner', owner)
-      .select('id, owner');
+    // 4. Save/update telemetry placeholders in Supabase using service role to bypass RLS
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (dbErr) {
-      console.error('[Telemetry] Supabase update error:', dbErr.message);
+    let savedToDb = false;
+    let dbErrorMessage: string | null = null;
+
+    if (supabaseUrl && supabaseServiceKey) {
+      const { createClient } = await import('@supabase/supabase-js');
+      const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+      
+      const { data: updatedRows, error: dbErr } = await serviceClient
+        .from('repos')
+        .update({
+          bio,
+          followers_count: followers,
+          following_count: following,
+          account_created_at: accountCreatedAt,
+          last_pushed_at: latestPush,
+        })
+        .ilike('owner', owner)
+        .select('id, owner');
+
+      if (dbErr) {
+        console.error('[Telemetry] Supabase update error:', dbErr.message);
+        dbErrorMessage = dbErr.message;
+      } else {
+        savedToDb = (updatedRows && updatedRows.length > 0) || false;
+        console.log(`[Telemetry] Updated ${updatedRows?.length || 0} rows for ${owner}`);
+      }
     } else {
-      console.log(`[Telemetry] Updated ${updatedRows?.length || 0} rows for ${owner}`);
+      dbErrorMessage = 'Supabase credentials missing on server';
     }
 
     return NextResponse.json({
       success: true,
+      savedToDb,
+      dbErrorMessage,
       data: {
         owner,
         bio,

@@ -180,10 +180,18 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
       });
 
       const langStr = data.data.languages?.map((l: any) => l.name).join(', ') || 'Code';
-      setTelemetryMsg({
-        type: 'success',
-        text: `✓ Saved to Supabase: ${data.data.followers_count} followers · ${langStr}`,
-      });
+      
+      if (data.savedToDb) {
+        setTelemetryMsg({
+          type: 'success',
+          text: `✓ Saved to Supabase: ${data.data.followers_count} followers · ${langStr}`,
+        });
+      } else {
+        setTelemetryMsg({
+          type: 'error',
+          text: `⚠️ Telemetry fetched, but DB write failed: ${data.dbErrorMessage || 'Profile owner not found in database'}`,
+        });
+      }
     } catch (err: any) {
       setTelemetryMsg({ type: 'error', text: `⚠️ ${err.message}` });
     } finally {
