@@ -611,9 +611,10 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
 
           {/* Top Repositories matching demo */}
           {(() => {
-            const displayRepos = (liveData?.top_repos && liveData.top_repos.length > 0)
+            const rawRepos = (liveData?.top_repos && liveData.top_repos.length > 0)
               ? liveData.top_repos
               : ownerRepos;
+            const displayRepos = rawRepos.slice(0, 3);
 
             if (!displayRepos || displayRepos.length === 0) return null;
 

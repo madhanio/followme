@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 
     const displayName = user.name || null;
     const avatarUrl = user.avatar_url || null;
-    const topReposData = sortedRepos.slice(0, 5).map(r => ({
+    const topReposData = sortedRepos.slice(0, 3).map(r => ({
       name: r.name,
       stars: r.stargazers_count || 0,
       language: r.language,
@@ -156,13 +156,7 @@ export async function POST(request: Request) {
         last_pushed_at: latestPush,
         languages,
         public_repos_count: publicReposCount,
-        top_repos: sortedRepos.slice(0, 5).map(r => ({
-          name: r.name,
-          stars: r.stargazers_count || 0,
-          language: r.language,
-          description: r.description,
-          pushed_at: r.pushed_at,
-        })),
+        top_repos: topReposData,
         top_repo: topRepo
           ? {
               name: topRepo.name,
