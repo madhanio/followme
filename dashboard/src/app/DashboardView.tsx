@@ -1643,6 +1643,22 @@ export default function DashboardView({
         repos={repos}
         onClose={() => setSelectedProfile(null)}
         onUnfollow={handleUnfollowUser}
+        onUpdateProfile={(updatedData) => {
+          if (!updatedData.owner) return;
+          const ownerLower = updatedData.owner.toLowerCase();
+          setRepos((prev) =>
+            prev.map((r) =>
+              r.owner.toLowerCase() === ownerLower
+                ? { ...r, ...updatedData }
+                : r
+            )
+          );
+          setSelectedProfile((prev) =>
+            prev && (prev.login?.toLowerCase() === ownerLower || prev.owner.toLowerCase() === ownerLower)
+              ? { ...prev, ...updatedData }
+              : prev
+          );
+        }}
       />
     </div>
   );

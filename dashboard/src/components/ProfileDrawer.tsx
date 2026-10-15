@@ -8,6 +8,7 @@ export interface ProfileDrawerProps {
   repos: Repo[];                 /* full repos array — filter by owner in drawer */
   onClose: () => void;
   onUnfollow?: (login: string) => void;
+  onUpdateProfile?: (updatedData: Partial<Repo>) => void;
 }
 
 const OVERLAY: React.CSSProperties = {
@@ -106,7 +107,7 @@ function RepoRow({ repo }: { repo: Repo }) {
   );
 }
 
-export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: ProfileDrawerProps) {
+export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onUpdateProfile }: ProfileDrawerProps) {
 
   useEffect(() => { ensureDrawerStyles(); }, []);
 
@@ -178,6 +179,17 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow }: P
         languages: data.data.languages,
         top_repos: data.data.top_repos,
       });
+
+      if (onUpdateProfile) {
+        onUpdateProfile({
+          owner: login,
+          bio: data.data.bio,
+          followers_count: data.data.followers_count,
+          following_count: data.data.following_count,
+          account_created_at: data.data.account_created_at,
+          last_pushed_at: data.data.last_pushed_at,
+        });
+      }
 
       const langStr = data.data.languages?.map((l: any) => l.name).join(', ') || 'Code';
       
