@@ -508,11 +508,23 @@ export default function DashboardView({
         if (!existing.bio && repo.bio) {
           existing.bio = repo.bio || null;
         }
+        if (repo.display_name && !existing.display_name) {
+          existing.display_name = repo.display_name;
+        }
         if (repo.followers_count) {
           existing.followers_count = repo.followers_count;
         }
         if (repo.following_count) {
           existing.following_count = repo.following_count;
+        }
+        if ((repo as any).top_repos && !existing.top_repos) {
+          existing.top_repos = (repo as any).top_repos;
+        }
+        if ((repo as any).languages && !existing.languages) {
+          existing.languages = (repo as any).languages;
+        }
+        if ((repo as any).source && !existing.found_by) {
+          existing.found_by = (repo as any).source;
         }
 
         const realGradedRepos = existing.repos.filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile');
@@ -543,12 +555,16 @@ export default function DashboardView({
     return Array.from(profilesMap.values()).map(p => ({
       ...p,
       login: p.owner,
+      display_name: p.display_name || p.repos[0]?.display_name || null,
       avatar_url: `https://github.com/${p.owner}.png`,
       grade: p.avgGrade || p.repos[0]?.grade || 0,
       followed: p.followStatus.followed,
       follow_back: p.followStatus.follow_back,
       unfollowed: p.followStatus.unfollowed,
       language: p.repos[0]?.language || null,
+      found_by: p.found_by || (p.repos[0] as any)?.source || null,
+      top_repos: p.top_repos || (p.repos[0] as any)?.top_repos || null,
+      languages: p.languages || (p.repos[0] as any)?.languages || null,
     }));
   }, [repos]);
 

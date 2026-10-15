@@ -65,7 +65,8 @@ function ProfileRow({
   const isMutual     = profile.followed && profile.follow_back && !profile.unfollowed;
   const isUnfollowed = profile.unfollowed === true;
   const grade        = profile.grade ?? 0;
-  const displayName  = profile.login || profile.owner;
+  const username     = profile.login || profile.owner;
+  const fullName     = profile.display_name || (profile as any).name || null;
   const displayScore = Math.min(100, Math.round(grade * 10));
   const isTopPick    = displayScore >= 90 && !profile.followStatus.follow_skipped;
 
@@ -106,7 +107,7 @@ function ProfileRow({
         {profile.avatar_url ? (
           <img
             src={profile.avatar_url}
-            alt={displayName}
+            alt={fullName || username}
             width={32}
             height={32}
             style={{ borderRadius: '50%', flexShrink: 0, border: '1px solid var(--line)' }}
@@ -118,19 +119,19 @@ function ProfileRow({
             display: 'grid', placeItems: 'center',
             fontSize: 12, color: 'var(--muted)', fontWeight: 700,
           }}>
-            {displayName[0]?.toUpperCase()}
+            {(fullName || username)[0]?.toUpperCase()}
           </div>
         )}
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            <span>{displayName}</span>
+            <span>{fullName || username}</span>
             {isTopPick && (
               <svg width="12" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--ink)', flexShrink: 0 }}>
                 <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
               </svg>
             )}
           </div>
-          <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>@{displayName}</div>
+          <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>@{username}</div>
         </div>
       </div>
 

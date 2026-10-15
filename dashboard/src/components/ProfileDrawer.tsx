@@ -74,13 +74,13 @@ function ensureDrawerStyles() {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 22px;
+      gap: 20px;
     }
     .fm-d-body h4 {
       font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 8px;
     }
     .fm-big {
-      display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;
+      display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;
     }
     .fm-big b {
       font-size: 34px; letter-spacing: -0.02em; font-weight: 700; color: var(--ink); line-height: 1;
@@ -98,9 +98,6 @@ function ensureDrawerStyles() {
     }
     .fm-sub span:last-child {
       color: var(--ink); text-align: right; font-weight: 600;
-    }
-    .fm-sub-slider {
-      width: 100%; accent-color: var(--ink); height: 4px; cursor: pointer;
     }
     .fm-facts {
       display: grid; grid-template-columns: repeat(3, 1fr);
@@ -166,18 +163,6 @@ function ensureDrawerStyles() {
     }
     .fm-lleg {
       display: flex; gap: 14px; margin-top: 6px; color: var(--muted); font-size: 12.5px;
-    }
-    .fm-drawer-credit {
-      background: var(--hover); border: 1px solid var(--line); border-radius: 8px;
-      padding: 12px 14px; font-size: 12.5px; color: var(--muted);
-      display: flex; flex-direction: column; gap: 4px;
-    }
-    .fm-drawer-credit a {
-      color: var(--ink); font-weight: 600; text-decoration: none;
-      display: inline-flex; align-items: center; gap: 4px;
-    }
-    .fm-drawer-credit a:hover {
-      text-decoration: underline;
     }
     .fm-d-foot {
       display: flex; gap: 8px; padding: 16px 22px; border-top: 1px solid var(--line);
@@ -253,6 +238,15 @@ function renderIdenticonSvg(username: string) {
   );
 }
 
+function formatPushRecency(pushedAt: string | null | undefined): { text: string; isGood: boolean } {
+  if (!pushedAt) return { text: 'Active recently', isGood: true };
+  const diffDays = Math.floor((Date.now() - new Date(pushedAt).getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return { text: 'Last push today', isGood: true };
+  if (diffDays === 1) return { text: 'Last push yesterday', isGood: true };
+  if (diffDays <= 14) return { text: `Last push ${diffDays} days ago`, isGood: true };
+  return { text: `Last push ${diffDays} days ago`, isGood: diffDays <= 90 };
+}
+
 export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onUpdateProfile }: ProfileDrawerProps) {
   useEffect(() => { ensureDrawerStyles(); }, []);
 
@@ -292,24 +286,6 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
     }>;
   } | null>(null);
 
-  // Sub-scores state for interactive evaluation matching demo
-  const [subScores, setSubScores] = useState({
-    activity: 94,
-    codeQuality: 88,
-    relevance: 93,
-    reach: 84,
-  });
-
-  // Calculate dynamic composite score matching demo formula
-  const calculatedScore = useMemo(() => {
-    return Math.round(
-      subScores.activity * 0.3 +
-      subScores.codeQuality * 0.35 +
-      subScores.relevance * 0.2 +
-      subScores.reach * 0.15
-    );
-  }, [subScores]);
-
   // When profile opens, pre-populate from profile or fetch from profiles table
   useEffect(() => {
     setTelemetryMsg(null);
@@ -332,14 +308,6 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
       found_by: initialFoundBy,
       top_repos: Array.isArray(initialTopRepos) && initialTopRepos.length > 0 ? initialTopRepos : undefined,
       languages: Array.isArray(initialLanguages) && initialLanguages.length > 0 ? initialLanguages : undefined,
-    });
-
-    const baseGrade = profile.grade ? Math.round(profile.grade * 10) : 90;
-    setSubScores({
-      activity: Math.min(99, Math.max(20, baseGrade + 4)),
-      codeQuality: Math.min(99, Math.max(20, baseGrade - 2)),
-      relevance: Math.min(99, Math.max(20, baseGrade + 3)),
-      reach: Math.min(99, Math.max(20, baseGrade - 6)),
     });
 
     // Check Supabase profiles table for cached rich telemetry
@@ -465,24 +433,18 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
     : ownerRepos;
   const displayRepos = rawRepos.slice(0, 3);
 
-  // Evidence chips matching demo generator
+  // Evidence chips
   const evidenceChips: Array<{ cls: string; text: string }> = [];
   const reposWith100Stars = displayRepos.filter((r: any) => (r.stars || r.stargazers_count || 0) >= 100).length;
   if (reposWith100Stars > 0) {
     evidenceChips.push({ cls: 'good', text: `${reposWith100Stars} repo${reposWith100Stars > 1 ? 's' : ''} with 100+ stars` });
   }
 
-  const lastPushDays = liveData?.last_pushed_at
-    ? Math.max(1, Math.floor((Date.now() - new Date(liveData.last_pushed_at).getTime()) / (1000 * 60 * 60 * 24)))
-    : null;
-  if (lastPushDays !== null) {
-    evidenceChips.push({
-      cls: lastPushDays <= 14 ? 'good' : lastPushDays > 90 ? 'warn' : '',
-      text: `Last push ${lastPushDays} day${lastPushDays > 1 ? 's' : ''} ago`,
-    });
-  } else {
-    evidenceChips.push({ cls: 'good', text: 'Active recently' });
-  }
+  const pushInfo = formatPushRecency(liveData?.last_pushed_at);
+  evidenceChips.push({
+    cls: pushInfo.isGood ? 'good' : 'warn',
+    text: pushInfo.text,
+  });
 
   evidenceChips.push({ cls: 'good', text: `${ownerRepos.length || 1} public project${(ownerRepos.length || 1) > 1 ? 's' : ''}` });
   evidenceChips.push({ cls: 'good', text: 'Strong organic follow ratio' });
@@ -510,8 +472,22 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
   }
 
   const displayName = liveData?.displayName || (profile as any).display_name || login;
-  const foundBySource = liveData?.found_by || (profile as any).found_by || (profile as any).source || 'Data engineering';
+  
+  // Format found_by sensibly
+  const rawSource = liveData?.found_by || (profile as any).found_by || (profile as any).source;
+  const foundBySource = rawSource && rawSource !== 'Data engineering'
+    ? rawSource
+    : 'GitHub topic & open-source discovery';
   const accountAge = liveData?.account_age_years || (profile as any).account_age_years || 1;
+  const scoreVal = profile.grade ? Math.min(100, Math.round(profile.grade * 10)) : 90;
+
+  // 4 Read-only Pillar bars (sliders removed per user request)
+  const pillarBars = [
+    { label: 'Activity', val: Math.min(99, Math.max(30, scoreVal + 4)) },
+    { label: 'Code quality', val: Math.min(99, Math.max(30, scoreVal - 2)) },
+    { label: 'Relevance', val: Math.min(99, Math.max(30, scoreVal + 3)) },
+    { label: 'Reach', val: Math.min(99, Math.max(30, scoreVal - 6)) },
+  ];
 
   return (
     <>
@@ -521,7 +497,7 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
       {/* Drawer Container */}
       <aside id={PANEL_ID} className="fm-drawer" role="dialog" aria-modal="true" aria-label="Developer details">
 
-        {/* ── Header (.d-head matching demo) ── */}
+        {/* ── 1. Header (Avatar, Name, Handle, Close) ── */}
         <div className="fm-d-head">
           <div className="fm-av">
             {(liveData?.avatar_url || profile.avatar_url) ? (
@@ -550,15 +526,38 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
           </button>
         </div>
 
-        {/* ── Scrollable Body (.d-body matching demo) ── */}
+        {/* ── Scrollable Body ── */}
         <div className="fm-d-body">
 
-          {/* AI Evaluation Breakdown section */}
+          {/* ── 2. Quick stats bar (Followers, Following, Ratio) + Bio right under header ── */}
+          <div className="fm-facts">
+            <div>
+              <b>{currentFollowers?.toLocaleString() ?? '—'}</b>
+              <span>Followers</span>
+            </div>
+            <div>
+              <b>{currentFollowing?.toLocaleString() ?? '—'}</b>
+              <span>Following</span>
+            </div>
+            <div>
+              <b>{currentRatio}</b>
+              <span>Ratio</span>
+            </div>
+          </div>
+
+          {currentBio && (
+            <div>
+              <h4>Bio</h4>
+              <p style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.45, margin: 0 }}>
+                {currentBio}
+              </p>
+            </div>
+          )}
+
+          {/* ── 3. Score Verdict (Score, Re-score button, Pillar bars, and Why this score explanation) ── */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <h4>
-                AI Evaluation Breakdown <span style={{ fontWeight: 400, color: 'var(--faint)' }}>(interactive)</span>
-              </h4>
+              <h4>AI Evaluation Breakdown</h4>
               <button
                 onClick={handleFetchTelemetry}
                 disabled={isFetching}
@@ -609,7 +608,7 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
             )}
 
             <div className="fm-big">
-              <b>{calculatedScore}</b>
+              <b>{scoreVal}</b>
               <span style={{
                 fontSize: 12,
                 fontWeight: 600,
@@ -623,185 +622,103 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
               </span>
             </div>
 
-            {/* 4 Interactive Sub-Sliders matching demo */}
-            <div className="fm-sub">
-              <span>Activity</span>
-              <input
-                className="fm-sub-slider"
-                type="range"
-                min="20"
-                max="99"
-                value={subScores.activity}
-                onChange={e => setSubScores(s => ({ ...s, activity: parseInt(e.target.value, 10) }))}
-              />
-              <span>{subScores.activity}</span>
-            </div>
-            <div className="fm-sub">
-              <span>Code quality</span>
-              <input
-                className="fm-sub-slider"
-                type="range"
-                min="20"
-                max="99"
-                value={subScores.codeQuality}
-                onChange={e => setSubScores(s => ({ ...s, codeQuality: parseInt(e.target.value, 10) }))}
-              />
-              <span>{subScores.codeQuality}</span>
-            </div>
-            <div className="fm-sub">
-              <span>Relevance</span>
-              <input
-                className="fm-sub-slider"
-                type="range"
-                min="20"
-                max="99"
-                value={subScores.relevance}
-                onChange={e => setSubScores(s => ({ ...s, relevance: parseInt(e.target.value, 10) }))}
-              />
-              <span>{subScores.relevance}</span>
-            </div>
-            <div className="fm-sub">
-              <span>Reach</span>
-              <input
-                className="fm-sub-slider"
-                type="range"
-                min="20"
-                max="99"
-                value={subScores.reach}
-                onChange={e => setSubScores(s => ({ ...s, reach: parseInt(e.target.value, 10) }))}
-              />
-              <span>{subScores.reach}</span>
+            {/* 4 Clean progress bars without interactive sliders */}
+            {pillarBars.map(pillar => (
+              <div key={pillar.label} className="fm-sub">
+                <span>{pillar.label}</span>
+                <span className="fm-t">
+                  <i style={{ width: `${pillar.val}%` }} />
+                </span>
+                <span>{pillar.val}</span>
+              </div>
+            ))}
+
+            {/* "Why this score" explanation directly under verdict */}
+            <div style={{ marginTop: 16 }}>
+              <h4>Why this score</h4>
+              <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45, fontWeight: 500, margin: 0 }}>
+                {profile.reason || 'Strong repos, clear docs, and frequent merged PRs.'}
+              </p>
             </div>
           </div>
 
-          {/* Why this score section matching demo */}
+          {/* ── 4. Evidence (Activity badges, Top repos, Languages, Found by) ── */}
           <div>
-            <h4>Why this score</h4>
-            <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45, fontWeight: 500, margin: 0 }}>
-              {profile.reason || 'Strong repos, clear docs, and frequent merged PRs.'}
-            </p>
-            <div className="fm-evi">
+            <div className="fm-evi" style={{ marginTop: 0, marginBottom: 18 }}>
               {evidenceChips.map((chip, idx) => (
                 <span key={idx} className={`fm-ev-chip ${chip.cls}`}>
                   {chip.text}
                 </span>
               ))}
             </div>
-          </div>
 
-          {/* Bio section matching demo */}
-          {currentBio && (
+            {/* Top repos section (strictly top 3) */}
+            {displayRepos.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <h4>Top repos</h4>
+                <div className="fm-repos">
+                  {displayRepos.map((r: any) => {
+                    const rName = r.name ?? '(repo)';
+                    const rStars = r.stars || r.stargazers_count || 0;
+                    const rLang = (r.language && r.language !== 'Profile') ? r.language : 'Code';
+                    const rDesc = r.description || r.readme_snippet || 'No description provided';
+                    const pushRec = formatPushRecency(r.pushed_at);
+
+                    return (
+                      <div key={r.id || rName} className="fm-repo">
+                        <div className="fm-rn">
+                          <a
+                            href={r.github_url || `https://github.com/${login}/${rName}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {rName}
+                          </a>
+                          <span className="fm-rs">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z" />
+                            </svg>
+                            {rStars.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="fm-rd">{rDesc}</div>
+                        <div className="fm-rm">{rLang}, {pushRec.text.toLowerCase()}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Languages section */}
+            {languagesList && languagesList.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <h4>Languages</h4>
+                <div className="fm-lbar">
+                  <i style={{ width: `${languagesList[0]?.pct || 70}%` }} />
+                </div>
+                <div className="fm-lleg">
+                  {languagesList.map((l: any) => (
+                    <span key={l.name}>
+                      {l.name} {l.pct}%
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Found by section */}
             <div>
-              <h4>Bio</h4>
-              <p style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.4, margin: 0 }}>
-                {currentBio}
+              <h4>Found by</h4>
+              <p style={{ fontSize: 13, color: 'var(--ink)', margin: 0 }}>
+                {foundBySource}, account is {accountAge} year{accountAge > 1 ? 's' : ''} old
               </p>
             </div>
-          )}
-
-          {/* Top repos section matching demo (.repos > .repo) */}
-          {displayRepos.length > 0 && (
-            <div>
-              <h4>Top repos</h4>
-              <div className="fm-repos">
-                {displayRepos.map((r: any) => {
-                  const rName = r.name ?? '(repo)';
-                  const rStars = r.stars || r.stargazers_count || 0;
-                  const rLang = (r.language && r.language !== 'Profile') ? r.language : 'Code';
-                  const rDesc = r.description || r.readme_snippet || 'No description provided';
-                  const rPushed = r.pushed_at
-                    ? Math.max(1, Math.floor((Date.now() - new Date(r.pushed_at).getTime()) / (1000 * 60 * 60 * 24)))
-                    : 13;
-
-                  return (
-                    <div key={r.id || rName} className="fm-repo">
-                      <div className="fm-rn">
-                        <a
-                          href={r.github_url || `https://github.com/${login}/${rName}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {rName}
-                        </a>
-                        <span className="fm-rs">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z" />
-                          </svg>
-                          {rStars.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="fm-rd">{rDesc}</div>
-                      <div className="fm-rm">{rLang}, pushed {rPushed} day{rPushed > 1 ? 's' : ''} ago</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Facts strip (.facts matching demo: Followers | Following | Ratio) */}
-          <div className="fm-facts">
-            <div>
-              <b>{currentFollowers?.toLocaleString() ?? '1,348'}</b>
-              <span>Followers</span>
-            </div>
-            <div>
-              <b>{currentFollowing?.toLocaleString() ?? '445'}</b>
-              <span>Following</span>
-            </div>
-            <div>
-              <b>{currentRatio}</b>
-              <span>Ratio</span>
-            </div>
-          </div>
-
-          {/* Languages section (.lbar + .lleg matching demo) */}
-          {languagesList && languagesList.length > 0 && (
-            <div>
-              <h4>Languages</h4>
-              <div className="fm-lbar">
-                <i style={{ width: `${languagesList[0]?.pct || 70}%` }} />
-              </div>
-              <div className="fm-lleg">
-                {languagesList.map((l: any) => (
-                  <span key={l.name}>
-                    {l.name} {l.pct}%
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Found by section matching demo */}
-          <div>
-            <h4>Found by</h4>
-            <p style={{ fontSize: 13, color: 'var(--ink)', margin: 0 }}>
-              {foundBySource}, account is {accountAge} year{accountAge > 1 ? 's' : ''} old
-            </p>
-          </div>
-
-          {/* Graded by FollowMe Agent credit box matching demo */}
-          <div className="fm-drawer-credit">
-            <span>
-              Graded by FollowMe Agent by{' '}
-              <a href="https://github.com/madhanio" target="_blank" rel="noopener">
-                @madhanio{' '}
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.75 }}>
-                  <path d="M7 17L17 7M7 7h10v10" />
-                </svg>
-              </a>.
-            </span>
-            <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">
-              Inspect Agent Source Code{' '}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.75 }}>
-                <path d="M7 17L17 7M7 7h10v10" />
-              </svg>
-            </a>
           </div>
 
         </div>
 
-        {/* ── Footer actions (.d-foot matching demo) ── */}
+        {/* ── 5. Footer action: Just "Unfollow" (no username) or "Skip" ── */}
         <div className="fm-d-foot">
           {!isUnfollowed && profile.followed && onUnfollow ? (
             <button
@@ -813,7 +730,7 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
                 background: 'var(--surface)',
               }}
             >
-              Unfollow @{login}
+              Unfollow
             </button>
           ) : (
             <button

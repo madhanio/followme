@@ -28,6 +28,7 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
     rateLimitRes,
     healthState,
     repos,
+    profilesData,
     logs,
     runSummary
   ] = await Promise.all([
@@ -48,6 +49,10 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
       : Promise.resolve(undefined),
     fetchAllRows<Repo>(supabase, 'repos', REPOS_SELECT).catch((err: any) => {
       console.error('Error fetching repos details:', err.message || err);
+      return [];
+    }),
+    fetchAllRows<any>(supabase, 'profiles', '*').catch((err: any) => {
+      console.debug('Profiles table not yet available or error:', err.message || err);
       return [];
     }),
     Promise.resolve(
@@ -76,8 +81,33 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
       }),
   ]);
 
+  // Enrich repos with profile metadata (display_name, bio, followers, etc.) from profiles table
+  const profilesMap = new Map<string, any>();
+  if (Array.isArray(profilesData)) {
+    profilesData.forEach(p => {
+      if (p.owner) profilesMap.set(p.owner.toLowerCase(), p);
+    });
+  }
+
+  const enrichedRepos = (repos || []).map(r => {
+    const p = profilesMap.get((r.owner || '').toLowerCase());
+    if (!p) return r;
+    return {
+      ...r,
+      display_name: p.display_name || (r as any).display_name || null,
+      bio: p.bio || r.bio || null,
+      followers_count: p.followers_count ?? r.followers_count ?? null,
+      following_count: p.following_count ?? r.following_count ?? null,
+      account_created_at: p.account_created_at || r.account_created_at || null,
+      last_pushed_at: p.last_pushed_at || r.last_pushed_at || null,
+      source: p.found_by || r.source || null,
+      top_repos: p.top_repos || (r as any).top_repos || null,
+      languages: p.languages || (r as any).languages || null,
+    };
+  });
+
   return {
-    repos: repos || [],
+    repos: enrichedRepos,
     logs: logs || [],
     runSummary: runSummary || [],
     userProfile,

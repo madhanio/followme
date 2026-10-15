@@ -21,6 +21,7 @@ export interface Repo {
   follow_skip_reason?: string;
   reason?: string | null;
   bio?: string | null;
+  display_name?: string | null;
   followers_count?: number | null;
   following_count?: number | null;
   account_created_at?: string | null;
