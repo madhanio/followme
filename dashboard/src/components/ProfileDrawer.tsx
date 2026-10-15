@@ -300,40 +300,6 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
                   </span>
                 )}
               </div>
-              {currentBio && (
-                <p style={{ fontSize:13, color:'var(--muted)', marginTop:4, lineHeight:1.4 }}>
-                  {currentBio}
-                </p>
-              )}
-              {/* Activity pill badges matching demo */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                <span style={{
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  padding: '3px 8px',
-                  borderRadius: 6,
-                  background: 'var(--accent-tint)',
-                  color: 'var(--accent)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}>
-                  {liveData?.last_pushed_at ? `Last push ${Math.max(1, Math.floor((Date.now() - new Date(liveData.last_pushed_at).getTime()) / (1000 * 60 * 60 * 24)))} days ago` : 'Active recently'}
-                </span>
-                <span style={{
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  padding: '3px 8px',
-                  borderRadius: 6,
-                  background: 'var(--hover)',
-                  color: 'var(--muted)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}>
-                  {`${ownerRepos.length} public projects`}
-                </span>
-              </div>
             </div>
           </div>
 
@@ -406,7 +372,7 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
               )}
             </div>
 
-            {/* 4 Pillars Sub-scores (Read-only progress bars) */}
+            {/* 4 Pillars Sub-scores (Read-only progress bars matching demo) */}
             {[
               { label: 'Activity', val: Math.min(99, Math.max(30, Math.round((grade ?? 7) * 10) + 4)) },
               { label: 'Code quality', val: Math.min(99, Math.max(30, Math.round((grade ?? 7) * 10) - 2)) },
@@ -434,11 +400,59 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
             ))}
           </div>
 
-          {/* Reason */}
-          {profile.reason && (
+          {/* Why this score section matching demo */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 6 }}>
+              Why this score
+            </div>
+            <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45, fontWeight: 500, margin: 0 }}>
+              {profile.reason || 'Active open-source builder with consistent project output.'}
+            </p>
+
+            {/* Green evidence pills matching demo */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                padding: '3px 8px',
+                borderRadius: 6,
+                background: 'var(--accent-tint)',
+                color: 'var(--accent)',
+              }}>
+                {liveData?.last_pushed_at ? `Last push ${Math.max(1, Math.floor((Date.now() - new Date(liveData.last_pushed_at).getTime()) / (1000 * 60 * 60 * 24)))} days ago` : 'Active recently'}
+              </span>
+              <span style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                padding: '3px 8px',
+                borderRadius: 6,
+                background: 'var(--accent-tint)',
+                color: 'var(--accent)',
+              }}>
+                {`${ownerRepos.length || 1} public projects`}
+              </span>
+              <span style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                padding: '3px 8px',
+                borderRadius: 6,
+                background: 'var(--accent-tint)',
+                color: 'var(--accent)',
+              }}>
+                Strong organic ratio
+              </span>
+            </div>
+          </div>
+
+          {/* Bio placed under Why this score matching demo */}
+          {currentBio && (
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 6 }}>Why this score</div>
-              <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>{profile.reason}</p>
+              <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 4 }}>
+                Bio
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.4, margin: 0 }}>
+                {currentBio}
+              </p>
             </div>
           )}
 

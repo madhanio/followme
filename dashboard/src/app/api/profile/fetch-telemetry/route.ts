@@ -28,9 +28,9 @@ export async function POST(request: Request) {
     }
     const user = await userRes.json();
 
-    // 2. Fetch user's public repositories (up to 30, sorted by updated)
+    // 2. Fetch user's public repositories (up to 100, sorted by updated)
     const reposRes = await fetch(
-      `https://api.github.com/users/${owner}/repos?sort=pushed&per_page=30`,
+      `https://api.github.com/users/${owner}/repos?per_page=100&sort=updated`,
       { headers }
     );
     let userRepos: any[] = [];
@@ -45,9 +45,13 @@ export async function POST(request: Request) {
     const accountCreatedAt = user.created_at || null;
     const publicReposCount = user.public_repos || userRepos.length;
 
-    // Determine top repo (most stars or most recently pushed)
-    const sortedByStars = [...userRepos].sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0));
-    const topRepo = sortedByStars[0] || userRepos[0] || null;
+    // Filter out forks if possible, or sort all repos by stars then push date
+    const sortedRepos = [...userRepos].sort((a, b) => {
+      const starDiff = (b.stargazers_count || 0) - (a.stargazers_count || 0);
+      if (starDiff !== 0) return starDiff;
+      return new Date(b.pushed_at || 0).getTime() - new Date(a.pushed_at || 0).getTime();
+    });
+    const topRepo = sortedRepos[0] || null;
 
     // Language distribution percentages matching demo
     const langCounts: Record<string, number> = {};
@@ -119,7 +123,7 @@ export async function POST(request: Request) {
         last_pushed_at: latestPush,
         languages,
         public_repos_count: publicReposCount,
-        top_repos: userRepos.slice(0, 3).map(r => ({
+        top_repos: sortedRepos.slice(0, 5).map(r => ({
           name: r.name,
           stars: r.stargazers_count || 0,
           language: r.language,
