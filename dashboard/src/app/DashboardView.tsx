@@ -493,6 +493,8 @@ export default function DashboardView({
           repos: [repo],
           reason: repo.reason || repo.follow_skip_reason || null,
           bio: repo.bio || null,
+          followers_count: repo.followers_count || null,
+          following_count: repo.following_count || null,
           followStatus: ownerStatus,
         });
       } else {
@@ -505,6 +507,12 @@ export default function DashboardView({
         }
         if (!existing.bio && repo.bio) {
           existing.bio = repo.bio || null;
+        }
+        if (repo.followers_count) {
+          existing.followers_count = repo.followers_count;
+        }
+        if (repo.following_count) {
+          existing.following_count = repo.following_count;
         }
 
         const realGradedRepos = existing.repos.filter(r => (r.grade || 0) > 0 && !r.follow_skipped && r.language !== 'Profile');

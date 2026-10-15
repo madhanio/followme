@@ -435,32 +435,57 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
           </div>
 
           {/* Languages Distribution matching demo */}
-          {liveData?.languages && liveData.languages.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 8 }}>
-                Languages
+          {(() => {
+            let langs = liveData?.languages;
+            if (!langs || langs.length === 0) {
+              const counts: Record<string, number> = {};
+              let total = 0;
+              ownerRepos.forEach(r => {
+                if (r.language && r.language !== 'Profile') {
+                  counts[r.language] = (counts[r.language] || 0) + 1;
+                  total++;
+                }
+              });
+              if (total > 0) {
+                langs = Object.entries(counts)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 3)
+                  .map(([name, count]) => ({
+                    name,
+                    pct: Math.round((count / total) * 100),
+                  }));
+              }
+            }
+
+            if (!langs || langs.length === 0) return null;
+
+            return (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginBottom: 8 }}>
+                  Languages
+                </div>
+                <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden', display: 'flex', gap: 2, marginBottom: 6 }}>
+                  {langs.map((l, i) => (
+                    <div
+                      key={l.name}
+                      style={{
+                        height: '100%',
+                        width: `${l.pct}%`,
+                        background: i === 0 ? 'var(--ink)' : i === 1 ? 'var(--accent)' : 'var(--muted)',
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--muted)' }}>
+                  {langs.map((l) => (
+                    <span key={l.name}>
+                      {l.name} {l.pct}%
+                    </span>
+                  ))}
+                </div>
               </div>
-              <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden', display: 'flex', gap: 2, marginBottom: 6 }}>
-                {liveData.languages.map((l, i) => (
-                  <div
-                    key={l.name}
-                    style={{
-                      height: '100%',
-                      width: `${l.pct}%`,
-                      background: i === 0 ? 'var(--ink)' : i === 1 ? 'var(--accent)' : 'var(--muted)',
-                    }}
-                  />
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--muted)' }}>
-                {liveData.languages.map((l) => (
-                  <span key={l.name}>
-                    {l.name} {l.pct}%
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Found by / Account Age metadata matching demo */}
           {liveData?.account_age_years && (
