@@ -75,8 +75,15 @@ export interface ProfileItem {
   latestGradedAt?: string;
   reason?: string | null;
   bio?: string | null;
+  display_name?: string | null;
   followers_count?: number | null;
   following_count?: number | null;
+  public_repos_count?: number | null;
+  account_created_at?: string | null;
+  account_age_years?: number | null;
+  last_pushed_at?: string | null;
+  found_by?: string | null;
+  top_repos?: any[];
   followStatus: {
     followed: boolean;
     unfollowed: boolean;

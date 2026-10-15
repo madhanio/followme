@@ -75,7 +75,17 @@ export async function POST(request: Request) {
       ? Math.max(1, Math.round((Date.now() - new Date(accountCreatedAt).getTime()) / (365.25 * 24 * 60 * 60 * 1000)))
       : 1;
 
-    // 4. Save/update telemetry placeholders in Supabase using service role to bypass RLS
+    const displayName = user.name || null;
+    const avatarUrl = user.avatar_url || null;
+    const topReposData = sortedRepos.slice(0, 5).map(r => ({
+      name: r.name,
+      stars: r.stargazers_count || 0,
+      language: r.language,
+      description: r.description,
+      pushed_at: r.pushed_at,
+    }));
+
+    // 4. Save/update telemetry in profiles table (and sync repos) using service role to bypass RLS
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -86,7 +96,31 @@ export async function POST(request: Request) {
       const { createClient } = await import('@supabase/supabase-js');
       const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
       
-      const { data: updatedRows, error: dbErr } = await serviceClient
+      // Update profiles table with rich telemetry
+      const { data: updatedProfile, error: profileErr } = await serviceClient
+        .from('profiles')
+        .upsert(
+          {
+            owner,
+            display_name: displayName,
+            avatar_url: avatarUrl,
+            bio,
+            followers_count: followers,
+            following_count: following,
+            public_repos_count: publicReposCount,
+            account_created_at: accountCreatedAt,
+            account_age_years: accountAgeYears,
+            last_pushed_at: latestPush,
+            top_repos: topReposData,
+            languages,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'owner' }
+        )
+        .select('id, owner');
+
+      // Also update repos table for backward compatibility
+      await serviceClient
         .from('repos')
         .update({
           bio,
@@ -95,15 +129,14 @@ export async function POST(request: Request) {
           account_created_at: accountCreatedAt,
           last_pushed_at: latestPush,
         })
-        .ilike('owner', owner)
-        .select('id, owner');
+        .ilike('owner', owner);
 
-      if (dbErr) {
-        console.error('[Telemetry] Supabase update error:', dbErr.message);
-        dbErrorMessage = dbErr.message;
+      if (profileErr) {
+        console.error('[Telemetry] Supabase profiles update error:', profileErr.message);
+        dbErrorMessage = profileErr.message;
       } else {
-        savedToDb = (updatedRows && updatedRows.length > 0) || false;
-        console.log(`[Telemetry] Updated ${updatedRows?.length || 0} rows for ${owner}`);
+        savedToDb = true;
+        console.log(`[Telemetry] Updated profiles table for ${owner}`);
       }
     } else {
       dbErrorMessage = 'Supabase credentials missing on server';

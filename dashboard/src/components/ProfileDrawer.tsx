@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import type { ProfileItem, Repo } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
 
 export interface ProfileDrawerProps {
   profile: ProfileItem | null;   /* null = closed */
@@ -131,11 +132,14 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
   const [isFetching, setIsFetching] = useState(false);
   const [telemetryMsg, setTelemetryMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [liveData, setLiveData] = useState<{
+    displayName?: string | null;
+    avatar_url?: string | null;
     bio?: string | null;
     followers_count?: number;
     following_count?: number;
     account_age_years?: number;
     last_pushed_at?: string | null;
+    found_by?: string | null;
     languages?: Array<{ name: string; pct: number }>;
     top_repos?: Array<{
       name: string;
@@ -146,10 +150,61 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
     }>;
   } | null>(null);
 
-  // Reset telemetry message when profile changes
+  // When profile opens, pre-populate from profile or fetch from profiles table
   useEffect(() => {
     setTelemetryMsg(null);
-    setLiveData(null);
+    if (!profile) {
+      setLiveData(null);
+      return;
+    }
+
+    const initialTopRepos = (profile as any).top_repos || null;
+    const initialLanguages = (profile as any).languages || null;
+    const initialFoundBy = (profile as any).found_by || null;
+    const initialDisplayName = (profile as any).display_name || null;
+
+    setLiveData({
+      displayName: initialDisplayName,
+      avatar_url: profile.avatar_url,
+      bio: profile.bio,
+      followers_count: profile.followers_count ?? undefined,
+      following_count: profile.following_count ?? undefined,
+      found_by: initialFoundBy,
+      top_repos: Array.isArray(initialTopRepos) && initialTopRepos.length > 0 ? initialTopRepos : undefined,
+      languages: Array.isArray(initialLanguages) && initialLanguages.length > 0 ? initialLanguages : undefined,
+    });
+
+    // Also check the Supabase profiles table for cached rich telemetry (top_repos, languages, etc.)
+    const checkOwner = profile.login || profile.owner;
+    if (checkOwner) {
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('profiles')
+            .select('*')
+            .ilike('owner', checkOwner)
+            .maybeSingle();
+
+          if (data) {
+            setLiveData(prev => ({
+              ...prev,
+              displayName: data.display_name || prev?.displayName,
+              avatar_url: data.avatar_url || prev?.avatar_url,
+              bio: data.bio ?? prev?.bio,
+              followers_count: data.followers_count ?? prev?.followers_count,
+              following_count: data.following_count ?? prev?.following_count,
+              account_age_years: data.account_age_years ?? prev?.account_age_years,
+              last_pushed_at: data.last_pushed_at ?? prev?.last_pushed_at,
+              found_by: data.found_by ?? prev?.found_by,
+              languages: (Array.isArray(data.languages) && data.languages.length > 0) ? data.languages : prev?.languages,
+              top_repos: (Array.isArray(data.top_repos) && data.top_repos.length > 0) ? data.top_repos : prev?.top_repos,
+            }));
+          }
+        } catch (err) {
+          console.debug('Could not query profiles table for drawer cache:', err);
+        }
+      })();
+    }
   }, [profile]);
 
   if (!profile) return null;
@@ -268,8 +323,8 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
 
           {/* Avatar + identity */}
           <div style={{ display:'flex', gap:14, alignItems:'flex-start', marginBottom:16 }}>
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt={login}
+            {(liveData?.avatar_url || profile.avatar_url) ? (
+              <img src={liveData?.avatar_url || profile.avatar_url || ''} alt={login}
                 width={56} height={56}
                 style={{ borderRadius:'50%', border:'1px solid var(--line)', flexShrink:0 }} />
             ) : (
@@ -283,13 +338,18 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
               </div>
             )}
             <div style={{ flex:1, minWidth:0 }}>
+              {liveData?.displayName && (
+                <div style={{ fontWeight:700, fontSize:17, color:'var(--ink)', lineHeight:1.2, marginBottom:2 }}>
+                  {liveData.displayName}
+                </div>
+              )}
               <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                 <a
                   href={`https://github.com/${login}`}
                   target="_blank" rel="noreferrer"
-                  style={{ fontWeight:700, fontSize:16, color:'var(--ink)', textDecoration:'none' }}
+                  style={{ fontWeight: liveData?.displayName ? 500 : 700, fontSize:14, color: liveData?.displayName ? 'var(--muted)' : 'var(--ink)', textDecoration:'none' }}
                 >
-                  {login}
+                  @{login}
                 </a>
                 {statusLabel && (
                   <span style={{
@@ -531,7 +591,7 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
           })()}
 
           {/* Found by / Account Age metadata matching demo */}
-          {liveData?.account_age_years && (
+          {(liveData?.account_age_years || liveData?.found_by || (profile as any).found_by || (profile as any).source) && (
             <div style={{
               padding: '12px 14px',
               borderRadius: 8,
@@ -542,8 +602,10 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
               color: 'var(--muted)',
               lineHeight: 1.5,
             }}>
-              <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Account Profile: </span>
-              Account is {liveData.account_age_years} years old on GitHub with {liveData.followers_count} followers.
+              <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Discovery: </span>
+              Found via <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{liveData?.found_by || (profile as any).found_by || (profile as any).source || 'GitHub topic search'}</span>
+              {liveData?.account_age_years ? ` · Account is ${liveData.account_age_years}y old` : ''}
+              {liveData?.followers_count ? ` · ${liveData.followers_count} followers` : ''}.
             </div>
           )}
 
