@@ -533,18 +533,82 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
             </div>
           )}
 
-          {/* Repos */}
-          {ownerRepos.length > 0 && (
-            <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:12, fontWeight:600, color:'var(--ink)',
-                marginBottom:8, textTransform:'uppercase', letterSpacing:'0.04em' }}>
-                Repositories ({ownerRepos.length})
+          {/* Top Repositories matching demo */}
+          {(() => {
+            const displayRepos = (liveData?.top_repos && liveData.top_repos.length > 0)
+              ? liveData.top_repos
+              : ownerRepos;
+
+            if (!displayRepos || displayRepos.length === 0) return null;
+
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{
+                  fontSize: 12, fontWeight: 600, color: 'var(--ink)',
+                  marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em'
+                }}>
+                  Top Repositories ({displayRepos.length})
+                </div>
+                {displayRepos.map((r: any) => {
+                  const rName = r.name ?? '(repo)';
+                  const rStars = r.stars ?? 0;
+                  const rLang = (r.language && r.language !== 'Profile') ? r.language : null;
+                  const rDesc = r.description;
+                  const rPush = r.pushed_at ? `${Math.max(1, Math.floor((Date.now() - new Date(r.pushed_at).getTime()) / (1000 * 60 * 60 * 24)))}d ago` : null;
+
+                  return (
+                    <div
+                      key={r.id ?? rName}
+                      style={{
+                        padding: '10px 0',
+                        borderBottom: '1px solid var(--line)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <a
+                          href={`https://github.com/${login}/${rName}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            color: 'var(--accent)',
+                            textDecoration: 'none',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {rName}
+                        </a>
+                        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, flexShrink: 0 }}>
+                          ★ {rStars.toLocaleString()}
+                        </span>
+                      </div>
+                      {rDesc && (
+                        <p style={{
+                          fontSize: 12.5,
+                          color: 'var(--muted)',
+                          margin: '3px 0 0',
+                          lineHeight: 1.4,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}>
+                          {rDesc}
+                        </p>
+                      )}
+                      <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 11.5, color: 'var(--faint)' }}>
+                        {rLang && <span>{rLang}</span>}
+                        {rPush && <span>pushed {rPush}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              {ownerRepos.map(r => (
-                <RepoRow key={r.id ?? r.name} repo={r} />
-              ))}
-            </div>
-          )}
+            );
+          })()}
 
         </div>
 
