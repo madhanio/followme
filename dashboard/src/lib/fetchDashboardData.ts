@@ -27,7 +27,6 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
     dbSettings,
     rateLimitRes,
     healthState,
-    repos,
     profilesData,
     logs,
     runSummary
@@ -47,18 +46,14 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
           lastChecked: new Date().toISOString(),
         }))
       : Promise.resolve(undefined),
-    fetchAllRows<Repo>(supabase, 'repos', REPOS_SELECT).catch((err: any) => {
-      console.error('Error fetching repos details:', err.message || err);
-      return [];
-    }),
     fetchAllRows<any>(supabase, 'profiles', '*').catch((err: any) => {
-      console.debug('Profiles table not yet available or error:', err.message || err);
+      console.error('Error fetching profiles data:', err.message || err);
       return [];
     }),
     Promise.resolve(
       supabase
         .from('logs')
-        .select('id, action, repo_id, timestamp, status, message')
+        .select('id, action, owner, timestamp, status, message')
         .order('timestamp', { ascending: false })
         .limit(100)
     )
@@ -81,29 +76,39 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
       }),
   ]);
 
-  // Enrich repos with profile metadata (display_name, bio, followers, etc.) from profiles table
-  const profilesMap = new Map<string, any>();
-  if (Array.isArray(profilesData)) {
-    profilesData.forEach(p => {
-      if (p.owner) profilesMap.set(p.owner.toLowerCase(), p);
-    });
-  }
-
-  const enrichedRepos = (repos || []).map(r => {
-    const p = profilesMap.get((r.owner || '').toLowerCase());
-    if (!p) return r;
+  // Map profiles into canonical Repo format for dashboard components
+  const enrichedRepos: Repo[] = (profilesData || []).map((p: any, idx: number) => {
+    const topProject = Array.isArray(p.top_repos) && p.top_repos.length > 0 ? p.top_repos[0] : null;
     return {
-      ...r,
-      display_name: p.display_name || (r as any).display_name || null,
-      bio: p.bio || r.bio || null,
-      followers_count: p.followers_count ?? r.followers_count ?? null,
-      following_count: p.following_count ?? r.following_count ?? null,
-      account_created_at: p.account_created_at || r.account_created_at || null,
-      last_pushed_at: p.last_pushed_at || r.last_pushed_at || null,
-      source: p.found_by || r.source || null,
-      top_repos: p.top_repos || (r as any).top_repos || null,
-      languages: p.languages || (r as any).languages || null,
-      whitelisted: p.whitelisted ?? (r as any).whitelisted ?? false,
+      id: idx + 1,
+      github_url: `https://github.com/${p.owner}`,
+      owner: p.owner,
+      name: topProject?.name || p.owner,
+      stars: topProject?.stars || topProject?.stargazers_count || 0,
+      language: (Array.isArray(p.languages) && p.languages[0]?.name) || (topProject?.language) || 'Code',
+      topics: [],
+      grade: p.grade ?? 0,
+      graded_at: p.graded_at || p.created_at || new Date().toISOString(),
+      followed: p.followed ?? false,
+      starred: p.starred ?? false,
+      followed_at: p.followed_at || null,
+      follow_back: p.follow_back ?? false,
+      unfollowed: p.unfollowed ?? false,
+      follow_skipped: p.follow_skipped ?? false,
+      follow_skip_reason: p.follow_skip_reason || null,
+      created_at: p.created_at || null,
+      updated_at: p.updated_at || null,
+      reason: p.reason || null,
+      bio: p.bio || null,
+      display_name: p.display_name || null,
+      followers_count: p.followers_count ?? null,
+      following_count: p.following_count ?? null,
+      account_created_at: p.account_created_at || null,
+      last_pushed_at: p.last_pushed_at || null,
+      source: p.found_by || null,
+      top_repos: p.top_repos || null,
+      languages: p.languages || null,
+      whitelisted: p.whitelisted ?? false,
     };
   });
 

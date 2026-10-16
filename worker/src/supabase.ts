@@ -59,93 +59,97 @@ export async function fetchAllRows<T = any>(
   return allRows;
 }
 
-export async function isRepoGraded(repoId: number): Promise<boolean> {
+export async function isProfileGraded(owner: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
-      .from('repos')
-      .select('id')
-      .eq('id', repoId)
+      .from('profiles')
+      .select('id, updated_at, grade')
+      .ilike('owner', owner.replace(/[_%]/g, '\\$&'))
       .maybeSingle();
 
     if (error) {
-      console.error(`Error checking if repo ${repoId} is graded:`, error.message);
+      console.error(`Error checking if profile ${owner} is graded:`, error.message);
       return false;
     }
-    return data !== null;
+    if (!data) return false;
+
+    // 7-day cooldown threshold: if updated in last 7 days, consider already evaluated
+    if (data.updated_at) {
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      if (new Date(data.updated_at).getTime() >= sevenDaysAgo) {
+        return true;
+      }
+    }
+    return false;
   } catch (err: any) {
-    console.error(`Failed to check if repo ${repoId} is graded:`, err.message || err);
+    console.error(`Failed to check if profile ${owner} is graded:`, err.message || err);
     return false;
   }
 }
 
-export async function saveRepo(
-  repo: {
-    id: number;
-    github_url: string;
+export async function saveProfile(
+  candidate: {
     owner: string;
-    name: string;
-    stars: number;
-    language: string | null;
-    topics: string[];
-    readme_snippet: string;
-    grade: number;
-    reason?: string | null;
+    display_name?: string | null;
+    avatar_url?: string | null;
     bio?: string | null;
     followers_count?: number | null;
     following_count?: number | null;
+    public_repos_count?: number | null;
     account_created_at?: string | null;
+    account_age_years?: number | null;
     last_pushed_at?: string | null;
-    source?: string | null;
+    top_repos?: any[];
+    languages?: any[];
+    found_by?: string | null;
+    grade?: number;
+    reason?: string | null;
+    whitelisted?: boolean;
+    ai_evaluation?: any;
   },
   followed: boolean,
-  starred: boolean,
   followSkipped: boolean = false,
-  followSkipReason: string | null = null,
-  profileMeta?: {
-    reason?: string | null;
-    bio?: string | null;
-    followers_count?: number | null;
-    following_count?: number | null;
-    account_created_at?: string | null;
-    last_pushed_at?: string | null;
-    source?: string | null;
-  }
+  followSkipReason: string | null = null
 ) {
   try {
-    const actualStarred = followSkipped ? false : starred;
     const upsertData: any = {
-      id: repo.id,
-      github_url: repo.github_url,
-      owner: repo.owner,
-      name: repo.name,
-      stars: repo.stars,
-      language: repo.language,
-      topics: repo.topics,
-      readme_snippet: repo.readme_snippet,
-      grade: repo.grade,
+      owner: candidate.owner,
+      display_name: candidate.display_name ?? null,
+      avatar_url: candidate.avatar_url ?? `https://github.com/${candidate.owner}.png`,
+      bio: candidate.bio ?? null,
+      followers_count: candidate.followers_count ?? 0,
+      following_count: candidate.following_count ?? 0,
+      public_repos_count: candidate.public_repos_count ?? 0,
+      account_created_at: candidate.account_created_at ?? null,
+      account_age_years: candidate.account_age_years ?? null,
+      last_pushed_at: candidate.last_pushed_at ?? null,
+      top_repos: candidate.top_repos ?? [],
+      languages: candidate.languages ?? [],
+      found_by: candidate.found_by ?? 'GitHub topic & open-source discovery',
+      grade: candidate.grade ?? 0,
       graded_at: new Date().toISOString(),
       followed,
-      starred: actualStarred,
       follow_skipped: followSkipped,
       follow_skip_reason: followSkipReason,
-      reason: profileMeta?.reason ?? repo.reason ?? (followSkipped ? followSkipReason : null),
-      bio: profileMeta?.bio ?? repo.bio ?? null,
-      followers_count: profileMeta?.followers_count ?? repo.followers_count ?? null,
-      following_count: profileMeta?.following_count ?? repo.following_count ?? null,
-      account_created_at: profileMeta?.account_created_at ?? repo.account_created_at ?? null,
-      last_pushed_at: profileMeta?.last_pushed_at ?? repo.last_pushed_at ?? null,
-      source: profileMeta?.source ?? repo.source ?? null,
+      reason: candidate.reason ?? (followSkipped ? followSkipReason : null),
+      ai_evaluation: candidate.ai_evaluation ?? null,
+      updated_at: new Date().toISOString(),
     };
 
     if (followed) {
       upsertData.followed_at = new Date().toISOString();
+      upsertData.unfollowed = false;
     }
 
-    // Check if repo already exists to preserve follow_back and unfollowed state
+    if (candidate.whitelisted !== undefined) {
+      upsertData.whitelisted = candidate.whitelisted;
+    }
+
+    // Preserve existing follow_back, unfollowed, whitelisted state
     const { data: existing } = await supabase
-      .from('repos')
-      .select('follow_back, unfollowed, followed_at')
-      .eq('id', repo.id)
+      .from('profiles')
+      .select('follow_back, unfollowed, followed_at, whitelisted')
+      .ilike('owner', candidate.owner.replace(/[_%]/g, '\\$&'))
       .maybeSingle();
 
     if (existing) {
@@ -158,30 +162,33 @@ export async function saveRepo(
       if (existing.followed_at && !upsertData.followed_at) {
         upsertData.followed_at = existing.followed_at;
       }
+      if (existing.whitelisted !== undefined && candidate.whitelisted === undefined) {
+        upsertData.whitelisted = existing.whitelisted;
+      }
     }
 
-    const { error } = await supabase.from('repos').upsert(upsertData, { onConflict: 'id' });
+    const { error } = await supabase.from('profiles').upsert(upsertData, { onConflict: 'owner' });
 
     if (error) {
-      console.error(`Error saving repo ${repo.owner}/${repo.name}:`, error.message);
+      console.error(`Error saving profile @${candidate.owner}:`, error.message);
       throw error;
     }
   } catch (err: any) {
-    console.error(`Failed to save repo ${repo.owner}/${repo.name}:`, err.message || err);
+    console.error(`Failed to save profile @${candidate.owner}:`, err.message || err);
     throw err;
   }
 }
 
 export async function logAction(
   action: string,
-  repoId: number | null,
+  owner: string | null,
   status: 'SUCCESS' | 'FAILED' | 'ERROR' | 'WARN',
   message?: string
 ) {
   try {
     const { error } = await supabase.from('logs').insert({
       action,
-      repo_id: repoId,
+      owner,
       status,
       message: message || null,
       timestamp: new Date().toISOString(),

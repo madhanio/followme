@@ -119,18 +119,6 @@ export async function POST(request: Request) {
         )
         .select('id, owner');
 
-      // Also update repos table for backward compatibility
-      await serviceClient
-        .from('repos')
-        .update({
-          bio,
-          followers_count: followers,
-          following_count: following,
-          account_created_at: accountCreatedAt,
-          last_pushed_at: latestPush,
-        })
-        .ilike('owner', owner);
-
       if (profileErr) {
         console.error('[Telemetry] Supabase profiles update error:', profileErr.message);
         dbErrorMessage = profileErr.message;

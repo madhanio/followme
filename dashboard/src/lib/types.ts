@@ -35,7 +35,8 @@ export interface Repo {
 export interface Log {
   id: number;
   action: string;
-  repo_id: number | null;
+  owner?: string | null;
+  repo_id?: number | null;
   timestamp: string;
   status: string;
   message: string;

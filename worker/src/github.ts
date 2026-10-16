@@ -136,6 +136,27 @@ export async function fetchGitHub(
   throw new Error(`GitHub API request failed after ${maxRetries} attempts: ${url}`);
 }
 
+export interface CandidateTelemetry {
+  owner: string;
+  display_name: string | null;
+  avatar_url: string;
+  bio: string | null;
+  followers_count: number;
+  following_count: number;
+  public_repos_count: number;
+  account_created_at: string | null;
+  account_age_years: number;
+  last_pushed_at: string | null;
+  top_repos: Array<{
+    name: string;
+    stars: number;
+    language: string | null;
+    description: string | null;
+    pushed_at: string | null;
+  }>;
+  languages: Array<{ name: string; pct: number }>;
+}
+
 export interface OwnerProfileResult {
   shouldFollow: boolean;
   skipReason: string | null;
@@ -145,6 +166,77 @@ export interface OwnerProfileResult {
     following: number;
     created_at: string;
   };
+}
+
+/**
+ * Fetches rich telemetry (public repos, top 3 projects, languages) for a candidate profile.
+ */
+export async function fetchCandidateDetails(username: string): Promise<CandidateTelemetry | null> {
+  try {
+    const userRes = await fetchGitHub(`https://api.github.com/users/${username}`);
+    if (!userRes.ok) return null;
+    const user = await userRes.json();
+
+    const reposRes = await fetchGitHub(`https://api.github.com/users/${username}/repos?per_page=100&sort=updated`);
+    let userRepos: any[] = [];
+    if (reposRes.ok) {
+      userRepos = await reposRes.json();
+    }
+
+    const sortedRepos = [...userRepos].sort((a, b) => {
+      const starDiff = (b.stargazers_count || 0) - (a.stargazers_count || 0);
+      if (starDiff !== 0) return starDiff;
+      return new Date(b.pushed_at || 0).getTime() - new Date(a.pushed_at || 0).getTime();
+    });
+
+    const langCounts: Record<string, number> = {};
+    let totalLangs = 0;
+    userRepos.forEach(r => {
+      if (r.language && r.language !== 'Profile') {
+        langCounts[r.language] = (langCounts[r.language] || 0) + 1;
+        totalLangs++;
+      }
+    });
+
+    const languages = Object.entries(langCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([lang, count]) => ({
+        name: lang,
+        pct: Math.round((count / Math.max(1, totalLangs)) * 100),
+      }));
+
+    const top_repos = sortedRepos.slice(0, 3).map(r => ({
+      name: r.name,
+      stars: r.stargazers_count || 0,
+      language: r.language || null,
+      description: r.description || null,
+      pushed_at: r.pushed_at || null,
+    }));
+
+    const accountCreatedAt = user.created_at || null;
+    const accountAgeYears = accountCreatedAt 
+      ? Math.max(1, Math.round((Date.now() - new Date(accountCreatedAt).getTime()) / (365.25 * 24 * 60 * 60 * 1000)))
+      : 1;
+
+    return {
+      owner: user.login || username,
+      display_name: user.name || null,
+      avatar_url: user.avatar_url || `https://github.com/${username}.png`,
+      bio: user.bio || null,
+      followers_count: user.followers || 0,
+      following_count: user.following || 0,
+      public_repos_count: user.public_repos || userRepos.length,
+      account_created_at: accountCreatedAt,
+      account_age_years: accountAgeYears,
+      last_pushed_at: userRepos[0]?.pushed_at || null,
+      top_repos,
+      languages,
+    };
+  } catch (err: any) {
+    console.error(`Error fetching candidate details for ${username}:`, err.message || err);
+    return null;
+  }
 }
 
 /**

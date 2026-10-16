@@ -86,6 +86,49 @@ const cleanSnippet = (text?: string | null) => {
     .trim();
 };
 
+async function fetchFreshProfilesAsRepos(): Promise<Repo[]> {
+  try {
+    const profilesData = await fetchAllRows<any>(supabase, 'profiles', '*');
+    return (profilesData || []).map((p: any, idx: number) => {
+      const topProject = Array.isArray(p.top_repos) && p.top_repos.length > 0 ? p.top_repos[0] : null;
+      return {
+        id: idx + 1,
+        github_url: `https://github.com/${p.owner}`,
+        owner: p.owner,
+        name: topProject?.name || p.owner,
+        stars: topProject?.stars || topProject?.stargazers_count || 0,
+        language: (Array.isArray(p.languages) && p.languages[0]?.name) || (topProject?.language) || 'Code',
+        topics: [],
+        grade: p.grade ?? 0,
+        graded_at: p.graded_at || p.created_at || new Date().toISOString(),
+        followed: p.followed ?? false,
+        starred: p.starred ?? false,
+        followed_at: p.followed_at || null,
+        follow_back: p.follow_back ?? false,
+        unfollowed: p.unfollowed ?? false,
+        follow_skipped: p.follow_skipped ?? false,
+        follow_skip_reason: p.follow_skip_reason || null,
+        created_at: p.created_at || null,
+        updated_at: p.updated_at || null,
+        reason: p.reason || null,
+        bio: p.bio || null,
+        display_name: p.display_name || null,
+        followers_count: p.followers_count ?? null,
+        following_count: p.following_count ?? null,
+        account_created_at: p.account_created_at || null,
+        last_pushed_at: p.last_pushed_at || null,
+        source: p.found_by || null,
+        top_repos: p.top_repos || null,
+        languages: p.languages || null,
+        whitelisted: p.whitelisted ?? false,
+      };
+    });
+  } catch (err) {
+    console.error('Error fetching fresh profiles:', err);
+    return [];
+  }
+}
+
   export interface DashboardViewProps {
   initialRepos: Repo[];
   initialLogs: Log[];
@@ -272,11 +315,13 @@ export default function DashboardView({
     try {
       const data = await fetchAllRows(
         supabase,
-        'repos',
+        'profiles',
         '*',
         q => q
           .eq('follow_back', false)
           .eq('unfollowed', false)
+          .eq('followed', true)
+          .neq('whitelisted', true)
           .lt('followed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
       );
       setUnfollowList(data || []);
@@ -797,7 +842,7 @@ export default function DashboardView({
     setIsRefreshing(true);
     try {
       const syncRes = await triggerSyncFollowing();
-      const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
+      const freshRepos = await fetchFreshProfilesAsRepos();
       if (freshRepos) setRepos(freshRepos);
       const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
       if (logsRes.data) setLogs(logsRes.data);
@@ -961,12 +1006,12 @@ export default function DashboardView({
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
       } else {
-        const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
+        const freshRepos = await fetchFreshProfilesAsRepos();
         if (freshRepos) setRepos(freshRepos);
         alert(`Failed to delete profile: ${res.error}`);
       }
     } catch (err: any) {
-      const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
+      const freshRepos = await fetchFreshProfilesAsRepos();
       if (freshRepos) setRepos(freshRepos);
       alert(`Failed to delete profile: ${err.message || err}`);
     } finally {
@@ -1152,7 +1197,7 @@ export default function DashboardView({
     try {
       const res = await triggerCleanup();
       if (res.success) {
-        const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
+        const freshRepos = await fetchFreshProfilesAsRepos();
         if (freshRepos) setRepos(freshRepos);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
@@ -1194,7 +1239,7 @@ export default function DashboardView({
     try {
       const res = await triggerClearStale();
       if (res.success) {
-        const freshRepos = await fetchAllRows(supabase, 'repos', REPOS_SELECT);
+        const freshRepos = await fetchFreshProfilesAsRepos();
         if (freshRepos) setRepos(freshRepos);
         const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);
         if (logsRes.data) setLogs(logsRes.data);
