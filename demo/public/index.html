@@ -60,16 +60,38 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
 .welcome h1{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
 .welcome p{color:var(--muted);margin-top:6px;max-width:62ch;font-size:14px}
 .welcome .cta{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
-.welcome a.btn{text-decoration:none;display:inline-flex;align-items:center;gap:6px}
-.how{margin-top:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:14px 18px;max-width:640px;font-size:13.5px;color:var(--muted);box-shadow:var(--shadow-sm);animation:slideDown 0.22s cubic-bezier(0.16,1,0.3,1)}
-.how ol{margin:8px 0 0 18px;display:flex;flex-direction:column;gap:4px}
-.how b{color:var(--ink);font-weight:600}
+.how-wrap{position:relative;display:inline-block}
+.how-popover{
+  position:absolute;top:calc(100% + 8px);left:0;width:380px;max-width:90vw;
+  background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;
+  padding:16px 18px;font-size:12.5px;color:var(--muted);box-shadow:var(--shadow-hover);
+  z-index:60;pointer-events:none;opacity:0;transform:translateY(6px);
+  transition:opacity 0.18s ease, transform 0.18s ease;
+  line-height:1.45;box-sizing:border-box;
+}
+.how-popover::before{
+  content:"";position:absolute;bottom:100%;left:24px;
+  border-width:6px;border-style:solid;
+  border-color:transparent transparent var(--line-strong) transparent;
+}
+.how-popover::after{
+  content:"";position:absolute;bottom:100%;left:25px;
+  border-width:5px;border-style:solid;
+  border-color:transparent transparent var(--surface) transparent;
+}
+.how-popover-head{font-weight:700;color:var(--ink);font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.how-popover ol{margin:0 0 0 16px;display:flex;flex-direction:column;gap:6px}
+.how-popover li{padding-left:2px}
+.how-popover b{color:var(--ink);font-weight:600}
+.how-wrap:hover .how-popover, .how-wrap:focus-within .how-popover{
+  opacity:1;transform:translateY(0);pointer-events:auto;
+}
 
 /* profile score checker tool */
 .scorer-card{
   margin-top:16px;background:var(--surface);border:1px solid var(--line-strong);
-  border-radius:var(--r);padding:14px 18px;max-width:640px;box-shadow:var(--shadow-sm);
-  display:flex;flex-direction:column;gap:10px;
+  border-radius:var(--r);padding:14px 18px;width:100%;max-width:600px;box-shadow:var(--shadow-sm);
+  display:flex;flex-direction:column;gap:10px;box-sizing:border-box;
 }
 .scorer-title{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--ink)}
 .scorer-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -96,12 +118,16 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
   font-weight:600;margin-top:6px;
 }
 .evaluated-pill:hover{background:var(--surface);border-color:var(--ink);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
-.header-you-btn{
-  display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
-  background:var(--hover);border:1px solid var(--line-strong);font-size:12px;
-  font-weight:600;color:var(--ink);cursor:pointer;transition:all 0.16s ease;
+
+.stat-spark-wrap{position:relative;width:84px;height:28px;flex:none;cursor:default}
+.stat-spark-wrap svg{width:84px;height:28px;display:block}
+.stat-tip{
+  position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);
+  font-size:11px;padding:3px 7px;border-radius:5px;white-space:nowrap;
+  opacity:0;transform:translate(-50%,-120%);
+  transition:opacity 0.12s ease, transform 0.12s ease;
+  box-shadow:0 2px 8px rgba(0,0,0,0.2);z-index:10;
 }
-.header-you-btn:hover{background:var(--surface);border-color:var(--ink);transform:scale(1.03)}
 
 @keyframes slideDown{
   from{opacity:0;transform:translateY(-6px)}
@@ -221,14 +247,15 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
 .stat .note{color:var(--faint);font-size:12px}
 
 /* chart */
-.panel{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-top:16px;box-shadow:var(--shadow-sm);transition:background 0.25s ease, border-color 0.25s ease}
-.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 0;gap:12px;flex-wrap:wrap}
+.panel{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-top:16px;box-shadow:var(--shadow-sm);transition:background 0.25s ease, border-color 0.25s ease;display:flex;flex-direction:column}
+.panel-head{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 18px 0;gap:12px;flex-wrap:wrap}
 .panel-head h2{font-size:14px;font-weight:600}
-.legend{display:flex;gap:16px;color:var(--muted);font-size:12.5px}
+.panel-sub{font-size:12px;color:var(--muted);margin-top:2px;font-weight:400}
+.legend{display:flex;gap:16px;color:var(--muted);font-size:12.5px;padding-top:2px}
 .legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:6px}
-.chart{position:relative;padding:6px 10px 10px}
+.chart{position:relative;padding:12px 14px 16px;flex:1;display:flex;align-items:center;justify-content:center}
 .chart svg{width:100%;height:auto;display:block}
-.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12px;padding:6px 9px;border-radius:6px;white-space:nowrap;opacity:0;transform:translate(-50%,-110%);transition:opacity 0.12s ease, transform 0.12s ease;box-shadow:0 4px 12px rgba(0,0,0,0.18)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12px;padding:6px 9px;border-radius:6px;white-space:nowrap;opacity:0;transform:translate(-50%,-110%);transition:opacity 0.12s ease, transform 0.12s ease;box-shadow:0 4px 12px rgba(0,0,0,0.18);z-index:20}
 .tip b{font-weight:600}
 
 /* candidates */
@@ -374,6 +401,7 @@ body.open .drawer{transform:none}
   .item .reason{grid-area:reason;white-space:normal}
   .item .score,.item .acts{display:none}
   .two{grid-template-columns:1fr}
+  .welcome{flex-direction:column}
   .status .hide-m{display:none}
   .wrap{padding:0 14px}
   .toolbar{gap:10px;padding:12px 14px}
@@ -405,7 +433,6 @@ body.open .drawer{transform:none}
     <div class="status">
       <span><span class="dot" id="dot"></span><span id="wstate">Worker idle</span></span>
       <span class="hide-m" id="lastrun">Last run 2h ago, next in 4h</span>
-      <span id="headerVisitor"></span>
       <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" title="Toggle theme">
         <svg id="themeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="5"/>
@@ -433,7 +460,10 @@ body.open .drawer{transform:none}
   <div class="two">
     <section class="panel" aria-label="Last 30 days">
       <div class="panel-head">
-        <h2>Last 30 days</h2>
+        <div>
+          <h2>Last 30 days</h2>
+          <div class="panel-sub">Daily followed vs unfollowed accounts over time</div>
+        </div>
         <div class="legend">
           <span><i style="border-color:var(--accent)"></i>Followed</span>
           <span><i style="border-color:var(--ink);border-top-style:dashed"></i>Unfollowed</span>
@@ -599,7 +629,7 @@ P.forEach(p=>{
   };
 });
 
-const state={filter:"picks",pill:null,q:"",limit:20,open:null,how:false};
+const state={filter:"picks",pill:null,q:"",limit:20,open:null};
 
 /* single source of truth for filtering */
 const matches=(p,f)=> f==="all" ? true : f==="you" ? Boolean(p.isVisitor) : f==="picks" ? (p.starred && p.status!=="skipped") : p.status===f;
@@ -622,11 +652,18 @@ const av=(p,cls="")=>{
 const label={followed:"Followed",queued:"Queued",skipped:"Skipped"};
 const starIcon='<svg class="star" width="12" height="13" viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="Top pick"><title>Top pick</title><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>';
 
-function spark(vals,color,animate = false){
+function spark(vals,color,animate = false,idx = 0){
   const w=84,h=28,mx=Math.max(...vals),mn=Math.min(...vals),r=mx-mn||1;
   const pts=vals.map((v,i)=>`${(i/(vals.length-1)*w).toFixed(1)},${(h-3-((v-mn)/r)*(h-6)).toFixed(1)}`).join(" ");
   const animAttr = animate ? ' pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="animation:drawPath 1.2s cubic-bezier(0.16,1,0.3,1) 0.15s forwards"' : '';
-  return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"${animAttr}/></svg>`;
+  return `<div class="stat-spark-wrap" data-sidx="${idx}">
+    <svg viewBox="0 0 ${w} ${h}" id="spark-svg-${idx}" role="img" aria-label="Trend sparkline">
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"${animAttr}/>
+      <line id="sguide-${idx}" y1="1" y2="${h-1}" stroke="var(--line-strong)" stroke-width="1" opacity="0"/>
+      <circle id="sdot-${idx}" r="2.8" fill="${color}" stroke="var(--surface)" stroke-width="1.5" opacity="0"/>
+    </svg>
+    <div class="stat-tip" id="stip-${idx}"></div>
+  </div>`;
 }
 const trend=(seed,up=true)=>{const r=rng(seed);return Array.from({length:14},(_,i)=>3+(up?i*.4:-i*.2)+r()*3)};
 
@@ -655,13 +692,19 @@ function renderStats(triggerAnimation = false){
   const queuedCount = P.filter(p=>matches(p,"queued")).length;
   const skippedCount = P.filter(p=>matches(p,"skipped")).length;
   
+  // Followed sparkline matches the real followed data (last 14 days)
+  const folTrend = fol.slice(-14);
+  const rateTrend = trend(dailySeed+2);
+  const queueTrend = trend(dailySeed+3, false);
+  const skipTrend = trend(dailySeed+4);
+
   const items=[
-    ["Followed",fo.length,"", "+12 this week",trend(dailySeed+1),"var(--accent)"],
-    ["Follow-back rate",rate,"%",fb+" of "+mt.length,trend(dailySeed+2),"var(--ink)"],
-    ["In queue",queuedCount,"","Next run in 4h",trend(dailySeed+3,false),"var(--ink)"],
-    ["Skipped",skippedCount,"","Below score 60",trend(dailySeed+4),"var(--faint)"]
+    ["Followed",fo.length,"", "+12 this week",folTrend,"var(--accent)","followed"],
+    ["Follow-back rate",rate,"%",fb+" of "+mt.length,rateTrend,"var(--ink)","rate"],
+    ["In queue",queuedCount,"","Next run in 4h",queueTrend,"var(--ink)","queue"],
+    ["Skipped",skippedCount,"","Below score 60",skipTrend,"var(--faint)","skipped"]
   ];
-  $("#stats").innerHTML=items.map((s, idx)=>`<div class="stat"><span class="label">${s[0]}</span><div class="row"><span class="num" data-target="${s[1]}" data-suffix="${s[2]}" id="stat-num-${idx}">${triggerAnimation ? "0" + s[2] : s[1] + s[2]}</span>${spark(s[4],s[5],triggerAnimation)}</div><span class="note">${s[3]}</span></div>`).join("");
+  $("#stats").innerHTML=items.map((s, idx)=>`<div class="stat"><span class="label">${s[0]}</span><div class="row"><span class="num" data-target="${s[1]}" data-suffix="${s[2]}" id="stat-num-${idx}">${triggerAnimation ? "0" + s[2] : s[1] + s[2]}</span>${spark(s[4],s[5],triggerAnimation,idx)}</div><span class="note">${s[3]}</span></div>`).join("");
 
   if(triggerAnimation){
     items.forEach((s, idx) => {
@@ -669,6 +712,51 @@ function renderStats(triggerAnimation = false){
       if(el) animateValue(el, 0, s[1], s[2], 850 + idx * 80);
     });
   }
+
+  // Attach hover interactions to sparklines
+  const recentDays = days.slice(-14);
+  items.forEach((s, idx) => {
+    const wrap = $(`[data-sidx="${idx}"]`);
+    const svg = $(`#spark-svg-${idx}`);
+    const guide = $(`#sguide-${idx}`);
+    const dot = $(`#sdot-${idx}`);
+    const tip = $(`#stip-${idx}`);
+    if(!wrap || !svg || !guide || !dot || !tip) return;
+
+    const vals = s[4];
+    const w = 84, h = 28;
+    const mx = Math.max(...vals), mn = Math.min(...vals), r = mx - mn || 1;
+    const x = i => (i / (vals.length - 1)) * w;
+    const y = v => h - 3 - ((v - mn) / r) * (h - 6);
+
+    wrap.addEventListener("mousemove", e => {
+      const rect = svg.getBoundingClientRect();
+      const px = Math.max(0, Math.min(w, ((e.clientX - rect.left) / rect.width) * w));
+      const i = Math.max(0, Math.min(vals.length - 1, Math.round((px / w) * (vals.length - 1))));
+      const currVal = typeof vals[i] === 'number' ? Math.round(vals[i]) : vals[i];
+      const posX = x(i);
+      const posY = y(vals[i]);
+
+      guide.setAttribute("x1", posX);
+      guide.setAttribute("x2", posX);
+      guide.setAttribute("opacity", "1");
+
+      dot.setAttribute("cx", posX);
+      dot.setAttribute("cy", posY);
+      dot.setAttribute("opacity", "1");
+
+      tip.textContent = `${fmt(recentDays[i])}: ${currVal}${s[2]}`;
+      tip.style.opacity = "1";
+      tip.style.left = (posX / w * rect.width) + "px";
+      tip.style.top = (posY / h * rect.height) + "px";
+    });
+
+    wrap.addEventListener("mouseleave", () => {
+      guide.setAttribute("opacity", "0");
+      dot.setAttribute("opacity", "0");
+      tip.style.opacity = "0";
+    });
+  });
 }
 
 function renderSeg(){
@@ -926,10 +1014,22 @@ function renderWelcome(){
     <p>FollowMe scores GitHub profiles with an LLM, follows the strong ones, and removes anyone who never follows back. Click around freely, nothing here is saved.</p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/madhanio/followme" target="_blank" rel="noopener">Star on GitHub</a>
-      <button class="btn" id="howbtn" aria-expanded="${state.how}">How scoring works</button>
+      <div class="how-wrap">
+        <button class="btn" id="howbtn" type="button" aria-haspopup="dialog">How scoring works</button>
+        <div class="how-popover" role="tooltip">
+          <div class="how-popover-head">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <span>Each profile gets a score from 0 to 100</span>
+          </div>
+          <ol>
+            <li>The worker pulls recent activity, repos, and follower patterns.</li>
+            <li>An LLM rates <b>activity</b>, <b>code quality</b>, <b>relevance</b>, and <b>reach</b>.</li>
+            <li>Scores of <b>60+</b> are queued to follow. Lower scores are skipped. Scores of <b>90+</b> are top picks ⭐.</li>
+            <li>Accounts that don't follow back are cleaned up on a schedule.</li>
+          </ol>
+        </div>
+      </div>
     </div>
-    ${state.how?`<div class="how"><b>Each profile gets a score from 0 to 100.</b>
-      <ol><li>The worker pulls recent activity, repos and follower patterns.</li><li>An LLM rates activity, code quality, relevance and reach, and writes a one-line reason.</li><li>Scores of 60 and above are queued to follow. Lower scores are skipped. Scores of 90 and above are marked as top picks.</li><li>Accounts that don't follow back are cleaned up on a schedule.</li></ol></div>`:""}
     
     <div class="scorer-card">
       <div class="scorer-title">
@@ -947,7 +1047,6 @@ function renderWelcome(){
       <div id="revisitSlot"></div>
     </div>
   </div>`;
-  $("#howbtn").onclick=()=>{state.how=!state.how;renderWelcome()};
   $("#scorerForm").onsubmit=handleScoreSubmit;
   renderVisitorBadges();
 }
@@ -955,11 +1054,9 @@ function renderWelcome(){
 function renderVisitorBadges(){
   const visitor = P.find(p => p.isVisitor);
   const rSlot = $("#revisitSlot");
-  const hSlot = $("#headerVisitor");
 
   if(!visitor){
     if(rSlot) rSlot.innerHTML = "";
-    if(hSlot) hSlot.innerHTML = "";
     return;
   }
 
@@ -977,18 +1074,6 @@ function renderVisitorBadges(){
       </div>`;
     const rBtn = $("#revisitBtn");
     if(rBtn) rBtn.onclick = () => openDrawer(visitor.user);
-  }
-
-  // Header Bar Quick-Access Badge
-  if(hSlot){
-    hSlot.innerHTML = `
-      <button class="header-you-btn" id="headYouBtn" title="View your evaluated profile">
-        <span style="width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block"></span>
-        <span>YOU (@${visitor.user})</span>
-        <span style="font-weight:700">${visitor.score}</span>
-      </button>`;
-    const hBtn = $("#headYouBtn");
-    if(hBtn) hBtn.onclick = () => openDrawer(visitor.user);
   }
 }
 
