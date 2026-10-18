@@ -127,11 +127,6 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
   to{stroke-dashoffset:0}
 }
 
-@keyframes drawDashed{
-  from{stroke-dashoffset:100;opacity:0}
-  to{stroke-dashoffset:0;opacity:1}
-}
-
 @keyframes areaFadeIn{
   from{opacity:0}
   to{opacity:1}
@@ -342,13 +337,13 @@ body.open .drawer{transform:none}
 .d-body h4{font-size:13px;color:var(--muted);font-weight:500;margin-bottom:8px}
 .big{display:flex;align-items:baseline;gap:8px}
 .big b{font-size:34px;letter-spacing:-.02em}
-.sub{display:grid;grid-template-columns:92px 1fr 48px;gap:8px;align-items:center;margin-top:7px;font-size:13px;color:var(--muted)}
-.sub-val{display:inline-flex;align-items:center;justify-content:flex-end;gap:5px}
-.sub-val span{color:var(--ink);text-align:right;font-weight:600}
+.sub{display:grid;grid-template-columns:112px 1fr 28px;gap:8px;align-items:center;margin-top:7px;font-size:13px;color:var(--muted)}
+.sub-label{display:inline-flex;align-items:center;gap:5px}
+.sub-val{color:var(--ink);text-align:right;font-weight:600}
 .info-tip-wrap{position:relative;display:inline-flex;align-items:center}
-.info-btn{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--faint);font-size:11px;font-weight:600;font-family:serif;cursor:help;border:1px solid var(--line-strong);background:var(--bg);padding:0;transition:all 0.16s ease}
+.info-btn{width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--faint);font-size:10.5px;font-weight:600;font-family:serif;cursor:help;border:1px solid var(--line-strong);background:var(--bg);padding:0;transition:all 0.16s ease;line-height:1}
 .info-btn:hover{color:var(--ink);border-color:var(--ink);background:var(--hover)}
-.info-popover{position:absolute;bottom:calc(100% + 7px);right:0;width:210px;background:var(--ink);color:var(--surface);font-size:11.5px;font-weight:400;line-height:1.35;padding:7px 10px;border-radius:6px;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity 0.16s ease, transform 0.16s ease;z-index:40;box-shadow:0 4px 14px rgba(0,0,0,0.22);font-family:inherit}
+.info-popover{position:absolute;bottom:calc(100% + 7px);left:0;width:220px;background:var(--ink);color:var(--surface);font-size:11.5px;font-weight:400;line-height:1.35;padding:7px 10px;border-radius:6px;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity 0.16s ease, transform 0.16s ease;z-index:40;box-shadow:0 4px 14px rgba(0,0,0,0.22);font-family:inherit}
 .info-tip-wrap:hover .info-popover, .info-tip-wrap:focus-within .info-popover{opacity:1;transform:translateY(0)}
 .sub-slider{width:100%;accent-color:var(--ink);height:4px;cursor:pointer}
 .facts{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r)}
@@ -723,7 +718,7 @@ function renderChart(){
     ${grid}${xl}
     <path id="chart-area" d="${line(fol)} L${x(29)} ${y(0)} L${x(0)} ${y(0)} Z" fill="var(--accent-tint)" style="opacity:0;animation:areaFadeIn 1s cubic-bezier(0.16,1,0.3,1) 0.3s forwards"/>
     <path id="chart-line" d="${line(fol)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="animation:drawPath 1.3s cubic-bezier(0.16,1,0.3,1) 0.1s forwards"/>
-    <path id="chart-line-unf" d="${line(unf)}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round" pathLength="100" stroke-dashoffset="100" style="animation:drawDashed 1.4s cubic-bezier(0.16,1,0.3,1) 0.25s forwards"/>
+    <path d="${line(unf)}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round"/>
     <line id="guide" y1="${T}" y2="${H-B}" stroke="var(--line-strong)" opacity="0"/>
     <circle id="d1" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" opacity="0"/>
    </svg>`);
@@ -758,48 +753,48 @@ function openDrawer(u){
          <h4>AI Evaluation Breakdown <span style="font-weight:400;color:var(--faint)">(interactive)</span></h4>
          <div class="big"><b id="dScore">0</b><span class="chip ${p.status}" id="dStatus">${label[p.status]}</span></div>
          <div class="sub">
-           <span>Activity</span>
-           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="activity" data-target="${p.subs.activity}">
-           <div class="sub-val">
-             <span id="v_activity">20</span>
+           <div class="sub-label">
+             <span>Activity</span>
              <div class="info-tip-wrap">
                <button type="button" class="info-btn" aria-label="Activity info" tabindex="0">i</button>
                <div class="info-popover"><b>Activity:</b> Evaluates push recency, verified commit frequency, and active contribution cadence over the last 90 days.</div>
              </div>
            </div>
+           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="activity" data-target="${p.subs.activity}">
+           <span class="sub-val" id="v_activity">20</span>
          </div>
          <div class="sub">
-           <span>Code quality</span>
-           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="codeQuality" data-target="${p.subs.codeQuality}">
-           <div class="sub-val">
-             <span id="v_codeQuality">20</span>
+           <div class="sub-label">
+             <span>Code quality</span>
              <div class="info-tip-wrap">
                <button type="button" class="info-btn" aria-label="Code quality info" tabindex="0">i</button>
                <div class="info-popover"><b>Code Quality:</b> Evaluates community stars, ratio of original non-forked code, and repository documentation hygiene.</div>
              </div>
            </div>
+           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="codeQuality" data-target="${p.subs.codeQuality}">
+           <span class="sub-val" id="v_codeQuality">20</span>
          </div>
          <div class="sub">
-           <span>Relevance</span>
-           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="relevance" data-target="${p.subs.relevance}">
-           <div class="sub-val">
-             <span id="v_relevance">20</span>
+           <div class="sub-label">
+             <span>Relevance</span>
              <div class="info-tip-wrap">
                <button type="button" class="info-btn" aria-label="Relevance info" tabindex="0">i</button>
                <div class="info-popover"><b>Relevance:</b> Rates bio clarity, developer focus, and language distribution alignment across public repositories.</div>
              </div>
            </div>
+           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="relevance" data-target="${p.subs.relevance}">
+           <span class="sub-val" id="v_relevance">20</span>
          </div>
          <div class="sub">
-           <span>Reach</span>
-           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="reach" data-target="${p.subs.reach}">
-           <div class="sub-val">
-             <span id="v_reach">20</span>
+           <div class="sub-label">
+             <span>Reach</span>
              <div class="info-tip-wrap">
                <button type="button" class="info-btn" aria-label="Reach info" tabindex="0">i</button>
                <div class="info-popover"><b>Reach:</b> Checks organic follower scale and healthy follower-to-following ratios without follow-churn patterns.</div>
              </div>
            </div>
+           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="reach" data-target="${p.subs.reach}">
+           <span class="sub-val" id="v_reach">20</span>
          </div>
        </div>
        <div><h4>Why this score</h4><p>${p.reason}</p><div class="evi">${evidence(p).map(e=>`<span class="ev-chip ${e[0]}">${e[1]}</span>`).join("")}</div></div>
