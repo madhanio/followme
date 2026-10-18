@@ -337,10 +337,14 @@ body.open .drawer{transform:none}
 .d-body h4{font-size:13px;color:var(--muted);font-weight:500;margin-bottom:8px}
 .big{display:flex;align-items:baseline;gap:8px}
 .big b{font-size:34px;letter-spacing:-.02em}
-.sub{display:grid;grid-template-columns:90px 1fr 28px;gap:10px;align-items:center;margin-top:7px;font-size:13px;color:var(--muted)}
-.sub .t{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
-.sub .t i{display:block;height:100%;background:var(--ink);border-radius:2px;transition:width 0.2s cubic-bezier(0.16,1,0.3,1)}
-.sub span:last-child{color:var(--ink);text-align:right;font-weight:600}
+.sub{display:grid;grid-template-columns:92px 1fr 48px;gap:8px;align-items:center;margin-top:7px;font-size:13px;color:var(--muted)}
+.sub-val{display:inline-flex;align-items:center;justify-content:flex-end;gap:5px}
+.sub-val span{color:var(--ink);text-align:right;font-weight:600}
+.info-tip-wrap{position:relative;display:inline-flex;align-items:center}
+.info-btn{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--faint);font-size:11px;font-weight:600;font-family:serif;cursor:help;border:1px solid var(--line-strong);background:var(--bg);padding:0;transition:all 0.16s ease}
+.info-btn:hover{color:var(--ink);border-color:var(--ink);background:var(--hover)}
+.info-popover{position:absolute;bottom:calc(100% + 7px);right:0;width:210px;background:var(--ink);color:var(--surface);font-size:11.5px;font-weight:400;line-height:1.35;padding:7px 10px;border-radius:6px;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity 0.16s ease, transform 0.16s ease;z-index:40;box-shadow:0 4px 14px rgba(0,0,0,0.22);font-family:inherit}
+.info-tip-wrap:hover .info-popover, .info-tip-wrap:focus-within .info-popover{opacity:1;transform:translateY(0)}
 .sub-slider{width:100%;accent-color:var(--ink);height:4px;cursor:pointer}
 .facts{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r)}
 .facts div{padding:11px 13px}
@@ -617,7 +621,7 @@ const starIcon='<svg class="star" width="12" height="13" viewBox="0 0 24 24" fil
 function spark(vals,color){
   const w=84,h=28,mx=Math.max(...vals),mn=Math.min(...vals),r=mx-mn||1;
   const pts=vals.map((v,i)=>`${(i/(vals.length-1)*w).toFixed(1)},${(h-3-((v-mn)/r)*(h-6)).toFixed(1)}`).join(" ");
-  return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="animation:drawPath 1.2s cubic-bezier(0.16,1,0.3,1) 0.15s forwards"/></svg>`;
 }
 const trend=(seed,up=true)=>{const r=rng(seed);return Array.from({length:14},(_,i)=>3+(up?i*.4:-i*.2)+r()*3)};
 
@@ -747,10 +751,50 @@ function openDrawer(u){
        <div>
          <h4>AI Evaluation Breakdown <span style="font-weight:400;color:var(--faint)">(interactive)</span></h4>
          <div class="big"><b id="dScore">0</b><span class="chip ${p.status}" id="dStatus">${label[p.status]}</span></div>
-         <div class="sub"><span>Activity</span><input class="sub-slider" type="range" min="20" max="99" value="20" data-key="activity" data-target="${p.subs.activity}"><span id="v_activity">20</span></div>
-         <div class="sub"><span>Code quality</span><input class="sub-slider" type="range" min="20" max="99" value="20" data-key="codeQuality" data-target="${p.subs.codeQuality}"><span id="v_codeQuality">20</span></div>
-         <div class="sub"><span>Relevance</span><input class="sub-slider" type="range" min="20" max="99" value="20" data-key="relevance" data-target="${p.subs.relevance}"><span id="v_relevance">20</span></div>
-         <div class="sub"><span>Reach</span><input class="sub-slider" type="range" min="20" max="99" value="20" data-key="reach" data-target="${p.subs.reach}"><span id="v_reach">20</span></div>
+         <div class="sub">
+           <span>Activity</span>
+           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="activity" data-target="${p.subs.activity}">
+           <div class="sub-val">
+             <span id="v_activity">20</span>
+             <div class="info-tip-wrap">
+               <button type="button" class="info-btn" aria-label="Activity info" tabindex="0">i</button>
+               <div class="info-popover"><b>Activity:</b> Evaluates push recency, verified commit frequency, and active contribution cadence over the last 90 days.</div>
+             </div>
+           </div>
+         </div>
+         <div class="sub">
+           <span>Code quality</span>
+           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="codeQuality" data-target="${p.subs.codeQuality}">
+           <div class="sub-val">
+             <span id="v_codeQuality">20</span>
+             <div class="info-tip-wrap">
+               <button type="button" class="info-btn" aria-label="Code quality info" tabindex="0">i</button>
+               <div class="info-popover"><b>Code Quality:</b> Evaluates community stars, ratio of original non-forked code, and repository documentation hygiene.</div>
+             </div>
+           </div>
+         </div>
+         <div class="sub">
+           <span>Relevance</span>
+           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="relevance" data-target="${p.subs.relevance}">
+           <div class="sub-val">
+             <span id="v_relevance">20</span>
+             <div class="info-tip-wrap">
+               <button type="button" class="info-btn" aria-label="Relevance info" tabindex="0">i</button>
+               <div class="info-popover"><b>Relevance:</b> Rates bio clarity, developer focus, and language distribution alignment across public repositories.</div>
+             </div>
+           </div>
+         </div>
+         <div class="sub">
+           <span>Reach</span>
+           <input class="sub-slider" type="range" min="20" max="99" value="20" data-key="reach" data-target="${p.subs.reach}">
+           <div class="sub-val">
+             <span id="v_reach">20</span>
+             <div class="info-tip-wrap">
+               <button type="button" class="info-btn" aria-label="Reach info" tabindex="0">i</button>
+               <div class="info-popover"><b>Reach:</b> Checks organic follower scale and healthy follower-to-following ratios without follow-churn patterns.</div>
+             </div>
+           </div>
+         </div>
        </div>
        <div><h4>Why this score</h4><p>${p.reason}</p><div class="evi">${evidence(p).map(e=>`<span class="ev-chip ${e[0]}">${e[1]}</span>`).join("")}</div></div>
        ${p.bio && p.bio.trim() ? `<div><h4>Bio</h4><p>${p.bio}</p></div>` : ""}
@@ -848,15 +892,24 @@ function evidence(p){
 }
 
 /* score vs follow-back band chart */
-function renderBands(){
+function renderBands(triggerAnimation = false){
   const bands=[["60-69",60,69],["70-79",70,79],["80-89",80,89],["90+",90,100]];
   const pool=P.filter(p=>p.status==="followed" && !p.fresh);
   const rows=bands.map(([l,lo,hi])=>{const g=pool.filter(p=>p.score>=lo&&p.score<=hi);return {l,n:g.length,rate:g.length?Math.round(g.filter(p=>p.back).length/g.length*100):null}});
   const first=rows.find(r=>r.rate!==null&&r.rate>0), last=[...rows].reverse().find(r=>r.rate!==null);
   const note=(first&&last&&first!==last&&last.rate>first.rate)?`Profiles scoring ${last.l} follow back ${(last.rate/first.rate).toFixed(1)}x as often as ${first.l}.`:"Not enough data yet to compare bands.";
   $("#bands").innerHTML=`<div class="panel-head"><h2>Follow-back by score</h2></div>
-   <div class="bands">${rows.map(r=>`<div class="band"><span class="bl">${r.l}</span><span class="bt"><i style="width:${r.rate||0}%"></i></span><span class="bv">${r.rate===null?"-":r.rate+"%"}</span><span class="bn">${r.n} followed</span></div>`).join("")}</div>
+   <div class="bands">${rows.map((r, idx)=>`<div class="band"><span class="bl">${r.l}</span><span class="bt"><i id="band-bar-${idx}" data-rate="${r.rate||0}" style="width:${triggerAnimation ? "0%" : (r.rate||0)+"%"};transition:width 1s cubic-bezier(0.16,1,0.3,1) ${idx * 120}ms"></i></span><span class="bv">${r.rate===null?"-":r.rate+"%"}</span><span class="bn">${r.n} followed</span></div>`).join("")}</div>
    <p class="bnote">${note} Based on ${pool.length} followed profiles; new follows are left out until enough time has passed.</p>`;
+
+  if(triggerAnimation){
+    requestAnimationFrame(() => {
+      rows.forEach((r, idx) => {
+        const bar = $(`#band-bar-${idx}`);
+        if(bar) bar.style.width = (r.rate||0) + "%";
+      });
+    });
+  }
 }
 
 function act(u,a){
@@ -1273,6 +1326,7 @@ renderChart();renderFeed();renderWelcome();renderAll();
 /* Trigger smooth roll-up and line reveals directly on landing */
 statsAnimated = true;
 renderStats(true);
+renderBands(true);
 
 /* Autonomous Live Heartbeat */
 const dot = $("#dot");
