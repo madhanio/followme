@@ -127,6 +127,11 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
   to{stroke-dashoffset:0}
 }
 
+@keyframes drawDashed{
+  from{stroke-dashoffset:100;opacity:0}
+  to{stroke-dashoffset:0;opacity:1}
+}
+
 @keyframes areaFadeIn{
   from{opacity:0}
   to{opacity:1}
@@ -618,10 +623,11 @@ const av=(p,cls="")=>{
 const label={followed:"Followed",queued:"Queued",skipped:"Skipped"};
 const starIcon='<svg class="star" width="12" height="13" viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="Top pick"><title>Top pick</title><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>';
 
-function spark(vals,color){
+function spark(vals,color,animate = false){
   const w=84,h=28,mx=Math.max(...vals),mn=Math.min(...vals),r=mx-mn||1;
   const pts=vals.map((v,i)=>`${(i/(vals.length-1)*w).toFixed(1)},${(h-3-((v-mn)/r)*(h-6)).toFixed(1)}`).join(" ");
-  return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="animation:drawPath 1.2s cubic-bezier(0.16,1,0.3,1) 0.15s forwards"/></svg>`;
+  const animAttr = animate ? ' pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="animation:drawPath 1.2s cubic-bezier(0.16,1,0.3,1) 0.15s forwards"' : '';
+  return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"${animAttr}/></svg>`;
 }
 const trend=(seed,up=true)=>{const r=rng(seed);return Array.from({length:14},(_,i)=>3+(up?i*.4:-i*.2)+r()*3)};
 
@@ -655,7 +661,7 @@ function renderStats(triggerAnimation = false){
     ["In queue",queuedCount,"","Next run in 4h",trend(dailySeed+3,false),"var(--ink)"],
     ["Skipped",skippedCount,"","Below score 60",trend(dailySeed+4),"var(--faint)"]
   ];
-  $("#stats").innerHTML=items.map((s, idx)=>`<div class="stat"><span class="label">${s[0]}</span><div class="row"><span class="num" data-target="${s[1]}" data-suffix="${s[2]}" id="stat-num-${idx}">${triggerAnimation ? "0" + s[2] : s[1] + s[2]}</span>${spark(s[4],s[5])}</div><span class="note">${s[3]}</span></div>`).join("");
+  $("#stats").innerHTML=items.map((s, idx)=>`<div class="stat"><span class="label">${s[0]}</span><div class="row"><span class="num" data-target="${s[1]}" data-suffix="${s[2]}" id="stat-num-${idx}">${triggerAnimation ? "0" + s[2] : s[1] + s[2]}</span>${spark(s[4],s[5],triggerAnimation)}</div><span class="note">${s[3]}</span></div>`).join("");
 
   if(triggerAnimation){
     items.forEach((s, idx) => {
@@ -717,7 +723,7 @@ function renderChart(){
     ${grid}${xl}
     <path id="chart-area" d="${line(fol)} L${x(29)} ${y(0)} L${x(0)} ${y(0)} Z" fill="var(--accent-tint)" style="opacity:0;animation:areaFadeIn 1s cubic-bezier(0.16,1,0.3,1) 0.3s forwards"/>
     <path id="chart-line" d="${line(fol)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="animation:drawPath 1.3s cubic-bezier(0.16,1,0.3,1) 0.1s forwards"/>
-    <path d="${line(unf)}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round"/>
+    <path id="chart-line-unf" d="${line(unf)}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round" pathLength="100" stroke-dashoffset="100" style="animation:drawDashed 1.4s cubic-bezier(0.16,1,0.3,1) 0.25s forwards"/>
     <line id="guide" y1="${T}" y2="${H-B}" stroke="var(--line-strong)" opacity="0"/>
     <circle id="d1" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" opacity="0"/>
    </svg>`);
@@ -1321,12 +1327,12 @@ try {
   }
 } catch(_){}
 
-renderChart();renderFeed();renderWelcome();renderAll();
-
-/* Trigger smooth roll-up and line reveals directly on landing */
-statsAnimated = true;
+renderChart();renderFeed();renderWelcome();
 renderStats(true);
 renderBands(true);
+renderSeg();
+renderList();
+renderVisitorBadges();
 
 /* Autonomous Live Heartbeat */
 const dot = $("#dot");
