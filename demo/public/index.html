@@ -664,7 +664,7 @@ function openDrawer(u){
        </div>
        <div><h4>Why this score</h4><p>${p.reason}</p><div class="evi">${evidence(p).map(e=>`<span class="ev-chip ${e[0]}">${e[1]}</span>`).join("")}</div></div>
        ${p.bio && p.bio.trim() ? `<div><h4>Bio</h4><p>${p.bio}</p></div>` : ""}
-       <div><h4>Top repos</h4><div class="repos">${p.repoData.length ? p.repoData.map(r=>`<div class="repo"><div class="rn"><span>${r.n}</span><span class="rs"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>${r.stars.toLocaleString()}</span></div><div class="rd">${r.desc}</div><div class="rm">${r.lang}, pushed ${r.pushed} day${r.pushed>1?"s":""} ago</div></div>`).join("") : `<div class="repo" style="color:var(--muted);font-size:13px">No public repositories found.</div>`}</div></div>
+       <div><h4>Top repos</h4><div class="repos">${p.repoData.length ? p.repoData.map(r=>`<div class="repo"><div class="rn"><span>${r.n}</span><span class="rs"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>${r.stars.toLocaleString()}</span></div><div class="rd">${r.desc}</div><div class="rm">${r.lang}, pushed ${formatRecency(r.pushed)}</div></div>`).join("") : `<div class="repo" style="color:var(--muted);font-size:13px">No public repositories found.</div>`}</div></div>
        <div class="facts"><div><b>${p.followers.toLocaleString()}</b><span>Followers</span></div><div><b>${p.following.toLocaleString()}</b><span>Following</span></div><div><b>${ratio}</b><span>Ratio</span></div></div>
        <div><h4>Languages</h4><div class="lbar"><i style="width:${p.mix[0]}%"></i></div><div class="lleg">${p.langs.map((l,i)=>`<span>${l} ${p.mix[i]}%</span>`).join("")}</div></div>
        <div><h4>Found by</h4><p>${p.src}, account is ${p.age} year${p.age>1?"s":""} old</p></div>
@@ -695,16 +695,30 @@ function openDrawer(u){
 }
 function closeDrawer(){document.body.classList.remove("open");$("#drawer").setAttribute("aria-hidden","true");state.open=null}
 
+function formatRecency(days){
+  if(days === null || days === undefined || isNaN(days)) return "active recently";
+  if(days <= 0) return "today";
+  if(days === 1) return "yesterday";
+  return `${days} days ago`;
+}
+
+function formatPushChip(days){
+  if(days === null || days === undefined || isNaN(days)) return "Active recently";
+  if(days <= 0) return "Last push today";
+  if(days === 1) return "Last push yesterday";
+  return `Last push ${days} days ago`;
+}
+
 /* evidence chips */
 function evidence(p){
   const out=[], big=p.repoData.filter(r=>r.stars>=100).length;
   if(big) out.push(["good",`${big} repo${big>1?"s":""} with 100+ stars`]);
   
-  if(p.repoData.length > 0){
-    const last=Math.min(...p.repoData.map(r=>r.pushed));
-    if(last <= 14) out.push(["good",`Last push ${last} day${last>1?"s":""} ago`]);
-    else if(last <= 90) out.push(["",`Last push ${last} days ago`]);
-    else out.push(["warn",`Last push ${last} days ago`]);
+  const last = p.lastPushDays !== undefined ? p.lastPushDays : (p.repoData.length > 0 ? Math.min(...p.repoData.map(r=>r.pushed)) : null);
+  if(last !== null){
+    if(last <= 14) out.push(["good", formatPushChip(last)]);
+    else if(last <= 90) out.push(["", formatPushChip(last)]);
+    else out.push(["warn", formatPushChip(last)]);
   }
   
   if(p.commits >= 30) out.push(["good",`${p.commits} public commits in 90 days`]);
@@ -811,59 +825,73 @@ function renderVisitorBadges(){
 
 async function handleScoreSubmit(e){
   e.preventDefault();
-  const inp = $("#ghUser");
-  const btn = $("#scorerBtn");
-  const msg = $("#scorerMsg");
+  const inp = document.querySelector("#ghUser");
+  const btn = document.querySelector("#scorerBtn");
+  const msg = document.querySelector("#scorerMsg");
   const user = inp.value.trim().replace(/^@/,'');
   if(!user) return;
 
   btn.disabled = true;
-  btn.textContent = "Scoring...";
+  btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Fetching profile...</span></span>';
   msg.className = "scorer-msg info";
-  msg.textContent = "Fetching GitHub profile and analyzing repositories...";
+  msg.textContent = "Connecting to GitHub API and loading profile...";
 
   try {
-    const userRes = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}`);
+    const userRes = await fetch("https://api.github.com/users/" + encodeURIComponent(user));
     if(userRes.status === 404){
-      throw new Error(`GitHub user "@${user}" not found. Please check spelling.`);
+      throw new Error("GitHub user @" + user + " not found. Please check spelling.");
     }
     if(userRes.status === 403){
-      throw new Error("GitHub API rate limit exceeded. Please wait a minute and try again.");
+      throw new Error("GitHub API rate limit reached. Please wait a moment and try again.");
     }
     if(!userRes.ok){
-      throw new Error(`Failed to fetch profile (HTTP ${userRes.status}).`);
+      throw new Error("Failed to fetch profile (HTTP " + userRes.status + ").");
     }
     const uData = await userRes.json();
 
-    const reposRes = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=30`);
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Analyzing repos & commits...</span></span>';
+    msg.textContent = "Extracting verified repositories and recent push events...";
+
+    const reposRes = await fetch("https://api.github.com/users/" + encodeURIComponent(user) + "/repos?per_page=100&sort=updated");
     const repos = reposRes.ok ? await reposRes.json() : [];
 
-    // Fetch real recent activity from user's public event log (reliable & free of search API collisions)
+    // Real recent activity from user public event log
     let realCommits90d = 0;
+    let latestEventPushTimestamp = 0;
     try {
-      const eventsRes = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}/events/public?per_page=100`);
+      const eventsRes = await fetch("https://api.github.com/users/" + encodeURIComponent(user) + "/events/public?per_page=100");
       if(eventsRes.ok){
         const events = await eventsRes.json();
         const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
-        events.forEach(e => {
-          if(new Date(e.created_at).getTime() >= ninetyDaysAgo && e.type === 'PushEvent'){
-            realCommits90d += (e.payload?.commits?.length || e.payload?.size || e.payload?.distinct_size || 1);
+        events.forEach(ev => {
+          const evTime = new Date(ev.created_at).getTime();
+          if(ev.type === 'PushEvent'){
+            if(evTime > latestEventPushTimestamp) latestEventPushTimestamp = evTime;
+            if(evTime >= ninetyDaysAgo){
+              realCommits90d += (ev.payload && (ev.payload.commits ? ev.payload.commits.length : (ev.payload.size || ev.payload.distinct_size || 1))) || 1;
+            }
           }
         });
       }
     } catch(_){}
 
-    // Calculate dynamic sub-scores (0-100) strictly from real data with calibrated, discerning thresholds
+    const now = Date.now();
+    let latestRepoPushTimestamp = 0;
+    repos.forEach(r => {
+      const t = r.pushed_at ? new Date(r.pushed_at).getTime() : 0;
+      if(t > latestRepoPushTimestamp) latestRepoPushTimestamp = t;
+    });
+
+    const trueLatestPushTimestamp = Math.max(latestEventPushTimestamp, latestRepoPushTimestamp);
+    let daysSinceLastPush = 999;
+    if(trueLatestPushTimestamp > 0){
+      daysSinceLastPush = Math.max(0, Math.floor((now - trueLatestPushTimestamp) / (1000 * 60 * 60 * 24)));
+    }
+
     const originalRepos = repos.filter(r => !r.fork);
     const totalStars = repos.reduce((acc, r) => acc + (r.stargazers_count || 0), 0);
-    const now = Date.now();
-    
+
     // 1. Activity (30% weight): push recency + verified 90-day commits
-    let daysSinceLastPush = 999;
-    if(repos.length > 0 && repos[0].pushed_at){
-      daysSinceLastPush = Math.max(0, Math.floor((now - new Date(repos[0].pushed_at).getTime()) / (1000 * 60 * 60 * 24)));
-    }
-    
     let activity = 20;
     if(daysSinceLastPush <= 2) activity += 32;
     else if(daysSinceLastPush <= 7) activity += 24;
@@ -894,15 +922,28 @@ async function handleScoreSubmit(e){
     else if(origRatio < 0.4) codeQuality -= 12;
     codeQuality = Math.min(96, Math.max(15, codeQuality));
 
-    // 3. Relevance (20% weight): bio clarity + multi-language/stack depth + repository breadth
+    // 3. Relevance (20% weight): bio clarity + verified language distribution
     const realBio = uData.bio ? uData.bio.trim() : "";
-    const languages = [...new Set(repos.map(r => r.language).filter(Boolean))];
+    const langCounts = {};
+    let totalLangs = 0;
+    repos.forEach(r => {
+      if(r.language && r.language !== 'Profile'){
+        langCounts[r.language] = (langCounts[r.language] || 0) + 1;
+        totalLangs++;
+      }
+    });
+    const sortedLangEntries = Object.entries(langCounts).sort((a,b) => b[1] - a[1]);
+    const dynamicLanguages = sortedLangEntries.length > 0 ? sortedLangEntries.map(e => e[0]) : ["Code"];
+    const dynamicMix = sortedLangEntries.length > 0 
+      ? sortedLangEntries.map(e => Math.round((e[1] / Math.max(1, totalLangs)) * 100))
+      : [100];
+
     let relevance = 30;
     if(realBio.length >= 50) relevance += 25;
     else if(realBio.length >= 15) relevance += 15;
 
-    if(languages.length >= 2 && languages.length <= 5) relevance += 20;
-    else if(languages.length === 1) relevance += 10;
+    if(dynamicLanguages.length >= 2 && dynamicLanguages.length <= 5) relevance += 20;
+    else if(dynamicLanguages.length === 1 && dynamicLanguages[0] !== 'Code') relevance += 10;
 
     if(repos.length >= 5) relevance += 15;
     else if(repos.length <= 1) relevance -= 8;
@@ -932,68 +973,70 @@ async function handleScoreSubmit(e){
     const status = score < 60 ? "skipped" : "queued";
     const starred = score >= 90;
 
-    // Professional AI assessment reason (matches FollowMe LLM agent tone across all score tiers)
     const isStudent = /student|learning|b\.?tech|college|university|learner/i.test(realBio);
-    const isML = /ml|machine learning|data science|ai|analytics|deep learning/i.test(realBio) || languages.includes('Jupyter Notebook');
+    const isML = /ml|machine learning|data science|ai|analytics|deep learning/i.test(realBio) || dynamicLanguages.includes('Jupyter Notebook');
     const isWeb = /full-stack|frontend|backend|next\.js|react|vue|web/i.test(realBio);
-    const mainLangs = languages.filter(l => l !== 'Jupyter Notebook').slice(0, 2).join(' and ') || languages[0] || 'code';
+    const mainLangs = dynamicLanguages.filter(l => l !== 'Jupyter Notebook').slice(0, 2).join(' and ') || dynamicLanguages[0] || 'code';
 
     let reason = "";
 
-    // ── TIER 1: SKIPPED (Score < 60) — Critical, honest evaluation of why they are not queued ──
     if (score < 60) {
       if (repos.length === 0) {
         reason = "No public repositories found; account is currently inactive.";
       } else if (originalRepos.length === 0 || origRatio < 0.35) {
         reason = "Mostly forks and starter templates; little original code committed.";
       } else if (daysSinceLastPush > 60 && realCommits90d === 0) {
-        reason = `No recent public commits in 90 days (${daysSinceLastPush}d since last push).`;
+        reason = "No recent public commits in 90 days (" + daysSinceLastPush + "d since last push).";
       } else if (following > 100 && followers < 10) {
         reason = "Asymmetric follow ratio with low public repository engagement.";
       } else if (totalStars === 0 && realCommits90d <= 15) {
-        reason = `Early-stage ${mainLangs} exercises with limited original commits or stars.`;
+        reason = "Early-stage " + mainLangs + " exercises with limited original commits or stars.";
       } else if (daysSinceLastPush > 25) {
-        reason = `Infrequent push cadence (${daysSinceLastPush}d ago); below the threshold for queueing.`;
+        reason = "Infrequent push cadence (" + daysSinceLastPush + "d ago); below the threshold for queueing.";
       } else {
         reason = "Early-stage profile with low community traction and sparse original output.";
       }
-    } 
-    // ── TIER 2: TOP PICKS (Score >= 90) ──
-    else if (score >= 90 || totalStars >= 100) {
-      reason = `High-impact open-source contributor with ${totalStars} stars and consistent repo hygiene.`;
-    }
-    // ── TIER 3: QUEUED (Score 60 - 89) — Solid, genuine reasons for why they deserve a follow ──
-    else if (isStudent && isML) {
+    } else if (score >= 90 || totalStars >= 100) {
+      reason = "High-impact open-source contributor with " + totalStars + " stars and consistent repo hygiene.";
+    } else if (isStudent && isML) {
       reason = daysSinceLastPush <= 21
-        ? `Data science student building active ${mainLangs} projects with steady commits.`
-        : `Data science student portfolio; solid fundamentals across ${mainLangs}.`;
+        ? "Data science student building active " + mainLangs + " projects with steady commits."
+        : "Data science student portfolio; solid fundamentals across " + mainLangs + ".";
     } else if (isStudent) {
-      reason = `Student builder actively learning in public across ${mainLangs} repos.`;
+      reason = "Student builder actively learning in public across " + mainLangs + " repos.";
     } else if (isML) {
-      reason = `Applied ML and data tooling portfolio with reproducible repositories.`;
+      reason = "Applied ML and data tooling portfolio with reproducible repositories.";
     } else if (isWeb && totalStars >= 10) {
-      reason = `Full-stack portfolio with steady ${mainLangs} commits and clean documentation.`;
+      reason = "Full-stack portfolio with steady " + mainLangs + " commits and clean documentation.";
     } else if (totalStars >= 15 && daysSinceLastPush <= 21) {
-      reason = `Consistent builder with ${totalStars} stars across ${mainLangs} repositories.`;
+      reason = "Consistent builder with " + totalStars + " stars across " + mainLangs + " repositories.";
     } else if (daysSinceLastPush <= 14 && realCommits90d >= 15) {
-      reason = `Active open-source developer with steady commits and healthy repo hygiene.`;
+      reason = "Active open-source developer with steady commits and healthy repo hygiene.";
     } else if (daysSinceLastPush > 35) {
-      reason = `Solid fundamentals and clean repos, though activity has slowed recently.`;
+      reason = "Solid fundamentals and clean repos, though activity has slowed recently.";
     } else {
-      reason = `Active ${mainLangs} developer portfolio with promising original projects.`;
+      reason = "Active " + mainLangs + " developer portfolio with promising original projects.";
     }
 
-    // Top repos for drawer (sort by stars descending, then pushed)
-    const sortedRepos = [...repos].sort((a,b) => (b.stargazers_count || 0) - (a.stargazers_count || 0));
+    // Top repos for drawer: sort by stars descending, then pushed
+    const sortedRepos = [...repos].sort((a,b) => {
+      const starDiff = (b.stargazers_count || 0) - (a.stargazers_count || 0);
+      if(starDiff !== 0) return starDiff;
+      return new Date(b.pushed_at || 0).getTime() - new Date(a.pushed_at || 0).getTime();
+    });
     const repoData = sortedRepos.slice(0, 3).map(r => ({
       n: r.name,
       stars: r.stargazers_count || 0,
       lang: r.language || "Code",
       desc: r.description || "Public repository.",
-      pushed: Math.max(0, Math.floor((now - new Date(r.pushed_at || now).getTime()) / (1000 * 60 * 60 * 24)))
+      pushed: r.pushed_at ? Math.max(0, Math.floor((now - new Date(r.pushed_at).getTime()) / (1000 * 60 * 60 * 24))) : 999
     }));
 
-    const accountAgeYears = Math.max(1, Math.round((now - new Date(uData.created_at).getTime()) / (1000 * 60 * 60 * 24 * 365)));
+    const accountAgeYears = uData.created_at
+      ? Math.max(1, Math.round((now - new Date(uData.created_at).getTime()) / (1000 * 60 * 60 * 24 * 365.25)))
+      : 1;
+
+    const dynamicSource = "GitHub @" + uData.login + " Profile Audit";
 
     const visitorProfile = {
       user: uData.login.toLowerCase(),
@@ -1006,37 +1049,35 @@ async function handleScoreSubmit(e){
       starred,
       back: false,
       bio: realBio,
-      repos: repos.slice(0, 3).map(r => r.name),
+      repos: sortedRepos.slice(0, 3).map(r => r.name),
       repoData,
-      langs: languages.slice(0, 3).length ? languages.slice(0, 3) : ["Code"],
-      mix: languages.length > 1 ? [65, 35] : [100],
+      langs: dynamicLanguages.slice(0, 3),
+      mix: dynamicMix.slice(0, 3),
       followers,
       following,
-      src: "Visitor GitHub Profile Audit",
+      src: dynamicSource,
       age: accountAgeYears,
       commits: realCommits90d,
+      lastPushDays: daysSinceLastPush < 999 ? daysSinceLastPush : (repoData[0] ? repoData[0].pushed : 0),
       subs: { activity, codeQuality, relevance, reach }
     };
 
-    // Remove any previous entry for this visitor and insert at the top of P
     const existingIdx = P.findIndex(p => p.user === visitorProfile.user);
     if(existingIdx >= 0) P.splice(existingIdx, 1);
     P.unshift(visitorProfile);
 
     msg.className = "scorer-msg info";
-    msg.innerHTML = `✓ Graded <b>@${visitorProfile.user}</b> with a score of <b>${score}/100</b> (${score >= 90 ? "Top Pick ⭐" : score >= 60 ? "Queued to Follow" : "Skipped"}).`;
+    msg.innerHTML = "✓ Graded <b>@" + visitorProfile.user + "</b> with a score of <b>" + score + "/100</b> (" + (score >= 90 ? "Top Pick ⭐" : score >= 60 ? "Queued to Follow" : "Skipped") + ").";
 
-    // Save to sessionStorage so the evaluated profile persists if visitor refreshes or navigates
     try {
       sessionStorage.setItem("followme_visitor_profile", JSON.stringify(visitorProfile));
     } catch(_){}
 
-    // Reset filters to view all so visitor is immediately visible at the top
     state.filter = "all";
     state.pill = null;
     state.q = "";
-    $("#q").value = "";
-    $("#pills").querySelectorAll(".pill").forEach(p => p.setAttribute("aria-pressed","false"));
+    document.querySelector("#q").value = "";
+    document.querySelectorAll("#pills .pill").forEach(p => p.setAttribute("aria-pressed","false"));
 
     renderAll();
     openDrawer(visitorProfile.user);
