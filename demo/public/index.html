@@ -108,6 +108,59 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
   to{opacity:1;transform:translateY(0)}
 }
 
+@keyframes spin{
+  from{transform:rotate(0deg)}
+  to{transform:rotate(360deg)}
+}
+
+@keyframes pulseGlow{
+  0%, 100%{box-shadow:0 0 0 3px var(--accent-tint), 0 0 0 0 rgba(18,128,74,0.4)}
+  50%{box-shadow:0 0 0 6px var(--accent-tint), 0 0 10px 3px rgba(18,128,74,0.3)}
+}
+
+.dot.live{
+  animation:pulseGlow 2.4s ease-in-out infinite;
+}
+
+@keyframes scanlineSweep{
+  0%{transform:translateX(-100%)}
+  100%{transform:translateX(100%)}
+}
+
+.scorer-card.is-loading{
+  position:relative;
+  overflow:hidden;
+}
+
+.scorer-card.is-loading::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(90deg, transparent 0%, rgba(18,128,74,0.08) 50%, transparent 100%);
+  transform:translateX(-100%);
+  animation:scanlineSweep 1.6s ease-in-out infinite;
+  pointer-events:none;
+}
+
+@keyframes itemReveal{
+  from{opacity:0;transform:translateY(6px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+.item{
+  animation:itemReveal 0.28s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+@keyframes feedSlideDown{
+  0%{opacity:0;transform:translateY(-10px);background:var(--accent-tint)}
+  60%{opacity:1;transform:translateY(0);background:var(--accent-tint)}
+  100%{background:transparent}
+}
+
+.ev.new-event{
+  animation:feedSlideDown 1.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+
 /* fake-data notice + identicon avatars */
 .notice{background:var(--hover);border-bottom:1px solid var(--line);color:var(--muted);font-size:13px;padding:8px 0;transition:background 0.25s ease}
 .notice a{color:var(--ink);font-weight:600;text-underline-offset:2px;margin-left:4px}
@@ -558,16 +611,44 @@ function spark(vals,color){
 }
 const trend=(seed,up=true)=>{const r=rng(seed);return Array.from({length:14},(_,i)=>3+(up?i*.4:-i*.2)+r()*3)};
 
-function renderStats(){
+let statsAnimated = false;
+function animateValue(el, start, end, suffix, duration = 850) {
+  const startTime = performance.now();
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  function step(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const current = Math.round(start + (end - start) * easeOut(progress));
+    el.textContent = current + suffix;
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    } else {
+      el.textContent = end + suffix;
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+function renderStats(triggerAnimation = false){
   const fo=P.filter(p=>matches(p,"followed")), mt=fo.filter(p=>!p.fresh), fb=mt.filter(p=>p.back).length;
   const rate=mt.length?Math.round(fb/mt.length*100):0;
+  const queuedCount = P.filter(p=>matches(p,"queued")).length;
+  const skippedCount = P.filter(p=>matches(p,"skipped")).length;
+  
   const items=[
-    ["Followed",fo.length,"+12 this week",trend(dailySeed+1),"var(--accent)"],
-    ["Follow-back rate",rate+"%",fb+" of "+mt.length,trend(dailySeed+2),"var(--ink)"],
-    ["In queue",P.filter(p=>matches(p,"queued")).length,"Next run in 4h",trend(dailySeed+3,false),"var(--ink)"],
-    ["Skipped",P.filter(p=>matches(p,"skipped")).length,"Below score 60",trend(dailySeed+4),"var(--faint)"]
+    ["Followed",fo.length,"", "+12 this week",trend(dailySeed+1),"var(--accent)"],
+    ["Follow-back rate",rate,"%",fb+" of "+mt.length,trend(dailySeed+2),"var(--ink)"],
+    ["In queue",queuedCount,"","Next run in 4h",trend(dailySeed+3,false),"var(--ink)"],
+    ["Skipped",skippedCount,"","Below score 60",trend(dailySeed+4),"var(--faint)"]
   ];
-  $("#stats").innerHTML=items.map(s=>`<div class="stat"><span class="label">${s[0]}</span><div class="row"><span class="num">${s[1]}</span>${spark(s[3],s[4])}</div><span class="note">${s[2]}</span></div>`).join("");
+  $("#stats").innerHTML=items.map((s, idx)=>`<div class="stat"><span class="label">${s[0]}</span><div class="row"><span class="num" data-target="${s[1]}" data-suffix="${s[2]}" id="stat-num-${idx}">${triggerAnimation ? "0" + s[2] : s[1] + s[2]}</span>${spark(s[4],s[5])}</div><span class="note">${s[3]}</span></div>`).join("");
+
+  if(triggerAnimation){
+    items.forEach((s, idx) => {
+      const el = $(`#stat-num-${idx}`);
+      if(el) animateValue(el, 0, s[1], s[2], 850 + idx * 80);
+    });
+  }
 }
 
 function renderSeg(){
@@ -590,8 +671,8 @@ function renderList(){
     };
     return;
   }
-  $("#list").innerHTML=L.map(p=>`
-   <div class="item" role="listitem" tabindex="0" data-u="${p.user}">
+  $("#list").innerHTML=L.map((p, idx)=>`
+   <div class="item" role="listitem" tabindex="0" data-u="${p.user}" style="animation-delay:${Math.min(idx * 24, 400)}ms">
      <div class="who">${av(p)}<div><div class="n">${p.name}${p.starred?starIcon:""}${p.isVisitor?`<span class="you-badge">YOU</span>`:""}</div><div class="u">@${p.user}</div></div></div>
      <div class="score"><span>${p.score}</span><span class="bar-s"><i style="width:${p.score}%"></i></span></div>
      <div class="reason" title="${p.reason}">${p.reason}</div>
@@ -613,6 +694,27 @@ function renderFeed(){
 }
 
 /* chart */
+let chartAnimated = false;
+function animateChartPath() {
+  const linePath = $("#chart-line");
+  const areaPath = $("#chart-area");
+  if(!linePath) return;
+  const length = linePath.getTotalLength ? linePath.getTotalLength() : 800;
+  linePath.style.strokeDasharray = length;
+  linePath.style.strokeDashoffset = length;
+  linePath.style.transition = "stroke-dashoffset 1.4s cubic-bezier(0.16,1,0.3,1)";
+  
+  if(areaPath) {
+    areaPath.style.opacity = "0";
+    areaPath.style.transition = "opacity 1.4s ease 0.3s";
+  }
+  
+  requestAnimationFrame(() => {
+    linePath.style.strokeDashoffset = "0";
+    if(areaPath) areaPath.style.opacity = "1";
+  });
+}
+
 function renderChart(){
   const W=720,H=210,L=34,R=12,T=14,B=26,max=14;
   const x=i=>L+i/(29)*(W-L-R), y=v=>T+(1-v/max)*(H-T-B);
@@ -621,8 +723,8 @@ function renderChart(){
   const xl=[0,7,14,21,29].map(i=>`<text x="${x(i)}" y="${H-6}" text-anchor="${i===0?"start":i===29?"end":"middle"}" font-size="11" fill="var(--faint)">${fmt(days[i])}</text>`).join("");
   $("#chart").insertAdjacentHTML("afterbegin",`<svg viewBox="0 0 ${W} ${H}" id="svg" role="img" aria-label="Followed and unfollowed per day for the last 30 days">
     ${grid}${xl}
-    <path d="${line(fol)} L${x(29)} ${y(0)} L${x(0)} ${y(0)} Z" fill="var(--accent-tint)"/>
-    <path d="${line(fol)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+    <path id="chart-area" d="${line(fol)} L${x(29)} ${y(0)} L${x(0)} ${y(0)} Z" fill="var(--accent-tint)"/>
+    <path id="chart-line" d="${line(fol)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
     <path d="${line(unf)}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round"/>
     <line id="guide" y1="${T}" y2="${H-B}" stroke="var(--line-strong)" opacity="0"/>
     <circle id="d1" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" opacity="0"/>
@@ -823,20 +925,28 @@ function renderVisitorBadges(){
   }
 }
 
+const sleep = ms => new Promise(res => setTimeout(res, ms));
+
 async function handleScoreSubmit(e){
   e.preventDefault();
   const inp = document.querySelector("#ghUser");
   const btn = document.querySelector("#scorerBtn");
   const msg = document.querySelector("#scorerMsg");
+  const card = document.querySelector(".scorer-card");
   const user = inp.value.trim().replace(/^@/,'');
   if(!user) return;
 
   btn.disabled = true;
-  btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Fetching profile...</span></span>';
+  if(card) card.classList.add("is-loading");
+  
+  const spinnerHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.9s linear infinite;flex:none"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+  
+  btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:7px;vertical-align:middle">${spinnerHtml}<span>Connecting...</span></span>`;
   msg.className = "scorer-msg info";
-  msg.textContent = "Connecting to GitHub API and loading profile...";
+  msg.textContent = "Connecting to GitHub API and loading public profile...";
 
   try {
+    const fetchStart = Date.now();
     const userRes = await fetch("https://api.github.com/users/" + encodeURIComponent(user));
     if(userRes.status === 404){
       throw new Error("GitHub user @" + user + " not found. Please check spelling.");
@@ -848,9 +958,12 @@ async function handleScoreSubmit(e){
       throw new Error("Failed to fetch profile (HTTP " + userRes.status + ").");
     }
     const uData = await userRes.json();
+    
+    // Intentionally paced: let user appreciate that the live GitHub connection was established
+    await sleep(400);
 
-    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Analyzing repos & commits...</span></span>';
-    msg.textContent = "Extracting verified repositories and recent push events...";
+    btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:7px;vertical-align:middle">${spinnerHtml}<span>Auditing repos...</span></span>`;
+    msg.textContent = "Extracting verified public repositories and commit logs...";
 
     const reposRes = await fetch("https://api.github.com/users/" + encodeURIComponent(user) + "/repos?per_page=100&sort=updated");
     const repos = reposRes.ok ? await reposRes.json() : [];
@@ -874,6 +987,11 @@ async function handleScoreSubmit(e){
         });
       }
     } catch(_){}
+
+    // Pacing step: evaluating hygiene
+    btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:7px;vertical-align:middle">${spinnerHtml}<span>Calculating AI score...</span></span>`;
+    msg.textContent = "Synthesizing AI evaluation breakdown across activity, quality, relevance & reach...";
+    await sleep(550);
 
     const now = Date.now();
     let latestRepoPushTimestamp = 0;
@@ -1086,13 +1204,14 @@ async function handleScoreSubmit(e){
     msg.className = "scorer-msg error";
     msg.textContent = err.message || "Failed to score GitHub profile.";
   } finally {
+    if(card) card.classList.remove("is-loading");
     btn.disabled = false;
     btn.textContent = "Score my profile";
   }
 }
 
 function renderAll(){
-  renderStats();
+  renderStats(false);
   renderBands();
   renderSeg();
   renderList();
@@ -1137,6 +1256,66 @@ try {
 } catch(_){}
 
 renderChart();renderFeed();renderWelcome();renderAll();
+
+/* Scroll-triggered reveal animations via IntersectionObserver */
+if("IntersectionObserver" in window){
+  const statsObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting && !statsAnimated){
+        statsAnimated = true;
+        renderStats(true);
+        obs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  const statsEl = $("#stats");
+  if(statsEl) statsObserver.observe(statsEl);
+
+  const chartObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting && !chartAnimated){
+        chartAnimated = true;
+        animateChartPath();
+        obs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.2 });
+  const chartEl = $("#chart");
+  if(chartEl) chartObserver.observe(chartEl);
+} else {
+  statsAnimated = true;
+  chartAnimated = true;
+  renderStats(true);
+  animateChartPath();
+}
+
+/* Autonomous Live Heartbeat & Stream Updates */
+const dot = $("#dot");
+const wstate = $("#wstate");
+if(dot) dot.classList.add("live");
+
+// Autonomous agent discovery simulation: periodically introduces candidate discovery micro-events
+const sampleEvents = [
+  ["Scored", "elena-rostova (88)", "just now"],
+  ["Discovered", "khalil-dev from RAG tooling", "just now"],
+  ["Evaluated", "marcus-chen (79)", "just now"],
+  ["Followed", "alex-dubois", "just now"],
+  ["Queued", "sarah-lind (91)", "just now"]
+];
+let evIndex = 0;
+setInterval(() => {
+  const feedEl = $("#feed");
+  if(!feedEl) return;
+  const evData = sampleEvents[evIndex % sampleEvents.length];
+  evIndex++;
+  const newRow = document.createElement("div");
+  newRow.className = "ev new-event";
+  newRow.innerHTML = `<span><b>${evData[0]}</b> ${evData[1]}</span><time>${evData[2]}</time>`;
+  feedEl.insertBefore(newRow, feedEl.firstChild);
+  if(feedEl.children.length > 8){
+    feedEl.removeChild(feedEl.lastChild);
+  }
+}, 12000);
 </script>
 </body>
 </html>
