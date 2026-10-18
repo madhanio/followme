@@ -632,9 +632,10 @@ const trend=(seed,up=true)=>{const r=rng(seed);return Array.from({length:14},(_,
 
 let statsAnimated = false;
 function animateValue(el, start, end, suffix, duration = 850) {
-  const startTime = performance.now();
+  let startTime = null;
   const easeOut = t => 1 - Math.pow(1 - t, 3);
   function step(currentTime) {
+    if (startTime === null) startTime = currentTime;
     const elapsed = currentTime - startTime;
     const progress = Math.min(elapsed / duration, 1);
     const current = Math.round(start + (end - start) * easeOut(progress));
@@ -831,9 +832,10 @@ function openDrawer(u){
     const valEl = $(`#v_${k}`);
     const startVal = 20;
     const duration = 650 + sIdx * 90;
-    const startTime = performance.now();
+    let startTime = null;
     const easeOut = t => 1 - Math.pow(1 - t, 3);
     function animateSlider(now){
+      if(startTime === null) startTime = now;
       const progress = Math.min((now - startTime) / duration, 1);
       const curr = Math.round(startVal + (targetVal - startVal) * easeOut(progress));
       slider.value = curr;
@@ -1321,11 +1323,39 @@ try {
 } catch(_){}
 
 renderChart();renderFeed();renderWelcome();
-renderStats(true);
-renderBands(true);
+renderStats(false);
+renderBands(false);
 renderSeg();
 renderList();
 renderVisitorBadges();
+
+function startLandingAnimations(){
+  // Double rAF ensures the browser has laid out and painted the initial frame
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      renderStats(true);
+      renderBands(true);
+      const line = document.querySelector("#chart-line");
+      if(line){
+        line.style.animation = "none";
+        line.offsetHeight; // trigger reflow
+        line.style.animation = "drawPath 1.3s cubic-bezier(0.16,1,0.3,1) 0.1s forwards";
+      }
+      const area = document.querySelector("#chart-area");
+      if(area){
+        area.style.animation = "none";
+        area.offsetHeight; // trigger reflow
+        area.style.animation = "areaFadeIn 1s cubic-bezier(0.16,1,0.3,1) 0.3s forwards";
+      }
+    });
+  });
+}
+
+if(document.readyState === "complete"){
+  startLandingAnimations();
+} else {
+  window.addEventListener("load", startLandingAnimations);
+}
 
 /* Autonomous Live Heartbeat */
 const dot = $("#dot");
