@@ -127,6 +127,10 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
   to{stroke-dashoffset:0}
 }
 
+@keyframes barSlide{
+  from{width:0%}
+}
+
 @keyframes areaFadeIn{
   from{opacity:0}
   to{opacity:1}
@@ -900,17 +904,11 @@ function renderBands(triggerAnimation = false){
   const first=rows.find(r=>r.rate!==null&&r.rate>0), last=[...rows].reverse().find(r=>r.rate!==null);
   const note=(first&&last&&first!==last&&last.rate>first.rate)?`Profiles scoring ${last.l} follow back ${(last.rate/first.rate).toFixed(1)}x as often as ${first.l}.`:"Not enough data yet to compare bands.";
   $("#bands").innerHTML=`<div class="panel-head"><h2>Follow-back by score</h2></div>
-   <div class="bands">${rows.map((r, idx)=>`<div class="band"><span class="bl">${r.l}</span><span class="bt"><i id="band-bar-${idx}" data-rate="${r.rate||0}" style="width:${triggerAnimation ? "0%" : (r.rate||0)+"%"};transition:width 1s cubic-bezier(0.16,1,0.3,1) ${idx * 120}ms"></i></span><span class="bv">${r.rate===null?"-":r.rate+"%"}</span><span class="bn">${r.n} followed</span></div>`).join("")}</div>
+   <div class="bands">${rows.map((r, idx)=>{
+     const animStyle = triggerAnimation ? `animation:barSlide 1s cubic-bezier(0.16,1,0.3,1) ${idx * 120}ms both;` : '';
+     return `<div class="band"><span class="bl">${r.l}</span><span class="bt"><i id="band-bar-${idx}" data-rate="${r.rate||0}" style="width:${(r.rate||0)}%;${animStyle}"></i></span><span class="bv">${r.rate===null?"-":r.rate+"%"}</span><span class="bn">${r.n} followed</span></div>`;
+   }).join("")}</div>
    <p class="bnote">${note} Based on ${pool.length} followed profiles; new follows are left out until enough time has passed.</p>`;
-
-  if(triggerAnimation){
-    requestAnimationFrame(() => {
-      rows.forEach((r, idx) => {
-        const bar = $(`#band-bar-${idx}`);
-        if(bar) bar.style.width = (r.rate||0) + "%";
-      });
-    });
-  }
 }
 
 function act(u,a){
