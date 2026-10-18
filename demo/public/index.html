@@ -122,6 +122,16 @@ header{border-bottom:1px solid var(--line);background:var(--surface);transition:
   animation:pulseGlow 2.4s ease-in-out infinite;
 }
 
+@keyframes drawPath{
+  from{stroke-dashoffset:100}
+  to{stroke-dashoffset:0}
+}
+
+@keyframes areaFadeIn{
+  from{opacity:0}
+  to{opacity:1}
+}
+
 @keyframes scanlineSweep{
   0%{transform:translateX(-100%)}
   100%{transform:translateX(100%)}
@@ -693,28 +703,6 @@ function renderFeed(){
   $("#feed").innerHTML=ev.map(e=>`<div class="ev"><span><b>${e[0]}</b> ${e[1]}</span><time>${e[2]}</time></div>`).join("");
 }
 
-/* chart */
-let chartAnimated = false;
-function animateChartPath() {
-  const linePath = $("#chart-line");
-  const areaPath = $("#chart-area");
-  if(!linePath) return;
-  const length = linePath.getTotalLength ? linePath.getTotalLength() : 800;
-  linePath.style.strokeDasharray = length;
-  linePath.style.strokeDashoffset = length;
-  linePath.style.transition = "stroke-dashoffset 1.4s cubic-bezier(0.16,1,0.3,1)";
-  
-  if(areaPath) {
-    areaPath.style.opacity = "0";
-    areaPath.style.transition = "opacity 1.4s ease 0.3s";
-  }
-  
-  requestAnimationFrame(() => {
-    linePath.style.strokeDashoffset = "0";
-    if(areaPath) areaPath.style.opacity = "1";
-  });
-}
-
 function renderChart(){
   const W=720,H=210,L=34,R=12,T=14,B=26,max=14;
   const x=i=>L+i/(29)*(W-L-R), y=v=>T+(1-v/max)*(H-T-B);
@@ -723,8 +711,8 @@ function renderChart(){
   const xl=[0,7,14,21,29].map(i=>`<text x="${x(i)}" y="${H-6}" text-anchor="${i===0?"start":i===29?"end":"middle"}" font-size="11" fill="var(--faint)">${fmt(days[i])}</text>`).join("");
   $("#chart").insertAdjacentHTML("afterbegin",`<svg viewBox="0 0 ${W} ${H}" id="svg" role="img" aria-label="Followed and unfollowed per day for the last 30 days">
     ${grid}${xl}
-    <path id="chart-area" d="${line(fol)} L${x(29)} ${y(0)} L${x(0)} ${y(0)} Z" fill="var(--accent-tint)"/>
-    <path id="chart-line" d="${line(fol)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+    <path id="chart-area" d="${line(fol)} L${x(29)} ${y(0)} L${x(0)} ${y(0)} Z" fill="var(--accent-tint)" style="opacity:0;animation:areaFadeIn 1s cubic-bezier(0.16,1,0.3,1) 0.3s forwards"/>
+    <path id="chart-line" d="${line(fol)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="animation:drawPath 1.3s cubic-bezier(0.16,1,0.3,1) 0.1s forwards"/>
     <path d="${line(unf)}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round"/>
     <line id="guide" y1="${T}" y2="${H-B}" stroke="var(--line-strong)" opacity="0"/>
     <circle id="d1" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" opacity="0"/>
@@ -758,11 +746,11 @@ function openDrawer(u){
      <div class="d-body">
        <div>
          <h4>AI Evaluation Breakdown <span style="font-weight:400;color:var(--faint)">(interactive)</span></h4>
-         <div class="big"><b id="dScore">${p.score}</b><span class="chip ${p.status}" id="dStatus">${label[p.status]}</span></div>
-         <div class="sub"><span>Activity</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.activity}" data-key="activity"><span id="v_activity">${p.subs.activity}</span></div>
-         <div class="sub"><span>Code quality</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.codeQuality}" data-key="codeQuality"><span id="v_codeQuality">${p.subs.codeQuality}</span></div>
-         <div class="sub"><span>Relevance</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.relevance}" data-key="relevance"><span id="v_relevance">${p.subs.relevance}</span></div>
-         <div class="sub"><span>Reach</span><input class="sub-slider" type="range" min="20" max="99" value="${p.subs.reach}" data-key="reach"><span id="v_reach">${p.subs.reach}</span></div>
+         <div class="big"><b id="dScore">0</b><span class="chip ${p.status}" id="dStatus">${label[p.status]}</span></div>
+         <div class="sub"><span>Activity</span><input class="sub-slider" type="range" min="20" max="99" value="20" data-key="activity" data-target="${p.subs.activity}"><span id="v_activity">20</span></div>
+         <div class="sub"><span>Code quality</span><input class="sub-slider" type="range" min="20" max="99" value="20" data-key="codeQuality" data-target="${p.subs.codeQuality}"><span id="v_codeQuality">20</span></div>
+         <div class="sub"><span>Relevance</span><input class="sub-slider" type="range" min="20" max="99" value="20" data-key="relevance" data-target="${p.subs.relevance}"><span id="v_relevance">20</span></div>
+         <div class="sub"><span>Reach</span><input class="sub-slider" type="range" min="20" max="99" value="20" data-key="reach" data-target="${p.subs.reach}"><span id="v_reach">20</span></div>
        </div>
        <div><h4>Why this score</h4><p>${p.reason}</p><div class="evi">${evidence(p).map(e=>`<span class="ev-chip ${e[0]}">${e[1]}</span>`).join("")}</div></div>
        ${p.bio && p.bio.trim() ? `<div><h4>Bio</h4><p>${p.bio}</p></div>` : ""}
@@ -782,11 +770,36 @@ function openDrawer(u){
   document.body.classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
   $("#close").onclick=closeDrawer; $("#close").focus();
   $("#drawer").querySelectorAll("[data-da]").forEach(b=>b.onclick=()=>{act(p.user,b.dataset.da);openDrawer(p.user)});
-  
-  // Real-time interactive sub-score slider event listeners
-  $("#drawer").querySelectorAll(".sub-slider").forEach(slider => {
+
+  // Smooth slide-in animation for sliders and roll-up reveal for score
+  const scoreEl = $("#dScore");
+  if(scoreEl) animateValue(scoreEl, 0, p.score, "", 650);
+
+  const sliders = $("#drawer").querySelectorAll(".sub-slider");
+  sliders.forEach((slider, sIdx) => {
+    const k = slider.dataset.key;
+    const targetVal = parseInt(slider.dataset.target, 10);
+    const valEl = $(`#v_${k}`);
+    const startVal = 20;
+    const duration = 650 + sIdx * 90;
+    const startTime = performance.now();
+    const easeOut = t => 1 - Math.pow(1 - t, 3);
+    function animateSlider(now){
+      const progress = Math.min((now - startTime) / duration, 1);
+      const curr = Math.round(startVal + (targetVal - startVal) * easeOut(progress));
+      slider.value = curr;
+      if(valEl) valEl.textContent = curr;
+      if(progress < 1){
+        requestAnimationFrame(animateSlider);
+      } else {
+        slider.value = targetVal;
+        if(valEl) valEl.textContent = targetVal;
+      }
+    }
+    requestAnimationFrame(animateSlider);
+
+    // Interactive user drag handler
     slider.addEventListener("input", e => {
-      const k = e.target.dataset.key;
       p.subs[k] = parseInt(e.target.value, 10);
       $(`#v_${k}`).textContent = p.subs[k];
       recalcScore(p);
@@ -1257,65 +1270,14 @@ try {
 
 renderChart();renderFeed();renderWelcome();renderAll();
 
-/* Scroll-triggered reveal animations via IntersectionObserver */
-if("IntersectionObserver" in window){
-  const statsObserver = new IntersectionObserver((entries, obs) => {
-    entries.forEach(entry => {
-      if(entry.isIntersecting && !statsAnimated){
-        statsAnimated = true;
-        renderStats(true);
-        obs.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.15 });
-  const statsEl = $("#stats");
-  if(statsEl) statsObserver.observe(statsEl);
+/* Trigger smooth roll-up and line reveals directly on landing */
+statsAnimated = true;
+renderStats(true);
 
-  const chartObserver = new IntersectionObserver((entries, obs) => {
-    entries.forEach(entry => {
-      if(entry.isIntersecting && !chartAnimated){
-        chartAnimated = true;
-        animateChartPath();
-        obs.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.2 });
-  const chartEl = $("#chart");
-  if(chartEl) chartObserver.observe(chartEl);
-} else {
-  statsAnimated = true;
-  chartAnimated = true;
-  renderStats(true);
-  animateChartPath();
-}
-
-/* Autonomous Live Heartbeat & Stream Updates */
+/* Autonomous Live Heartbeat */
 const dot = $("#dot");
 const wstate = $("#wstate");
 if(dot) dot.classList.add("live");
-
-// Autonomous agent discovery simulation: periodically introduces candidate discovery micro-events
-const sampleEvents = [
-  ["Scored", "elena-rostova (88)", "just now"],
-  ["Discovered", "khalil-dev from RAG tooling", "just now"],
-  ["Evaluated", "marcus-chen (79)", "just now"],
-  ["Followed", "alex-dubois", "just now"],
-  ["Queued", "sarah-lind (91)", "just now"]
-];
-let evIndex = 0;
-setInterval(() => {
-  const feedEl = $("#feed");
-  if(!feedEl) return;
-  const evData = sampleEvents[evIndex % sampleEvents.length];
-  evIndex++;
-  const newRow = document.createElement("div");
-  newRow.className = "ev new-event";
-  newRow.innerHTML = `<span><b>${evData[0]}</b> ${evData[1]}</span><time>${evData[2]}</time>`;
-  feedEl.insertBefore(newRow, feedEl.firstChild);
-  if(feedEl.children.length > 8){
-    feedEl.removeChild(feedEl.lastChild);
-  }
-}, 12000);
 </script>
 </body>
 </html>
