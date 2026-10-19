@@ -8,7 +8,7 @@ const FAQS = [
   {
     question: 'How does FollowMe evaluate repositories using NVIDIA NIM?',
     answer:
-      'FollowMe extracts repo READMEs, dependencies, and code structure, sending them to NVIDIA NIM (e.g. meta/llama-3.3-70b-instruct or groq models). The prompt evaluates code originality, utility, architecture quality, and documentation, returning a resilient 1–10 score while filtering out empty forks or tutorial clones.',
+      'FollowMe extracts repo READMEs, dependencies, and code structure, sending them to NVIDIA NIM (e.g. meta/llama-3.3-70b-instruct or groq models). The prompt evaluates code originality, utility, architecture quality, and documentation, returning a resilient 1–100 score while filtering out empty forks or tutorial clones.',
   },
   {
     question: 'Will this risk hitting GitHub rate limits?',

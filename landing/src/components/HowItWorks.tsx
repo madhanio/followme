@@ -15,7 +15,7 @@ const STEPS = [
     icon: BrainCircuit,
     title: 'NVIDIA NIM Evaluation',
     description:
-      'Evaluates code quality, architecture, and READMEs on a scale of 1–10 to weed out empty forks or spam.',
+      'Evaluates code quality, architecture, and READMEs on a scale of 1–100 to weed out empty forks or spam.',
   },
   {
     icon: Users,
