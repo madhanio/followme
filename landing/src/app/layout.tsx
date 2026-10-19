@@ -9,21 +9,54 @@ import { SmoothScroll } from '@/components/SmoothScroll';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'FollowMe — Autonomous GitHub Repo Discovery & AI Developer Networking',
+  metadataBase: new URL('https://followme-landing.vercel.app'),
+  title: 'FollowMe — Autonomous GitHub Discovery & AI Developer Networking',
   description:
-    'Discover quality emerging projects in your stack, evaluate code with NVIDIA NIM LLMs, star standout repos, and grow your developer network organically.',
+    'Autonomous scout and LLM evaluation engine built for serious open source builders. Grades repositories with NVIDIA NIM (Llama 3.3 70B), filters spam, and organically grows developer networks.',
+  keywords: [
+    'GitHub automation',
+    'developer networking',
+    'NVIDIA NIM',
+    'AI code evaluation',
+    'open source',
+    'Next.js 15',
+    'autonomous agent',
+  ],
+  authors: [{ name: 'Madhan', url: 'https://github.com/madhanio' }],
+  creator: 'Madhan',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
   openGraph: {
-    title: 'FollowMe — Autonomous GitHub Repo Discovery & AI Developer Networking',
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://followme-landing.vercel.app',
+    siteName: 'FollowMe',
+    title: 'FollowMe — Autonomous GitHub Discovery & AI Developer Networking',
     description:
-      'Discover quality emerging projects in your stack, evaluate code with NVIDIA NIM LLMs, star standout repos, and grow your developer network organically.',
-    images: ['/dashboardmock.png'],
+      'Autonomous scout and LLM evaluation engine built for serious open source builders. Grades repositories with NVIDIA NIM (Llama 3.3 70B) on a 1–100 scale.',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1920,
+        height: 1080,
+        alt: 'FollowMe AI Developer Platform Preview',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'FollowMe — Autonomous GitHub Repo Discovery & AI Developer Networking',
+    title: 'FollowMe — Autonomous GitHub Discovery & AI Developer Networking',
     description:
-      'Discover quality emerging projects in your stack, evaluate code with NVIDIA NIM LLMs, star standout repos, and grow your developer network organically.',
-    images: ['/dashboardmock.png'],
+      'Autonomous scout and LLM evaluation engine built for serious open source builders. Powered by NVIDIA NIM.',
+    images: ['/og-image.png'],
+    creator: '@madhan',
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
