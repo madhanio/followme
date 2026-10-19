@@ -1,0 +1,48 @@
+name: 🐛 Bug Report
+description: File a bug report to help improve FollowMe
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please provide as much detail as possible.
+  - type: input
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which part of FollowMe is affected?
+      placeholder: e.g. landing, dashboard, worker, demo, nvidia-nim-evaluator
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+      placeholder: What happened? What did you expect to happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Clear steps to reproduce the issue.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Info
+      description: Node version, OS, browser, or Docker setup.
+      placeholder: |
+        - OS: Windows / macOS / Linux
+        - Node: v20.x
+        - Browser: Chrome / Safari
+    validations:
+      required: false
