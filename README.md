@@ -2,6 +2,8 @@
 
 Automated GitHub repository discovery, NVIDIA NIM LLM evaluation, and intelligent developer community networking tool.
 
+🌐 **Live Landing Page:** [followme-landing.vercel.app](https://followme-landing.vercel.app) · 🎮 **Interactive Demo:** [followme-demo.vercel.app](https://followme-demo.vercel.app)
+
 ![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-postgres-3ECF8E?logo=supabase&logoColor=white)
