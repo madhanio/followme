@@ -1,0 +1,26 @@
+# Next.js build output
+.next/
+out/
+
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing and coverage
+coverage/
+
+# Misc
+*.pem
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env*
+!.env.example
+
+# Vercel
+.vercel
