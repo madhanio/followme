@@ -14,7 +14,7 @@ export interface DashboardData {
 
 export const REPOS_SELECT = [
   'id', 'github_url', 'owner', 'name', 'stars', 'language', 'topics',
-  'grade', 'graded_at', 'followed', 'starred',
+  'grade', 'followed', 'starred',
   'followed_at', 'follow_back', 'unfollowed', 'follow_skipped',
   'follow_skip_reason', 'created_at', 'reason', 'bio',
   'followers_count', 'following_count', 'account_created_at',
@@ -88,7 +88,7 @@ export async function fetchDashboardData(options?: { checkHealth?: boolean }): P
       language: (Array.isArray(p.languages) && p.languages[0]?.name) || (topProject?.language) || 'Code',
       topics: [],
       grade: p.grade ?? 0,
-      graded_at: p.graded_at || p.created_at || new Date().toISOString(),
+      graded_at: p.updated_at || p.created_at || new Date().toISOString(),
       followed: p.followed ?? false,
       starred: p.starred ?? false,
       followed_at: p.followed_at || null,

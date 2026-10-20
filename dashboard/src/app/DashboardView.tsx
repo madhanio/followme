@@ -102,7 +102,7 @@ async function fetchFreshProfilesAsRepos(): Promise<Repo[]> {
         language: (Array.isArray(p.languages) && p.languages[0]?.name) || (topProject?.language) || 'Code',
         topics: [],
         grade: p.grade ?? 0,
-        graded_at: p.graded_at || p.created_at || new Date().toISOString(),
+        graded_at: p.updated_at || p.created_at || new Date().toISOString(),
         followed: p.followed ?? false,
         starred: p.starred ?? false,
         followed_at: p.followed_at || null,
@@ -388,8 +388,78 @@ export default function DashboardView({
       } catch (e) {}
     }
 
+    // Live real-time Supabase subscriptions for logs and profiles
+    const logsSubscription = supabase
+      .channel('public:logs')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'logs' },
+        (payload) => {
+          const newLog = payload.new as Log;
+          if (newLog) {
+            setLogs((prev) => [newLog, ...prev.filter((l) => l.id !== newLog.id)].slice(0, 500));
+          }
+        }
+      )
+      .subscribe();
+
+    const profilesSubscription = supabase
+      .channel('public:profiles')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const updated = payload.new as any;
+          if (updated && updated.owner) {
+            const ownerLower = updated.owner.toLowerCase();
+            const topProject = Array.isArray(updated.top_repos) && updated.top_repos.length > 0 ? updated.top_repos[0] : null;
+
+            setRepos((prev) => {
+              const idx = prev.findIndex((r) => r.owner.toLowerCase() === ownerLower);
+              const mappedRepo: Repo = {
+                id: updated.id || (idx >= 0 ? prev[idx].id : Date.now()),
+                github_url: `https://github.com/${updated.owner}`,
+                owner: updated.owner,
+                name: topProject?.name || updated.owner,
+                stars: topProject?.stars || topProject?.stargazers_count || 0,
+                language: (Array.isArray(updated.languages) && updated.languages[0]?.name) || (topProject?.language) || 'Code',
+                topics: topProject?.topics || [],
+                readme_snippet: updated.bio || '',
+                grade: updated.grade ? Number(updated.grade) : 0,
+                reason: updated.reason || updated.ai_evaluation?.reason || undefined,
+                followed: Boolean(updated.followed),
+                unfollowed: Boolean(updated.unfollowed),
+                follow_skipped: Boolean(updated.follow_skipped),
+                follow_skip_reason: updated.follow_skip_reason || undefined,
+                follow_back: Boolean(updated.follow_back),
+                whitelisted: Boolean(updated.whitelisted),
+                bio: updated.bio || undefined,
+                display_name: updated.display_name || undefined,
+                followers_count: updated.followers_count || undefined,
+                following_count: updated.following_count || undefined,
+                account_created_at: updated.account_created_at || undefined,
+                last_pushed_at: updated.last_pushed_at || undefined,
+                source: updated.found_by || updated.source || undefined,
+                                                graded_at: updated.updated_at || new Date().toISOString(),
+              };
+
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = mappedRepo;
+                return next;
+              } else {
+                return [mappedRepo, ...prev];
+              }
+            });
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       window.removeEventListener('themechange', syncTheme);
+      supabase.removeChannel(logsSubscription);
+      supabase.removeChannel(profilesSubscription);
     };
   }, [initialSettings]);
 
@@ -400,6 +470,29 @@ export default function DashboardView({
       return () => clearInterval(interval);
     }
   }, [activeTab]);
+
+  // Active polling when worker is running to ensure instant status transition & logs sync
+  useEffect(() => {
+    if (runStatus === 'running' || workerStatus?.isJobRunning) {
+      const pollTimer = setInterval(async () => {
+        try {
+          const res = await getWorkerStatus();
+          if (res.success && res.data) {
+            setWorkerStatus(res.data);
+            if (!res.data.isJobRunning && runStatus === 'running') {
+              setRunStatus('idle');
+            }
+          }
+          const freshLogs = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(200);
+          if (freshLogs.data && freshLogs.data.length > 0) {
+            setLogs(freshLogs.data);
+          }
+        } catch (e) {}
+      }, 2000);
+
+      return () => clearInterval(pollTimer);
+    }
+  }, [runStatus, workerStatus?.isJobRunning]);
 
   useEffect(() => {
     if (initialRepos.length === 0) {

@@ -97,7 +97,6 @@ async function saveProfile(candidate, followed, followSkipped = false, followSki
             languages: candidate.languages ?? [],
             found_by: candidate.found_by ?? 'GitHub topic & open-source discovery',
             grade: candidate.grade ?? 0,
-            graded_at: new Date().toISOString(),
             followed,
             follow_skipped: followSkipped,
             follow_skip_reason: followSkipReason,

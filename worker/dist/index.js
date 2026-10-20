@@ -848,7 +848,6 @@ async function syncMutuals() {
                     following_count: null,
                     public_repos_count: null,
                     grade: 5,
-                    graded_at: new Date().toISOString(),
                     followed: false,
                     starred: false,
                     followed_at: null,
