@@ -122,7 +122,7 @@ export function Hero() {
             transition={{ duration: 0.8, ease: easeBezier }}
             className="inline-flex items-center gap-1.5 pl-4 pr-3 py-1.5 rounded-xl border border-black/10 bg-white text-black text-sm font-medium mb-6 shadow-sm"
           >
-            <span>Now Available</span>
+            <span>100% Open Source</span>
             <span className="text-accent">✦</span>
           </motion.div>
 
@@ -149,12 +149,13 @@ export function Hero() {
             Autonomous repository discovery and LLM evaluation for builders who want to grow organically
           </motion.p>
 
-          {/* Single Signature ReactBits Button */}
+          {/* Call to Action Buttons */}
           <motion.div
             variants={fadeUp}
             transition={{ duration: 0.8, ease: easeBezier }}
-            className="flex items-center justify-center max-[850px]:w-full"
+            className="flex items-center justify-center gap-3.5 max-[850px]:flex-col max-[850px]:w-full"
           >
+            {/* Primary Accent Button */}
             <a
               href="https://followme-demo.vercel.app"
               target="_blank"
@@ -163,11 +164,24 @@ export function Hero() {
             >
               <span className="absolute right-0 inset-y-0 w-[calc(100%-2rem)] max-[850px]:w-full rounded-xl bg-accent" />
               <span className="relative z-10 px-6 py-3 rounded-xl bg-black text-white font-medium max-[850px]:flex-1">
-                Get Started
+                Try Live Demo
               </span>
               <span className="relative -left-px z-10 w-11 h-11 rounded-xl flex items-center justify-center text-black">
                 <ArrowDownRight className="w-5 h-5 transition-transform duration-300 group-hover:-rotate-45" />
               </span>
+            </a>
+
+            {/* Secondary Clean Outline Button */}
+            <a
+              href="https://github.com/madhanio/followme#quick-start-docker-compose"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-black/15 bg-white/70 hover:bg-white text-black font-medium transition-all duration-200 shadow-sm hover:shadow hover:border-black/30 max-[850px]:w-full"
+            >
+              <svg className="w-4 h-4 fill-current transition-transform duration-200 group-hover:scale-110" viewBox="0 0 24 24">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+              </svg>
+              <span>View on GitHub</span>
             </a>
           </motion.div>
         </motion.div>
@@ -201,13 +215,13 @@ export function Hero() {
             {[...TECH_LOGOS, ...TECH_LOGOS, ...TECH_LOGOS, ...TECH_LOGOS].map((item, idx) => (
               <div
                 key={idx}
-                className="flex items-center gap-4 text-foreground/50 hover:text-foreground transition-all duration-300 cursor-pointer"
+                className="flex items-center gap-3.5 text-neutral-900 transition-all duration-300 cursor-pointer"
                 title={item.name}
               >
-                <div className="h-10 w-auto flex items-center justify-center [&>svg]:h-9 [&>svg]:w-auto">
+                <div className="h-9 w-auto flex items-center justify-center [&>svg]:h-7 [&>svg]:w-auto [&>svg]:fill-neutral-900">
                   {item.svg}
                 </div>
-                <span className="text-lg sm:text-xl font-medium tracking-tight whitespace-nowrap">
+                <span className="text-lg sm:text-xl font-bold tracking-tight whitespace-nowrap text-neutral-900">
                   {item.name}
                 </span>
               </div>

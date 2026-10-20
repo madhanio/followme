@@ -12,23 +12,23 @@ export function Header() {
     <header className="fixed shadow-2xl/20 rounded-b-4xl top-2.5 left-1/2 -translate-x-1/2 w-full max-w-5xl max-[1200px]:max-w-2xl bg-frame z-9998 max-[850px]:top-0 max-[850px]:left-0 max-[850px]:right-0 max-[850px]:translate-x-0 max-[850px]:w-full max-[850px]:max-w-none max-[850px]:rounded-none max-[850px]:rounded-b-4xl max-[850px]:overflow-hidden transition-all duration-300">
       <div className="h-20 max-[850px]:h-18 flex items-center justify-between px-6 max-[850px]:px-6">
         {/* Brand */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="relative w-7 h-7 flex items-center justify-center">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="relative w-5 h-5 flex items-center justify-center">
             {/* White logo for dark mode */}
             <Image
               src="/logo-white-cropped.png"
               alt="FollowMe Logo"
-              width={28}
-              height={28}
-              className="hidden dark:block object-contain transition-transform group-hover:scale-105"
+              width={20}
+              height={20}
+              className="hidden dark:block object-contain"
             />
             {/* Black logo for light mode */}
             <Image
               src="/logo-black-cropped.png"
               alt="FollowMe Logo"
-              width={28}
-              height={28}
-              className="block dark:hidden object-contain transition-transform group-hover:scale-105"
+              width={20}
+              height={20}
+              className="block dark:hidden object-contain"
             />
           </div>
           <span className="text-lg font-semibold text-foreground tracking-tight">

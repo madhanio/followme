@@ -60,8 +60,8 @@ export function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-start">
             {/* Left Brand Column */}
             <div className="md:col-span-6">
-              <Link href="/" className="inline-flex items-center gap-3 group">
-                <div className="w-8 h-8 rounded-full bg-neutral-900 flex items-center justify-center p-1.5 transition-transform group-hover:scale-105">
+              <Link href="/" className="inline-flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-neutral-900 flex items-center justify-center p-1.5">
                   <Image
                     src="/logo-white-cropped.png"
                     alt="FollowMe Logo"
@@ -148,7 +148,7 @@ export function Footer() {
 
           <div className="mt-16 pt-6 border-t border-neutral-900/10 flex flex-col sm:flex-row items-center justify-center text-center text-xs text-neutral-900/70 gap-2">
             <p>
-              © {new Date().getFullYear()} FollowMe — Open source under MIT · Crafted with inspiration from React Bits Pro
+              © {new Date().getFullYear()} FollowMe — Open source under MIT
             </p>
           </div>
         </div>

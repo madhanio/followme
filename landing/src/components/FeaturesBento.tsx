@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Sparkles,
@@ -12,9 +13,20 @@ import {
   CheckCircle2,
   Clock,
   Flame,
+  Star,
+  GitFork,
+  Check,
 } from 'lucide-react';
 
 const easeBezier = [0.23, 1, 0.32, 1] as const;
+
+// Real developers followed by agent from @madhanio's network
+const REAL_FOLLOWED_PROFILES = [
+  { login: 'saforem2', avatar: 'https://avatars.githubusercontent.com/u/5234251?v=4' },
+  { login: 'Leeous', avatar: 'https://avatars.githubusercontent.com/u/6354807?v=4' },
+  { login: 'hyperpolymath', avatar: 'https://avatars.githubusercontent.com/u/6759885?v=4' },
+  { login: 'jacoobwang', avatar: 'https://avatars.githubusercontent.com/u/11434315?v=4' },
+];
 
 export function FeaturesBento() {
   const cardVariant = {
@@ -42,70 +54,116 @@ export function FeaturesBento() {
             className="group bg-card-primary rounded-4xl p-8 pb-0 overflow-hidden min-h-140 md:row-span-2 flex flex-col justify-between"
           >
             <div className="relative z-10 text-center mb-6 transition-transform duration-500 ease-out group-hover:scale-105">
-              <h3 className="text-2xl md:text-4xl font-medium text-neutral-900 leading-tight mb-3">
+              <h3 className="text-2xl md:text-3xl font-medium text-neutral-900 leading-tight mb-2">
                 Intelligent Profile Evaluation
               </h3>
-              <p className="text-neutral-800 text-sm font-medium">
+              <p className="text-neutral-700 text-sm font-normal">
                 AI grades code substance and architecture on a 1–100 scale
               </p>
             </div>
 
-            {/* Realistic Device Phone Mockup with Notch and Live Score Card (Crisp White Screen, Black Border) */}
+            {/* Device Phone Mockup with Clean Notch and Live Profile Score Card (No physical buttons) */}
             <div className="flex-1 flex justify-center items-end transition-transform duration-500 ease-out group-hover:scale-[1.02]">
-              <div className="relative bg-white shadow-2xl border-black overflow-hidden z-10 w-60 md:w-68 h-96 md:h-112 rounded-t-4xl border-6 border-b-0">
+              <div className="relative bg-white shadow-2xl border-neutral-900 overflow-hidden z-10 w-60 md:w-68 h-96 md:h-112 rounded-t-4xl border-6 border-b-0 ring-1 ring-black/10">
                 {/* Dynamic Island Notch */}
                 <div
-                  className="absolute left-1/2 -translate-x-1/2 bg-black rounded-full z-10 top-2 w-20 h-5"
+                  className="absolute left-1/2 -translate-x-1/2 bg-neutral-900 rounded-full z-20 top-2.5 w-20 h-5 flex items-center justify-end pr-2 gap-1.5"
                   aria-hidden="true"
-                />
+                >
+                  <div className="size-2 rounded-full bg-neutral-800" />
+                  <div className="size-1.5 rounded-full bg-blue-950/60" />
+                </div>
 
-                <div className="absolute inset-0 bg-white pt-12 px-5 text-neutral-900">
-                  <div className="flex items-center justify-between text-xs text-neutral-500 mb-2">
-                    <span className="font-medium">Scanned Profile</span>
-                    <span className="font-mono text-[10px] bg-accent/40 text-black px-1.5 py-0.5 rounded font-semibold">
-                      eval_id: #8921
-                    </span>
+                {/* Phone Screen: Evaluated Profile (@madhanio) */}
+                <div className="absolute inset-0 bg-white pt-10 px-4 text-neutral-900 flex flex-col justify-between pb-3">
+                  {/* Header bar */}
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] text-neutral-500 mb-2 border-b border-neutral-100 pb-1.5">
+                      <span className="font-semibold text-neutral-800">Evaluated Profile</span>
+                      <span className="font-mono text-[10px] bg-accent/30 text-black px-1.5 py-0.5 rounded font-bold">
+                        AGENT VERIFIED
+                      </span>
+                    </div>
+
+                    {/* User Profile Card */}
+                    <div className="flex items-center gap-3 mb-2.5">
+                      <div className="size-11 rounded-full border border-neutral-200 overflow-hidden shrink-0 bg-neutral-100 shadow-sm">
+                        <Image
+                          src="https://avatars.githubusercontent.com/u/131896187?v=4"
+                          alt="Madhan Adepu"
+                          width={44}
+                          height={44}
+                          className="w-full h-full object-cover"
+                          unoptimized
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="text-sm font-bold text-neutral-900 leading-none">Madhan Adepu</h4>
+                          <span className="text-[11px] text-neutral-500 font-mono">@madhanio</span>
+                        </div>
+                        <p className="text-[10px] text-neutral-500 mt-1 line-clamp-1 leading-snug">
+                          Building AI systems that actually work in prod.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Mini GitHub stats row */}
+                    <div className="grid grid-cols-3 gap-1.5 bg-neutral-50 rounded-xl p-2 border border-neutral-100 text-center mb-3">
+                      <div>
+                        <span className="font-bold text-neutral-900 block text-xs">10</span>
+                        <span className="text-neutral-500 text-[10px] font-medium">Repos</span>
+                      </div>
+                      <div>
+                        <span className="font-bold text-neutral-900 block text-xs">206</span>
+                        <span className="text-neutral-500 text-[10px] font-medium">Followers</span>
+                      </div>
+                      <div>
+                        <span className="font-bold text-neutral-900 block text-xs">152</span>
+                        <span className="text-neutral-500 text-[10px] font-medium">Following</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <h4 className="text-2xl font-bold text-neutral-900 leading-tight tracking-tight">
-                    rust-hyper-db
-                  </h4>
-                  <p className="text-xs text-neutral-600 mb-4 font-normal">
-                    High throughput in-memory key-value engine
-                  </p>
-
-                  {/* Gradient Card with Live Score on 1-100 scale */}
-                  <div className="relative bg-gradient-to-br from-accent via-accent/90 to-accent/60 rounded-2xl p-4 h-50 shadow-lg overflow-hidden text-neutral-900">
-                    <div className="flex items-start justify-between">
+                  {/* AI Evaluation Inspector Card */}
+                  <div className="bg-neutral-900 text-white rounded-2xl p-3 shadow-md">
+                    <div className="flex items-start justify-between mb-2">
                       <div>
-                        <span className="text-[10px] uppercase tracking-wider font-semibold opacity-75">
-                          AI Assessment
+                        <span className="text-[9px] uppercase tracking-wider font-semibold text-neutral-400">
+                          LLM Evaluation Score
                         </span>
-                        <div className="flex items-baseline gap-1 mt-1">
-                          <span className="text-4xl font-black">94</span>
-                          <span className="text-xs font-bold opacity-75">/ 100</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-2xl font-black text-accent">82</span>
+                          <span className="text-[11px] font-bold text-neutral-400">/ 100</span>
+                          <span className="ml-1.5 text-[9px] bg-accent/20 text-accent font-semibold px-1.5 py-0.5 rounded">
+                            Qualified
+                          </span>
                         </div>
                       </div>
-                      <div className="p-2 rounded-xl bg-black/10">
-                        <CheckCircle2 className="w-5 h-5 text-black" />
+                      <div className="size-6 rounded-full bg-accent/20 flex items-center justify-center">
+                        <Check className="size-3.5 text-accent stroke-[3]" />
                       </div>
                     </div>
 
-                    <div className="mt-3 space-y-1.5 text-xs font-medium">
-                      <div className="flex items-center justify-between bg-black/10 px-2.5 py-1 rounded-lg">
-                        <span>Novelty & Logic</span>
-                        <span className="font-bold">Exceptional</span>
+                    {/* Signal Breakdown */}
+                    <div className="space-y-1 text-[10px] border-t border-neutral-800 pt-1.5">
+                      <div className="flex items-center justify-between text-neutral-300">
+                        <span>Code Architecture</span>
+                        <span className="font-mono font-bold text-white">85 / 100</span>
                       </div>
-                      <div className="flex items-center justify-between bg-black/10 px-2.5 py-1 rounded-lg">
+                      <div className="flex items-center justify-between text-neutral-300">
+                        <span>Originality & Utility</span>
+                        <span className="font-mono font-bold text-white">80 / 100</span>
+                      </div>
+                      <div className="flex items-center justify-between text-neutral-300">
                         <span>Action Taken</span>
-                        <span className="font-bold text-black">Starred + Followed</span>
+                        <span className="font-bold text-accent">Followed & Starred</span>
                       </div>
                     </div>
 
-                    <div className="absolute bottom-3 left-4 flex items-center gap-1.5 text-[10px] font-mono tracking-widest text-neutral-900 opacity-80">
+                    <div className="mt-2 pt-1.5 border-t border-neutral-800 flex items-center justify-between text-[9px] font-mono text-neutral-400">
                       <span>NVIDIA NIM</span>
-                      <span>•</span>
-                      <span>llama-3.3-70b</span>
+                      <span>meta/llama-3.3-70b</span>
                     </div>
                   </div>
                 </div>
@@ -119,10 +177,10 @@ export function FeaturesBento() {
             className="group bg-card-secondary rounded-4xl p-8 overflow-hidden min-h-80 relative flex flex-col md:block"
           >
             <div className="relative z-10 max-w-48 transition-transform duration-500 ease-out group-hover:scale-105">
-              <h3 className="text-xl md:text-2xl whitespace-nowrap font-medium text-card-foreground leading-tight mb-3">
+              <h3 className="text-xl md:text-2xl whitespace-nowrap font-medium text-white leading-tight mb-2">
                 Rate-Limit Protection
               </h3>
-              <p className="text-card-foreground-muted text-sm">
+              <p className="text-white/70 text-sm">
                 Monitors GitHub Core and Search quotas in real time
               </p>
             </div>
@@ -135,9 +193,9 @@ export function FeaturesBento() {
                 <div className="absolute size-88 border border-accent/40 rounded-full" />
               </div>
 
-              {/* Status Phone Mockup (White Screen, Black Border) */}
-              <div className="relative bg-white shadow-2xl border-black overflow-hidden z-10 w-44 md:w-48 h-64 md:h-72 rounded-3xl border-4 text-neutral-900">
-                <div className="absolute left-1/2 -translate-x-1/2 bg-black rounded-full z-10 top-2 w-16 h-4" aria-hidden="true" />
+              {/* Status Phone Mockup (White Screen, Clean Chassis) */}
+              <div className="relative bg-white shadow-2xl border-neutral-900 overflow-hidden z-10 w-44 md:w-48 h-64 md:h-72 rounded-3xl border-4 text-neutral-900 ring-1 ring-black/10">
+                <div className="absolute left-1/2 -translate-x-1/2 bg-neutral-900 rounded-full z-10 top-2 w-16 h-4" aria-hidden="true" />
                 <div className="absolute inset-0 bg-white pt-9 px-3">
                   <div className="bg-neutral-100 rounded-full px-2 py-1.5 mb-3 flex items-center gap-1.5 border border-neutral-200">
                     <span className="text-neutral-500 text-xs font-mono">Search API Quota...</span>
@@ -166,32 +224,52 @@ export function FeaturesBento() {
 
           {/* Sub Grid 2 Columns */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Card 3: Evaluated Over 12k+ Profiles */}
+            {/* Card 3: Evaluated Over 3.9k+ Profiles */}
             <motion.div
               {...cardVariant}
               className="group bg-card-secondary rounded-4xl p-6 md:p-8 flex flex-col justify-between min-h-64"
             >
               <div className="transition-transform duration-500 ease-out group-hover:scale-105">
-                <h3 className="text-xl md:text-2xl font-medium text-card-foreground leading-tight mb-1">
+                <h3 className="text-xl md:text-2xl font-medium text-white leading-tight mb-1">
                   Evaluated Over
                 </h3>
-                <h3 className="text-xl md:text-2xl font-medium text-card-foreground leading-tight mb-3">
-                  12k+ Profiles
+                <h3 className="text-xl md:text-2xl font-medium text-white leading-tight mb-3">
+                  3.9k+ Profiles
                 </h3>
               </div>
               <div className="my-auto transition-transform duration-500 ease-out group-hover:scale-105">
-                <div className="flex items-center">
-                  <div className="size-11 rounded-full border-2 border-white/25 overflow-hidden -ml-3.5 first:ml-0 bg-neutral-800 flex items-center justify-center text-xs font-bold text-white">TS</div>
-                  <div className="size-11 rounded-full border-2 border-white/25 overflow-hidden -ml-3.5 bg-neutral-700 flex items-center justify-center text-xs font-bold text-white">PY</div>
-                  <div className="size-11 rounded-full border-2 border-white/25 overflow-hidden -ml-3.5 bg-neutral-600 flex items-center justify-center text-xs font-bold text-white">RS</div>
-                  <div className="size-11 rounded-full border-2 border-white/25 overflow-hidden -ml-3.5 bg-neutral-500 flex items-center justify-center text-xs font-bold text-white">GO</div>
-                  <div className="size-11 rounded-full border-2 border-white/25 bg-accent text-black flex items-center justify-center text-xs font-bold -ml-3.5">
-                    50+
+                <div className="flex items-center overflow-hidden py-1">
+                  <div className="flex items-center">
+                    {REAL_FOLLOWED_PROFILES.map((dev, i) => (
+                      <div
+                        key={dev.login}
+                        title={`@${dev.login}`}
+                        style={{ zIndex: 10 + i }}
+                        className={`size-11 rounded-full border-2 border-white/40 overflow-hidden relative bg-neutral-800 ${
+                          i > 0 ? '-ml-3.5' : ''
+                        }`}
+                      >
+                        <Image
+                          src={dev.avatar}
+                          alt={dev.login}
+                          width={44}
+                          height={44}
+                          className="w-full h-full object-cover"
+                          unoptimized
+                        />
+                      </div>
+                    ))}
+                    <div
+                      style={{ zIndex: 30 }}
+                      className="size-11 rounded-full border-2 border-white/40 bg-accent text-black flex items-center justify-center text-xs font-bold -ml-3.5 shadow-sm relative"
+                    >
+                      +133
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 mt-3 text-card-foreground-muted transition-transform duration-500 ease-out group-hover:scale-105">
-                <span className="text-xs font-medium">Filtered across 50+ languages</span>
+              <div className="flex items-center justify-between mt-3 text-white/70 transition-transform duration-500 ease-out group-hover:scale-105">
+                <span className="text-xs font-medium">87.5% organic follow-back rate</span>
               </div>
             </motion.div>
 
@@ -204,25 +282,19 @@ export function FeaturesBento() {
                 <h3 className="text-xl md:text-2xl font-medium text-neutral-900 leading-tight mb-2">
                   Built to Scale
                 </h3>
-                <p className="text-neutral-700 text-sm">
+                <p className="text-neutral-700/80 text-sm">
                   Autonomous infrastructure that runs 24/7 on your schedule
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2 mt-6 transition-transform duration-500 ease-out group-hover:scale-[1.02]">
-                <div className="flex items-center justify-between bg-background rounded-xl p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🚀</span>
-                    <span className="text-foreground font-medium">Smart Connections</span>
-                  </div>
-                  <span className="text-black dark:text-neutral-900 text-sm font-medium">+100% mutual</span>
+              <div className="flex flex-col gap-2.5 mt-6 transition-transform duration-500 ease-out group-hover:scale-[1.02]">
+                <div className="flex items-center gap-3 bg-neutral-900 text-white rounded-xl px-4 py-3 shadow-sm">
+                  <span className="text-base">🚀</span>
+                  <span className="text-sm font-medium tracking-tight">717 Autonomous Cycles</span>
                 </div>
-                <div className="flex items-center justify-between bg-background rounded-xl p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">⚡</span>
-                    <span className="text-foreground font-medium">99.9% Cache Hit</span>
-                  </div>
-                  <span className="text-black dark:text-neutral-900 text-sm font-medium">0 duplicate LLM calls</span>
+                <div className="flex items-center gap-3 bg-neutral-900 text-white rounded-xl px-4 py-3 shadow-sm">
+                  <span className="text-base">🛡️</span>
+                  <span className="text-sm font-medium tracking-tight">0 Quota Violations</span>
                 </div>
               </div>
             </motion.div>

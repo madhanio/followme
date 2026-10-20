@@ -38,7 +38,7 @@ export function FAQ() {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <section id="faq" className="w-full px-6 py-28 bg-background scroll-mt-36">
+    <section id="faq" className="w-full px-6 py-28 bg-background scroll-mt-6">
       <div className="mx-auto max-w-3xl">
         <div className="mb-14 text-center">
           <span className="text-xs font-semibold uppercase tracking-widest text-accent">
