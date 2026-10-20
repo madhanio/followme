@@ -10,44 +10,39 @@ export function Footer() {
     <footer className="relative pt-36 mt-20 mx-2.5 max-[850px]:mx-0">
       {/* Floating Call to Action Card with Inset Wallpaper Texture */}
       <div className="absolute left-1/2 -translate-x-1/2 top-0 w-full max-w-5xl px-4">
-        <div className="relative w-full rounded-3xl overflow-hidden shadow-2xl/20 border border-foreground/10">
+        <div className="relative w-full rounded-3xl overflow-hidden shadow-2xl/15" style={{ colorScheme: 'light' }}>
           <div
-            className="absolute inset-0 bg-center bg-no-repeat brightness-125 dark:brightness-50 blur-sm scale-110"
+            className="absolute inset-0 bg-center bg-no-repeat brightness-150 blur scale-125"
             style={{ backgroundImage: 'url(/BG.jpg)', backgroundSize: '150%' }}
             aria-hidden="true"
           />
-          <div className="relative z-10 flex flex-col items-center text-center px-8 py-20 max-[850px]:px-6 max-[850px]:py-12 bg-background/50 backdrop-blur-md">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/20 text-accent font-semibold text-xs mb-4">
-              <Sparkles className="w-3.5 h-3.5" />
-              Creator & Architecture
-            </div>
-            <h2 className="text-5xl max-[850px]:text-3xl text-foreground font-semibold tracking-tight max-w-2xl mb-4">
+          <div className="relative z-10 flex flex-col items-center text-center px-12 py-20 max-[850px]:px-6 max-[850px]:py-10 max-[850px]:pt-12">
+            <h2 className="text-4xl sm:text-5xl max-[850px]:text-3xl text-black font-bold tracking-tight max-w-2xl mb-8 max-[850px]:mb-6 leading-tight">
               Meet the developer behind FollowMe
             </h2>
-            <p className="text-foreground/70 text-base max-w-xl mb-8 leading-relaxed">
-              Crafted by Madhan — exploring autonomous agents, scalable developer tooling, and modern distributed systems.
-            </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-4">
+            {/* Action Buttons - Clean, subtle background transition matching template buttons */}
+            <div className="flex flex-wrap items-center justify-center gap-3.5 max-[850px]:w-full">
               <a
                 href="https://github.com/madhanio"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-foreground text-background text-sm font-semibold hover:bg-foreground/90 transition-all shadow-md"
+                className="inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-xl bg-black hover:bg-neutral-800 text-white text-sm font-bold shadow-sm transition-colors duration-200 max-[850px]:w-full"
               >
                 <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
                 </svg>
-                GitHub Profile
+                <span>GitHub Profile</span>
               </a>
+
               <a
                 href="https://madhanio.github.io"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-background border border-foreground/20 text-foreground text-sm font-semibold hover:bg-foreground/5 transition-all shadow-sm group"
+                className="group inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-black/15 bg-white/70 hover:bg-white text-black text-sm font-bold shadow-sm transition-colors duration-200 max-[850px]:w-full"
               >
                 <span>Visit Portfolio</span>
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </a>
             </div>
           </div>
