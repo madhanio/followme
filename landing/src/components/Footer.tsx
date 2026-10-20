@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, GitBranch, Play, Sparkles } from 'lucide-react';
 
 export function Footer() {
@@ -59,9 +60,15 @@ export function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-start">
             {/* Left Brand Column */}
             <div className="md:col-span-6">
-              <Link href="/" className="inline-flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-neutral-900 flex items-center justify-center text-white font-bold text-sm">
-                  FM
+              <Link href="/" className="inline-flex items-center gap-3 group">
+                <div className="w-8 h-8 rounded-full bg-neutral-900 flex items-center justify-center p-1.5 transition-transform group-hover:scale-105">
+                  <Image
+                    src="/logo-white-cropped.png"
+                    alt="FollowMe Logo"
+                    width={20}
+                    height={20}
+                    className="object-contain"
+                  />
                 </div>
                 <span className="text-xl font-bold tracking-tight text-neutral-900">
                   FollowMe

@@ -57,7 +57,12 @@ input{font:inherit;color:inherit}
 header{border-bottom:1px solid var(--line);background:var(--surface);transition:background 0.25s ease, border-color 0.25s ease}
 .bar{display:flex;align-items:center;justify-content:space-between;height:56px;gap:16px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:-.01em}
-.mark-svg{width:22px;height:22px;border-radius:6px;background:var(--ink);display:grid;place-items:center;transition:transform 0.2s cubic-bezier(0.16,1,0.3,1)}
+.mark-svg{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:transform 0.2s cubic-bezier(0.16,1,0.3,1);overflow:hidden}
+.mark-svg img{width:100%;height:100%;object-fit:contain}
+.logo-white{display:none}
+.logo-black{display:block}
+[data-theme="dark"] .logo-white{display:block}
+[data-theme="dark"] .logo-black{display:none}
 .mark-svg:hover{transform:scale(1.08)}
 .status{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:13px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:6px;box-shadow:0 0 0 3px var(--accent-tint);transition:box-shadow 0.25s ease, background 0.25s ease}
@@ -441,9 +446,8 @@ body.open .drawer{transform:none}
   <div class="wrap bar">
     <div class="brand">
       <span class="mark-svg">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M3 2v8M3 2h6M3 6h4" stroke="var(--surface)" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
+        <img src="/logo-black-cropped.png" alt="FollowMe Logo" class="logo-black">
+        <img src="/logo-white-cropped.png" alt="FollowMe Logo" class="logo-white">
       </span>
       FollowMe
     </div>
