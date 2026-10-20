@@ -477,6 +477,40 @@ export async function getWorkerStatus() {
   }
 }
 
+export async function toggleWorkerPause(paused: boolean) {
+  const isAuth = await verifyAuthSession();
+  if (!isAuth) return { success: false, error: 'Unauthorized: Session invalid.' };
+  const res = await saveSystemSettings({ is_paused: paused });
+  return res;
+}
+
+export async function triggerAiRescore(owner: string) {
+  const isAuth = await verifyAuthSession();
+  if (!isAuth) return { success: false, error: 'Unauthorized: Session invalid.' };
+  const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
+  const secret = getWorkerSecret();
+  try {
+    const res = await fetch(`${workerUrl}/rescore`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': secret,
+      },
+      body: JSON.stringify({ owner }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `Worker error: ${res.status} - ${text}` };
+    }
+    const data = await res.json();
+    revalidatePath('/');
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('Error triggering AI rescore:', err);
+    return { success: false, error: err.message || 'Failed to connect to worker' };
+  }
+}
+
 export async function triggerClearStale() {
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
   const secret = getWorkerSecret();

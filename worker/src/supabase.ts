@@ -209,6 +209,7 @@ export interface SystemRuntimeConfig {
   dailyFollowLimit: number;
   unfollowGracePeriod: number;
   autoUnfollowNonMutuals: boolean;
+  is_paused?: boolean;
   excludeOrgAccounts: boolean;
   systemPrompt: string;
   maxOwnerFollowers: number;
@@ -227,6 +228,7 @@ export const DEFAULT_RUNTIME_CONFIG: SystemRuntimeConfig = {
   dailyFollowLimit: parseInt(process.env.DAILY_FOLLOW_LIMIT || '30', 10),
   unfollowGracePeriod: parseInt(process.env.UNFOLLOW_GRACE_PERIOD || '7', 10),
   autoUnfollowNonMutuals: true,
+  is_paused: false,
   excludeOrgAccounts: true,
   systemPrompt: 'Focus heavily on README quality, code architecture, commit frequency, and active open-source contribution patterns.',
   maxOwnerFollowers: parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10),
@@ -259,6 +261,7 @@ export async function fetchSystemSettings(): Promise<SystemRuntimeConfig> {
       dailyFollowLimit: settingsMap.dailyFollowLimit != null ? Number(settingsMap.dailyFollowLimit) : DEFAULT_RUNTIME_CONFIG.dailyFollowLimit,
       unfollowGracePeriod: settingsMap.unfollowGracePeriod != null ? Number(settingsMap.unfollowGracePeriod) : DEFAULT_RUNTIME_CONFIG.unfollowGracePeriod,
       autoUnfollowNonMutuals: settingsMap.autoUnfollowNonMutuals != null ? Boolean(settingsMap.autoUnfollowNonMutuals) : DEFAULT_RUNTIME_CONFIG.autoUnfollowNonMutuals,
+      is_paused: Boolean(settingsMap.is_paused || settingsMap.isPaused || false),
       excludeOrgAccounts: settingsMap.excludeOrgAccounts != null ? Boolean(settingsMap.excludeOrgAccounts) : DEFAULT_RUNTIME_CONFIG.excludeOrgAccounts,
       systemPrompt: settingsMap.systemPrompt ?? DEFAULT_RUNTIME_CONFIG.systemPrompt,
       maxOwnerFollowers: settingsMap.maxOwnerFollowers != null ? Number(settingsMap.maxOwnerFollowers) : DEFAULT_RUNTIME_CONFIG.maxOwnerFollowers,

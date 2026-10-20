@@ -97,6 +97,11 @@ async function runAutomationJob(isManual = false) {
     try {
         console.log(`Starting FollowMe repository grading and automation job (${isManual ? 'Manual Run' : 'Scheduled Run'})...`);
         const config = await (0, supabase_1.fetchSystemSettings)();
+        if (!isManual && config.is_paused) {
+            console.log('Worker is currently paused via system settings. Skipping automated run.');
+            await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', 'Worker is paused via settings. Skipped automated cycle.');
+            return { status: 'skipped', reason: 'worker_paused' };
+        }
         console.log(`Loaded runtime settings: maxProfilesPerRun=${config.maxProfilesPerRun}, gradeThreshold=${config.gradeThreshold}, activeWorkingHours=${config.activeWorkingHours}`);
         // Synchronize dynamic credentials from DB settings if provided
         if (config.githubToken) {
@@ -241,7 +246,8 @@ async function runAutomationJob(isManual = false) {
             let followed = false;
             let followResult = null;
             // 8. Follow candidate if grade meets threshold
-            if (grading.grade >= config.gradeThreshold) {
+            const effectiveThreshold = config.gradeThreshold <= 10 ? config.gradeThreshold * 10 : config.gradeThreshold;
+            if (grading.grade >= effectiveThreshold) {
                 const followsToday = await (0, supabase_1.getFollowsTodayCount)();
                 if (followsToday >= config.dailyFollowLimit) {
                     console.log(`Daily follow limit of ${config.dailyFollowLimit} reached (${followsToday} follows today). Stopping follows.`);
@@ -275,7 +281,7 @@ async function runAutomationJob(isManual = false) {
             // 9. Save candidate profile to profiles table
             const isCandidateSkipped = !followed;
             const skipReason = isCandidateSkipped
-                ? `Grade ${grading.grade} < ${config.gradeThreshold}: ${grading.reason}`
+                ? `Grade ${grading.grade} < ${config.gradeThreshold <= 10 ? config.gradeThreshold * 10 : config.gradeThreshold}: ${grading.reason}`
                 : null;
             await (0, supabase_1.saveProfile)({
                 owner: telemetry.owner,
@@ -693,6 +699,62 @@ app.post('/follow', async (req, res) => {
     }
 });
 // POST /unfollow
+// POST /rescore - AI Re-score an existing candidate on demand
+app.post('/rescore', async (req, res) => {
+    const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
+    if (authHeader !== WORKER_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid secret' });
+    }
+    const { owner } = req.body;
+    if (!owner) {
+        return res.status(400).json({ error: 'Missing owner parameter' });
+    }
+    try {
+        const telemetry = await (0, github_1.fetchCandidateDetails)(owner.toLowerCase());
+        if (!telemetry) {
+            return res.status(404).json({ error: 'Could not fetch candidate telemetry from GitHub' });
+        }
+        const config = await (0, supabase_1.fetchSystemSettings)();
+        const grading = await (0, nvidia_1.gradeCandidateProfile)({
+            owner: telemetry.owner,
+            display_name: telemetry.display_name,
+            bio: telemetry.bio,
+            followers_count: telemetry.followers_count,
+            following_count: telemetry.following_count,
+            public_repos_count: telemetry.public_repos_count,
+            languages: telemetry.languages,
+            top_repos: telemetry.top_repos,
+        }, config.systemPrompt);
+        const { error: updateErr } = await supabase_1.supabase
+            .from('profiles')
+            .update({
+            grade: grading.grade,
+            reason: grading.reason,
+            ai_evaluation: {
+                grade: grading.grade,
+                reason: grading.reason,
+                subs: grading.subs,
+                evaluated_at: new Date().toISOString(),
+            },
+            updated_at: new Date().toISOString(),
+        })
+            .ilike('owner', owner.replace(/[_%]/g, '\\$&'));
+        if (updateErr) {
+            return res.status(500).json({ error: updateErr.message });
+        }
+        await (0, supabase_1.logAction)('GRADE', owner, 'SUCCESS', `Re-scored @${owner} with AI. New Score: ${grading.grade}/100. ${grading.reason}`);
+        return res.json({
+            success: true,
+            grade: grading.grade,
+            reason: grading.reason,
+            subs: grading.subs,
+        });
+    }
+    catch (err) {
+        console.error('Error during AI rescore:', err);
+        return res.status(500).json({ error: err.message || 'Internal AI rescore error' });
+    }
+});
 app.post('/unfollow', async (req, res) => {
     const authHeader = req.headers['x-worker-secret'] || req.body?.secret;
     if (authHeader !== WORKER_SECRET) {

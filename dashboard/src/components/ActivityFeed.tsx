@@ -1,191 +1,65 @@
 'use client';
 
 import { useState } from 'react';
-import type { Repo } from '@/lib/types';
-
-/* Build a flat event list from repos, sorted newest first, capped at 10 visible */
-
-type EventKind = 'followed' | 'unfollowed' | 'follow_back';
-
-interface ActivityEvent {
-  kind: EventKind;
-  login: string;
-  avatar_url?: string | null;
-  timestamp: string; /* ISO string */
-  grade?: number | null;
-}
-
-function buildEvents(repos: Repo[]): ActivityEvent[] {
-  const events: ActivityEvent[] = [];
-
-  for (const r of repos) {
-    const owner = r.owner ?? '';
-    if (!owner) continue;
-    const avatar = `https://github.com/${owner}.png?size=72`;
-
-    /* followed event */
-    if (r.followed && !r.unfollowed && (r.followed_at || r.created_at)) {
-      events.push({
-        kind: 'followed',
-        login: owner,
-        avatar_url: avatar,
-        timestamp: r.followed_at || r.created_at || '',
-        grade: r.grade ?? null,
-      });
-    }
-    /* follow_back event */
-    if (r.follow_back && !r.unfollowed && (r.followed_at || r.created_at)) {
-      events.push({
-        kind: 'follow_back',
-        login: owner,
-        avatar_url: avatar,
-        timestamp: r.followed_at || r.created_at || '',
-        grade: r.grade ?? null,
-      });
-    }
-  }
-
-  /* Sort newest first */
-  events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-  /* Deduplicate: one event per (login, kind) — keep most recent */
-  const seen = new Set<string>();
-  return events.filter((e) => {
-    const key = `${e.login}:${e.kind}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function relTime(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
-
-const KIND_META: Record<EventKind, { label: string; color: string; bg: string; icon: string }> = {
-  followed: { label: 'Followed', color: 'var(--accent)', bg: 'var(--accent-tint)', icon: '＋' },
-  unfollowed: { label: 'Unfollowed', color: 'var(--warn)', bg: 'var(--warn-tint)', icon: '−' },
-  follow_back: { label: 'Followed back', color: 'var(--accent)', bg: 'var(--accent-tint)', icon: '↩' },
-};
-
-function EventRow({ event }: { event: ActivityEvent }) {
-  const meta = KIND_META[event.kind];
-  const displayScore = event.grade !== null && event.grade !== undefined
-    ? Math.min(100, Math.round(event.grade * 10))
-    : null;
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 16,
-        padding: '11px 18px',
-        borderBottom: '1px solid var(--line)',
-        color: 'var(--muted)',
-        fontSize: 13.5,
-        transition: 'background 0.15s ease',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-        {/* Kind pill */}
-        <span
-          style={{
-            fontSize: 11.5,
-            fontWeight: 600,
-            padding: '2px 8px',
-            borderRadius: 99,
-            background: meta.bg,
-            color: meta.color,
-            flexShrink: 0,
-            textAlign: 'center',
-          }}
-        >
-          {meta.label}
-        </span>
-
-        {/* Avatar */}
-        {event.avatar_url ? (
-          <img
-            src={event.avatar_url}
-            alt={event.login}
-            width={24}
-            height={24}
-            style={{ borderRadius: '50%', flexShrink: 0, border: '1px solid var(--line)' }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              flexShrink: 0,
-              background: 'var(--hover)',
-              border: '1px solid var(--line)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 10,
-              color: 'var(--muted)',
-              fontWeight: 600,
-            }}
-          >
-            {event.login[0]?.toUpperCase()}
-          </div>
-        )}
-
-        {/* Login */}
-        <a
-          href={`https://github.com/${event.login}`}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            fontSize: 13.5,
-            fontWeight: 600,
-            color: 'var(--ink)',
-            textDecoration: 'none',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {event.login}
-        </a>
-
-        {/* Score */}
-        {displayScore !== null && (
-          <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>
-            (score {displayScore})
-          </span>
-        )}
-      </div>
-
-      {/* Relative Time */}
-      <time style={{ color: 'var(--faint)', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>
-        {relTime(event.timestamp)}
-      </time>
-    </div>
-  );
-}
-
-const COLLAPSED_LIMIT = 10;
+import type { Log, Repo } from '@/lib/types';
 
 export interface ActivityFeedProps {
-  repos: Repo[];
+  logs?: Log[];
+  repos?: Repo[];
   isLoading?: boolean;
+  workerStatus?: {
+    nextRun: string | null;
+    lastRun: string | null;
+    isJobRunning: boolean;
+  } | null;
 }
 
-export default function ActivityFeed({ repos, isLoading }: ActivityFeedProps) {
+function formatRelativeTime(dateStr?: string | null): string {
+  if (!dateStr) return 'just now';
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${Math.floor(diffHours / 24)}d ago`;
+}
+
+function getActionBadge(action: string, status: string) {
+  const isErr = status === 'FAILED' || status === 'ERROR';
+  if (isErr) {
+    return {
+      label: 'ERROR',
+      bg: '#fee2e2',
+      color: '#dc2626',
+    };
+  }
+  switch (action.toUpperCase()) {
+    case 'FOLLOW':
+      return { label: 'FOLLOWED', bg: 'var(--accent-tint)', color: 'var(--accent)' };
+    case 'UNFOLLOW':
+    case 'UNFOLLOW_RATIO':
+      return { label: 'UNFOLLOWED', bg: 'var(--warn-tint)', color: 'var(--warn)' };
+    case 'STAR':
+      return { label: 'STARRED', bg: '#fef3c7', color: '#d97706' };
+    case 'GRADE':
+      return { label: 'EVALUATED', bg: '#e0e7ff', color: '#4338ca' };
+    case 'SKIP_FOLLOW':
+      return { label: 'SKIPPED', bg: 'var(--hover)', color: 'var(--muted)' };
+    case 'SYSTEM':
+      return { label: 'SYSTEM', bg: 'var(--hover)', color: 'var(--ink)' };
+    default:
+      return { label: action, bg: 'var(--hover)', color: 'var(--muted)' };
+  }
+}
+
+export default function ActivityFeed({ logs = [], isLoading = false, workerStatus }: ActivityFeedProps) {
   const [expanded, setExpanded] = useState(false);
-  const allEvents = buildEvents(repos);
-  const visible = expanded ? allEvents : allEvents.slice(0, COLLAPSED_LIMIT);
+  const COLLAPSED_LIMIT = 8;
+
+  // Deduplicate and filter out noisy repetition (clean, single-line log items)
+  const cleanLogs = logs.filter(l => l && l.message);
+  const displayed = expanded ? cleanLogs : cleanLogs.slice(0, COLLAPSED_LIMIT);
 
   return (
     <div
@@ -202,16 +76,44 @@ export default function ActivityFeed({ repos, isLoading }: ActivityFeedProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 16px',
-          borderBottom: allEvents.length > 0 ? '1px solid var(--line)' : 'none',
+          padding: '12px 18px',
+          borderBottom: cleanLogs.length > 0 ? '1px solid var(--line)' : 'none',
+          background: 'var(--surface)',
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
-          Recent Activity
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>
+            System Activity & Worker Logs
+          </span>
+          {workerStatus && (
+            <span
+              style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                borderRadius: 999,
+                fontWeight: 600,
+                background: workerStatus.isJobRunning ? 'var(--accent-tint)' : 'var(--hover)',
+                color: workerStatus.isJobRunning ? 'var(--accent)' : 'var(--muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: workerStatus.isJobRunning ? 'var(--accent)' : 'var(--faint)',
+                }}
+              />
+              {workerStatus.isJobRunning ? 'RUNNING NOW' : 'IDLE'}
+            </span>
+          )}
+        </div>
         {!isLoading && (
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-            {allEvents.length} events
+            {cleanLogs.length} events logged
           </span>
         )}
       </div>
@@ -225,37 +127,27 @@ export default function ActivityFeed({ repos, isLoading }: ActivityFeedProps) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '9px 16px',
+                gap: 12,
+                padding: '11px 18px',
                 borderBottom: '1px solid var(--line)',
               }}
             >
               <div
                 style={{
-                  width: 80,
+                  width: 75,
                   height: 20,
-                  borderRadius: 99,
+                  borderRadius: 4,
                   background: 'var(--hover)',
                   animation: 'fm-pulse 1.6s ease-in-out infinite',
                 }}
               />
               <div
                 style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: 'var(--hover)',
-                  animation: 'fm-pulse 1.6s ease-in-out infinite',
-                }}
-              />
-              <div
-                style={{
-                  width: 120,
+                  flex: 1,
                   height: 14,
                   borderRadius: 4,
                   background: 'var(--hover)',
                   animation: 'fm-pulse 1.6s ease-in-out infinite',
-                  flex: 1,
                 }}
               />
               <div
@@ -270,32 +162,88 @@ export default function ActivityFeed({ repos, isLoading }: ActivityFeedProps) {
             </div>
           ))}
         </div>
-      ) : visible.length === 0 ? (
-        <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
-          No activity yet.
+      ) : cleanLogs.length === 0 ? (
+        <div style={{ padding: 28, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+          No system logs found yet. Run the agent to start generating activity.
         </div>
       ) : (
-        visible.map((e, i) => <EventRow key={`${e.login}:${e.kind}:${i}`} event={e} />)
+        displayed.map((log) => {
+          const badge = getActionBadge(log.action, log.status);
+          const time = formatRelativeTime(log.timestamp);
+          return (
+            <div
+              key={log.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 18px',
+                borderBottom: '1px solid var(--line)',
+                gap: 12,
+                fontSize: 13,
+                transition: 'background 0.1s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    padding: '2px 7px',
+                    borderRadius: 4,
+                    background: badge.bg,
+                    color: badge.color,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    flexShrink: 0,
+                  }}
+                >
+                  {badge.label}
+                </span>
+
+                <span
+                  style={{
+                    color: 'var(--ink)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontSize: 12.5,
+                  }}
+                  title={log.message}
+                >
+                  {log.owner ? (
+                    <b>@{log.owner}: </b>
+                  ) : null}
+                  {log.message}
+                </span>
+              </div>
+
+              <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {time}
+              </span>
+            </div>
+          );
+        })
       )}
 
       {/* Expand / collapse toggle */}
-      {allEvents.length > COLLAPSED_LIMIT && (
-        <div style={{ padding: '10px 16px', borderTop: '1px solid var(--line)' }}>
+      {cleanLogs.length > COLLAPSED_LIMIT && (
+        <div style={{ padding: '9px 18px', borderTop: '1px solid var(--line)', background: 'var(--surface)' }}>
           <button
             onClick={() => setExpanded((x) => !x)}
             style={{
               width: '100%',
-              padding: '7px 0',
+              padding: '6px 0',
               border: '1px solid var(--line)',
               borderRadius: 'var(--r)',
               background: 'var(--hover)',
               color: 'var(--muted)',
-              fontSize: 13,
+              fontSize: 12.5,
               fontWeight: 500,
               cursor: 'pointer',
             }}
           >
-            {expanded ? 'Show less' : `Show all ${allEvents.length} events`}
+            {expanded ? 'Show fewer logs' : `Show all ${cleanLogs.length} logs`}
           </button>
         </div>
       )}

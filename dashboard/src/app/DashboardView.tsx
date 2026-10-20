@@ -20,7 +20,9 @@ import {
   getGitHubRateLimit,
   sendTestAlertEmail,
   checkSystemHealth,
-  fetchDashboardRepos
+  fetchDashboardRepos,
+  toggleWorkerPause,
+  triggerAiRescore
 } from './actions';
 import type { 
   Repo, 
@@ -275,8 +277,34 @@ export default function DashboardView({
 
   const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   const [isPaused, setIsPaused] = useState(false);
-  const handlePause = () => { setIsPaused(true); setRunStatus('paused'); };
-  const handleUnpause = () => { setIsPaused(false); setRunStatus('idle'); };
+  const handlePause = async () => {
+    setIsPaused(true);
+    setRunStatus('paused');
+    try {
+      const res = await toggleWorkerPause(true);
+      if (res.success) {
+        setTriggerStatus({ success: true, message: 'Worker automated schedule is now paused.' });
+      } else {
+        setTriggerStatus({ success: false, message: res.error || 'Failed to pause worker on server.' });
+      }
+    } catch (e: any) {
+      setTriggerStatus({ success: false, message: e.message || 'Error pausing worker' });
+    }
+  };
+  const handleUnpause = async () => {
+    setIsPaused(false);
+    setRunStatus('idle');
+    try {
+      const res = await toggleWorkerPause(false);
+      if (res.success) {
+        setTriggerStatus({ success: true, message: 'Worker resumed and scheduled.' });
+      } else {
+        setTriggerStatus({ success: false, message: res.error || 'Failed to resume worker on server.' });
+      }
+    } catch (e: any) {
+      setTriggerStatus({ success: false, message: e.message || 'Error resuming worker' });
+    }
+  };
 
   const [selectedProfile, setSelectedProfile] = useState<ProfileItem | null>(null);
   const handleProfileClick = (p: ProfileItem) => setSelectedProfile(p);
@@ -867,17 +895,28 @@ export default function DashboardView({
 
   const handleTrigger = async () => {
     setIsTriggering(true);
+    setRunStatus('running');
     setTriggerStatus(null);
     try {
       const res = await triggerWorker();
       if (res.success) {
-        setTriggerStatus({ success: true, message: res.message || 'Worker triggered successfully.' });
-        fetchStatus();
+        setTriggerStatus({ success: true, message: res.message || 'Worker triggered successfully. Running automation pipeline...' });
+        // Poll status and refresh logs/profiles shortly
+        setTimeout(async () => {
+          await fetchStatus();
+          const logsRes = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(200);
+          if (logsRes.data) setLogs(logsRes.data);
+          const freshRepos = await fetchFreshProfilesAsRepos();
+          if (freshRepos && freshRepos.length > 0) setRepos(freshRepos);
+          setRunStatus('idle');
+        }, 4000);
       } else {
         setTriggerStatus({ success: false, message: res.error || 'Failed to trigger automation job.' });
+        setRunStatus('idle');
       }
     } catch (err: any) {
       setTriggerStatus({ success: false, message: err.message || 'Network error triggering worker' });
+      setRunStatus('idle');
     } finally {
       setIsTriggering(false);
     }
@@ -1353,22 +1392,6 @@ export default function DashboardView({
                   {isTriggering ? 'Running...' : 'Run Agent Now'}
                 </button>
                 <button
-                  onClick={() => setShowOnboardingTest(prev => !prev)}
-                  style={{
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    padding: '6px 12px',
-                    borderRadius: 7,
-                    border: '1px solid var(--line-strong)',
-                    background: 'var(--surface)',
-                    color: 'var(--ink)',
-                    cursor: 'pointer',
-                    transition: 'all 0.16s ease',
-                  }}
-                >
-                  How scoring works
-                </button>
-                <button
                   onClick={runStatus === 'paused' ? handleUnpause : handlePause}
                   style={{
                     fontSize: 12.5,
@@ -1402,25 +1425,27 @@ export default function DashboardView({
                 </button>
               </div>
 
-              {showOnboardingTest && (
+              {triggerStatus && (
                 <div style={{
-                  marginTop: 14,
-                  border: '1px solid var(--line)',
-                  borderRadius: 'var(--r)',
-                  background: 'var(--surface)',
-                  padding: '14px 18px',
-                  maxWidth: 640,
-                  fontSize: 13.5,
-                  color: 'var(--muted)',
-                  boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+                  marginTop: 12,
+                  padding: '8px 14px',
+                  borderRadius: 7,
+                  fontSize: 12.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: triggerStatus.success ? 'var(--accent-tint)' : 'var(--warn-tint)',
+                  color: triggerStatus.success ? 'var(--accent)' : 'var(--warn)',
+                  border: `1px solid ${triggerStatus.success ? 'color-mix(in srgb, var(--accent) 25%, transparent)' : 'color-mix(in srgb, var(--warn) 25%, transparent)'}`,
+                  maxWidth: 640
                 }}>
-                  <b style={{ color: 'var(--ink)', fontWeight: 600 }}>Each profile gets a score from 0 to 100.</b>
-                  <ol style={{ margin: '8px 0 0 18px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <li>The worker pulls recent activity, repos and follower patterns.</li>
-                    <li>An LLM rates activity, code quality, relevance and reach, and writes a one-line reason.</li>
-                    <li>Scores of 60 and above are queued to follow. Lower scores are skipped. Scores of 90 and above are marked as top picks.</li>
-                    <li>Accounts that don't follow back are cleaned up on a schedule.</li>
-                  </ol>
+                  <span>{triggerStatus.message}</span>
+                  <button
+                    onClick={() => setTriggerStatus(null)}
+                    style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 4px', fontSize: 13 }}
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
             </div>
@@ -1444,7 +1469,7 @@ export default function DashboardView({
         />
 
         {/* ── ACTIVITY FEED (Part G) ── */}
-        <ActivityFeed repos={repos} isLoading={isReposLoading} />
+        <ActivityFeed logs={logs} repos={repos} isLoading={isReposLoading} workerStatus={workerStatus} />
 
       </main>
 

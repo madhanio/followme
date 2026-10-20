@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import type { ProfileItem, Repo } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { triggerAiRescore } from '@/app/actions';
 
 export interface ProfileDrawerProps {
   profile: ProfileItem | null;   /* null = closed */
@@ -269,7 +270,13 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
   }, [onClose]);
 
   const [isFetching, setIsFetching] = useState(false);
+  const [isRescoring, setIsRescoring] = useState(false);
   const [telemetryMsg, setTelemetryMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [evaluationData, setEvaluationData] = useState<{
+    grade?: number;
+    reason?: string | null;
+    subs?: { activity: number; codeQuality: number; relevance: number; reach: number };
+  } | null>(null);
   const [liveData, setLiveData] = useState<{
     displayName?: string | null;
     avatar_url?: string | null;
@@ -313,7 +320,7 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
       languages: Array.isArray(initialLanguages) && initialLanguages.length > 0 ? initialLanguages : undefined,
     });
 
-    // Check Supabase profiles table for cached rich telemetry
+    // Check Supabase profiles table for cached rich telemetry & AI evaluation
     const checkOwner = profile.login || profile.owner;
     if (checkOwner) {
       (async () => {
@@ -325,6 +332,13 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
             .maybeSingle();
 
           if (data) {
+            if (data.grade || data.ai_evaluation) {
+              setEvaluationData({
+                grade: data.grade,
+                reason: data.reason || data.ai_evaluation?.reason,
+                subs: data.ai_evaluation?.subs,
+              });
+            }
             setLiveData(prev => ({
               ...prev,
               displayName: data.display_name || prev?.displayName,
@@ -405,6 +419,45 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
     }
   }
 
+  async function handleAiRescore() {
+    setIsRescoring(true);
+    setTelemetryMsg(null);
+    try {
+      const res = await triggerAiRescore(login);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to re-score candidate with AI');
+      }
+      const evalData = res.data?.evaluation;
+      const newGrade = res.data?.grade ?? evalData?.grade;
+      const newReason = evalData?.reason;
+      const subs = evalData?.subs;
+
+      setEvaluationData({
+        grade: newGrade,
+        reason: newReason,
+        subs: subs,
+      });
+
+      if (onUpdateProfile) {
+        onUpdateProfile({
+          owner: login,
+          grade: newGrade,
+          reason: newReason,
+        });
+      }
+
+      const actionMsg = res.data?.action ? ` (${res.data.action})` : '';
+      setTelemetryMsg({
+        type: 'success',
+        text: `✓ AI Re-scored: ${newGrade}/100${actionMsg} — "${newReason?.slice(0, 50)}..."`,
+      });
+    } catch (err: any) {
+      setTelemetryMsg({ type: 'error', text: `⚠️ ${err.message}` });
+    } finally {
+      setIsRescoring(false);
+    }
+  }
+
   const ownerRepos = repos.filter(
     r => (r.owner.toLowerCase() === login.toLowerCase() || r.owner.toLowerCase() === profile.owner.toLowerCase()) && r.language !== 'Profile'
   );
@@ -482,14 +535,19 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
     ? rawSource
     : 'GitHub topic & open-source discovery';
   const accountAge = liveData?.account_age_years || (profile as any).account_age_years || 1;
-  const scoreVal = profile.grade ? Math.min(100, Math.round(profile.grade * 10)) : 90;
+  const currentGradeRaw = evaluationData?.grade ?? profile.grade;
+  const scoreVal = currentGradeRaw
+    ? (currentGradeRaw <= 10 ? Math.round(currentGradeRaw * 10) : Math.round(currentGradeRaw))
+    : 85;
 
-  // 4 Read-only Pillar bars (sliders removed per user request)
+  const currentReason = evaluationData?.reason || profile.reason || 'Strong repos, clear docs, and frequent open source contributions.';
+
+  // 4 Read-only Pillar bars (from AI evaluation if available, or estimated from composite score)
   const pillarBars = [
-    { label: 'Activity', val: Math.min(99, Math.max(30, scoreVal + 4)) },
-    { label: 'Code quality', val: Math.min(99, Math.max(30, scoreVal - 2)) },
-    { label: 'Relevance', val: Math.min(99, Math.max(30, scoreVal + 3)) },
-    { label: 'Reach', val: Math.min(99, Math.max(30, scoreVal - 6)) },
+    { label: 'Activity', val: evaluationData?.subs?.activity ?? Math.min(99, Math.max(30, scoreVal + 4)) },
+    { label: 'Code quality', val: evaluationData?.subs?.codeQuality ?? Math.min(99, Math.max(30, scoreVal - 2)) },
+    { label: 'Relevance', val: evaluationData?.subs?.relevance ?? Math.min(99, Math.max(30, scoreVal + 3)) },
+    { label: 'Reach', val: evaluationData?.subs?.reach ?? Math.min(99, Math.max(30, scoreVal - 6)) },
   ];
 
   return (
@@ -572,39 +630,63 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
 
           {/* ── 3. Score Verdict (Score, Re-score button, Pillar bars, and Why this score explanation) ── */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
               <h4>AI Evaluation Breakdown</h4>
-              <button
-                onClick={handleFetchTelemetry}
-                disabled={isFetching}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                  border: '1px solid var(--line-strong)',
-                  background: isFetching ? 'var(--hover)' : 'var(--bg)',
-                  color: isFetching ? 'var(--muted)' : 'var(--ink)',
-                  cursor: isFetching ? 'wait' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {isFetching ? (
-                  <>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}>
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                    <span>Fetching...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>⚡ Re-score</span>
-                  </>
-                )}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  onClick={handleAiRescore}
+                  disabled={isRescoring || isFetching}
+                  title="Re-run AI LLM grading on this profile"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--ink)',
+                    background: 'var(--ink)',
+                    color: 'var(--surface)',
+                    cursor: (isRescoring || isFetching) ? 'wait' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {isRescoring ? (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                      <span>AI Scoring...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚡ Re-score with AI</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleFetchTelemetry}
+                  disabled={isFetching || isRescoring}
+                  title="Refresh latest GitHub followers, repos and profile data"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid var(--line-strong)',
+                    background: isFetching ? 'var(--hover)' : 'var(--bg)',
+                    color: isFetching ? 'var(--muted)' : 'var(--ink)',
+                    cursor: isFetching ? 'wait' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {isFetching ? 'Syncing...' : '↻ Sync Data'}
+                </button>
+              </div>
             </div>
 
             {telemetryMsg && (
@@ -653,7 +735,7 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
             <div style={{ marginTop: 16 }}>
               <h4>Why this score</h4>
               <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45, fontWeight: 500, margin: 0 }}>
-                {profile.reason || 'Strong repos, clear docs, and frequent merged PRs.'}
+                {currentReason}
               </p>
             </div>
           </div>
