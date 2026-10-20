@@ -67,10 +67,17 @@ export async function checkSystemHealth(): Promise<SystemHealthState> {
   }
 
   // 2. Validate GitHub Token
-  const effectiveToken = dbSettings?.github_token || process.env.GITHUB_TOKEN;
+  let cookieGhToken: string | undefined;
+  try {
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    cookieGhToken = cookieStore.get('fm_gh_token')?.value;
+  } catch (_) {}
+
+  const effectiveToken = dbSettings?.github_token || dbSettings?.githubToken || process.env.GITHUB_TOKEN || cookieGhToken;
   if (!effectiveToken) {
     isGitHubValid = false;
-    gitHubError = 'No GitHub Personal Access Token configured.';
+    gitHubError = 'No GitHub Personal Access Token or OAuth session configured.';
   } else {
     try {
       const ghRes = await fetch('https://api.github.com/user', {
@@ -454,6 +461,7 @@ export async function getWorkerStatus() {
       headers: {
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(1500),
       cache: 'no-store',
     });
 
@@ -494,6 +502,30 @@ export async function triggerClearStale() {
   } catch (err: any) {
     console.error('Error clearing stale profiles:', err);
     return { success: false, error: err.message || 'Failed to connect to worker' };
+  }
+}
+
+export async function toggleWhitelist(username: string, whitelisted: boolean) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return { success: false, error: 'Supabase credentials not configured' };
+    }
+    const { createClient } = await import('@supabase/supabase-js');
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // 1. Update profiles table
+    const { error: profileErr } = await serviceClient
+      .from('profiles')
+      .update({ whitelisted })
+      .ilike('owner', username);
+
+    revalidatePath('/');
+    return { success: true, whitelisted, error: profileErr ? profileErr.message : null };
+  } catch (err: any) {
+    console.error('Error in toggleWhitelist:', err);
+    return { success: false, error: err.message || 'Failed to update whitelist' };
   }
 }
 
@@ -594,14 +626,30 @@ export async function triggerSyncFollowing() {
   }
 }
 
+let serverUserProfileCache: { data: any; timestamp: number } | null = null;
+
 export async function getUserProfile() {
+  const now = Date.now();
+  if (serverUserProfileCache && (now - serverUserProfileCache.timestamp < 300000)) {
+    return serverUserProfileCache.data;
+  }
+
   let token = process.env.GITHUB_TOKEN;
   try {
-    const settings = await getSystemSettings();
-    if (settings?.github_token) {
-      token = settings.github_token;
+    const settings = await getSystemSettings(true);
+    if (settings?.github_token || settings?.githubToken) {
+      token = settings.github_token || settings.githubToken;
     }
   } catch (_) {}
+
+  if (!token) {
+    try {
+      const { cookies } = await import('next/headers');
+      const cookieStore = await cookies();
+      const cookieGhToken = cookieStore.get('fm_gh_token')?.value;
+      if (cookieGhToken) token = cookieGhToken;
+    } catch (_) {}
+  }
 
   if (token) {
     try {
@@ -611,16 +659,19 @@ export async function getUserProfile() {
           Accept: 'application/vnd.github+json',
           'User-Agent': 'FollowMe-Dashboard'
         },
+        signal: AbortSignal.timeout(3500),
         next: { revalidate: 3600 }
       });
       if (res.ok) {
         const data = await res.json();
-        return {
+        const prof = {
           login: data.login || '',
           name: data.name || data.login || '',
           avatar_url: data.avatar_url || '',
           email: data.email || ''
         };
+        serverUserProfileCache = { data: prof, timestamp: now };
+        return prof;
       }
     } catch (_) {}
   }
@@ -637,24 +688,29 @@ export async function getUserProfile() {
           Accept: 'application/vnd.github+json',
           'User-Agent': 'FollowMe-Dashboard'
         },
+        signal: AbortSignal.timeout(3500),
         next: { revalidate: 3600 }
       });
       if (res.ok) {
         const data = await res.json();
-        return {
+        const prof = {
           login: data.login || username,
           name: data.name || data.login || username,
           avatar_url: data.avatar_url || `https://github.com/${username}.png`,
           email: data.email || ''
         };
+        serverUserProfileCache = { data: prof, timestamp: now };
+        return prof;
       }
     } catch (_) {}
-    return {
+    const fallbackProf = {
       login: username,
       name: username,
       avatar_url: `https://github.com/${username}.png`,
       email: ''
     };
+    serverUserProfileCache = { data: fallbackProf, timestamp: now };
+    return fallbackProf;
   }
 
   return null;
@@ -671,11 +727,14 @@ export async function saveSystemSettings(settings: Record<string, any>) {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const rows = Object.entries(settings).map(([key, value]) => ({
-      key,
-      value,
-      updated_at: new Date().toISOString(),
-    }));
+    const EPHEMERAL = new Set(['_githubTokenDirty', '_resendApiKeyDirty']);
+    const rows = Object.entries(settings)
+      .filter(([key]) => !EPHEMERAL.has(key))
+      .map(([key, value]) => ({
+        key,
+        value,
+        updated_at: new Date().toISOString(),
+      }));
 
     const { error } = await supabase.from('settings').upsert(rows, { onConflict: 'key' });
     if (error) throw error;
@@ -688,6 +747,9 @@ export async function saveSystemSettings(settings: Record<string, any>) {
 }
 
 export async function getSystemSettings(includeSensitive: boolean = false): Promise<Record<string, any> | null> {
+  const SENSITIVE = new Set(['githubtoken', 'resendapikey', 'dashboardpassword', 'webhooksecret']);
+  const normalizeKey = (k: string) => k.toLowerCase().replace(/_/g, '');
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) return null;
@@ -700,9 +762,7 @@ export async function getSystemSettings(includeSensitive: boolean = false): Prom
     if (error || !data) return null;
     const settingsMap: Record<string, any> = {};
     for (const row of data) {
-      // Never expose github_token, resend_api_key, or dashboard_password unless explicitly requested server-side
-      if (!includeSensitive && (row.key === 'github_token' || row.key === 'resend_api_key' || row.key === 'dashboard_password')) {
-        // Expose a boolean flag so UI knows key exists without exposing the raw secret
+      if (!includeSensitive && SENSITIVE.has(normalizeKey(row.key))) {
         settingsMap[`has_${row.key}`] = Boolean(row.value);
         continue;
       }
@@ -729,16 +789,32 @@ export interface GitHubRateLimitData {
   };
 }
 
+let serverRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
+
 export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: GitHubRateLimitData; error?: string }> {
+  const now = Date.now();
+  if (serverRateLimitCache && (now - serverRateLimitCache.timestamp < 45000)) {
+    return { success: true, data: serverRateLimitCache.data };
+  }
+
   let token = process.env.GITHUB_TOKEN;
 
   // If no env token, attempt to check DB settings
   if (!token) {
     try {
-      const settings = await getSystemSettings();
-      if (settings?.github_token) {
-        token = settings.github_token;
+      const settings = await getSystemSettings(true);
+      if (settings?.github_token || settings?.githubToken) {
+        token = settings.github_token || settings.githubToken;
       }
+    } catch (_) {}
+  }
+
+  if (!token) {
+    try {
+      const { cookies } = await import('next/headers');
+      const cookieStore = await cookies();
+      const cookieGhToken = cookieStore.get('fm_gh_token')?.value;
+      if (cookieGhToken) token = cookieGhToken;
     } catch (_) {}
   }
 
@@ -754,10 +830,12 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
   try {
     const res = await fetch('https://api.github.com/rate_limit', {
       headers,
-      cache: 'no-store'
+      signal: AbortSignal.timeout(2000),
+      next: { revalidate: 60 }
     });
 
     if (!res.ok) {
+      if (serverRateLimitCache) return { success: true, data: serverRateLimitCache.data };
       return {
         success: false,
         error: `GitHub rate limit API returned status ${res.status}`
@@ -776,29 +854,38 @@ export async function getGitHubRateLimit(): Promise<{ success: boolean; data?: G
     const searchRemaining = search.remaining ?? searchLimit;
     const searchUsed = typeof search.used === 'number' ? search.used : (searchLimit - searchRemaining);
 
-    return {
-      success: true,
-      data: {
-        core: {
-          limit: coreLimit,
-          used: coreUsed,
-          remaining: coreRemaining,
-          reset: core.reset ?? 0,
-        },
-        search: {
-          limit: searchLimit,
-          used: searchUsed,
-          remaining: searchRemaining,
-          reset: search.reset ?? 0,
-        }
-      }
+    const rateData: GitHubRateLimitData = {
+      core: {
+        limit: coreLimit,
+        used: coreUsed,
+        remaining: coreRemaining,
+        reset: core.reset ?? 0,
+      },
+      search: {
+        limit: searchLimit,
+        used: searchUsed,
+        remaining: searchRemaining,
+        reset: search.reset ?? 0,
+      },
     };
+
+    serverRateLimitCache = { data: rateData, timestamp: now };
+    return { success: true, data: rateData };
   } catch (err: any) {
-    console.error('Error fetching GitHub rate limit:', err);
-    return {
-      success: false,
-      error: err.message || 'Failed to fetch GitHub rate limit.'
-    };
+    if (serverRateLimitCache) {
+      return { success: true, data: serverRateLimitCache.data };
+    }
+    return { success: false, error: err.message || 'Failed to fetch GitHub rate limit' };
+  }
+}
+
+export async function fetchDashboardRepos(limit: number = 300) {
+  try {
+    const { supabase, fetchAllRows } = await import('@/lib/supabase');
+    return await fetchAllRows(supabase, 'profiles', '*', undefined, limit);
+  } catch (err: any) {
+    console.error('Error in fetchDashboardRepos:', err);
+    return [];
   }
 }
 

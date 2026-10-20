@@ -10,43 +10,54 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+import { cookies } from 'next/headers';
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const cookieTheme = cookieStore.get('fm-theme')?.value || cookieStore.get('theme')?.value;
+  const isServerDark = cookieTheme === 'dark';
+
   return (
     <html
       lang="en"
       translate="no"
-      className="notranslate h-full antialiased"
+      className={`notranslate h-full antialiased ${isServerDark ? 'dark' : ''}`}
       suppressHydrationWarning
       style={{
         WebkitFontSmoothing: 'antialiased',
         MozOsxFontSmoothing: 'grayscale',
+        colorScheme: isServerDark ? 'dark' : 'light',
       }}
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+(function(){
+  try {
+    var m = document.cookie.match(/(?:^|; )fm-theme=([^;]*)/) || document.cookie.match(/(?:^|; )theme=([^;]*)/);
+    var cookieTheme = m ? decodeURIComponent(m[1]) : null;
+    var t = cookieTheme || localStorage.getItem('fm-theme') || localStorage.getItem('theme');
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var isDark = t === 'dark' || (!t && prefersDark);
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
+    }
+  } catch(e) {}
+})();
+`}} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <meta name="google" content="notranslate" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var stored = localStorage.getItem('theme');
-                  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  if (stored === 'dark' || (!stored && prefersDark)) {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
-                } catch (_) {}
-              })();
-            `,
-          }}
-        />
       </head>
-      <body className="notranslate min-h-full bg-[#f9f9f9] text-[#1a1c1c] dark:bg-[#0d0d0d] dark:text-[#f0f0f0] flex flex-col font-sans">
+      <body className="notranslate min-h-full flex flex-col font-sans">
         {children}
         <Analytics />
       </body>

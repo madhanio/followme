@@ -114,50 +114,46 @@ export async function POST() {
       });
     }
 
-    // Fetch all profiles from Supabase (paginated)
-    const allDbRepos = await fetchAllRows<{ id: number; owner: string; followed: boolean; unfollowed: boolean; follow_back: boolean }>(
+    // Fetch all profiles from Supabase profiles table (paginated)
+    const allDbProfiles = await fetchAllRows<{ owner: string; followed: boolean; unfollowed: boolean; follow_back: boolean }>(
       supabase,
-      'repos',
-      'id, owner, followed, unfollowed, follow_back'
+      'profiles',
+      'owner, followed, unfollowed, follow_back'
     );
 
-    const dbOwnerMap = new Map<string, Array<{ id: number; followed: boolean; unfollowed: boolean; follow_back: boolean }>>();
-    (allDbRepos || []).forEach(r => {
-      const o = r.owner.toLowerCase();
-      if (!dbOwnerMap.has(o)) dbOwnerMap.set(o, []);
-      dbOwnerMap.get(o)!.push(r);
-    });
+    const dbOwnerSet = new Set<string>();
+    (allDbProfiles || []).forEach(p => dbOwnerSet.add(p.owner.toLowerCase()));
 
-    const toMarkUnfollowed = allDbRepos?.filter(
+    const toMarkUnfollowed = allDbProfiles?.filter(
       (row) => row.followed === true && !actualFollowing.has(row.owner.toLowerCase())
     ) ?? [];
 
-    const toRestoreFollowed = allDbRepos?.filter(
+    const toRestoreFollowed = allDbProfiles?.filter(
       (row) => actualFollowing.has(row.owner.toLowerCase()) && (row.followed !== true || row.unfollowed === true)
     ) ?? [];
 
     // Mutuals calculation
-    const toMarkFollowBack = allDbRepos?.filter(
+    const toMarkFollowBack = allDbProfiles?.filter(
       (row) => actualFollowersMap.has(row.owner.toLowerCase()) && row.follow_back !== true
     ) ?? [];
 
-    const toUnmarkFollowBack = allDbRepos?.filter(
+    const toUnmarkFollowBack = allDbProfiles?.filter(
       (row) => !actualFollowersMap.has(row.owner.toLowerCase()) && row.follow_back === true
     ) ?? [];
 
-    // Identify organic / inbound followers who are not in repos table at all
+    // Identify organic / inbound followers who are not in profiles table at all
     const missingInboundRows: any[] = [];
     for (const [lowerLogin, follower] of actualFollowersMap.entries()) {
-      if (!dbOwnerMap.has(lowerLogin)) {
+      if (!dbOwnerSet.has(lowerLogin)) {
         const isFollowedByUs = actualFollowing.has(lowerLogin);
         missingInboundRows.push({
-          id: 1000000000000 + follower.id,
-          github_url: follower.html_url,
           owner: follower.login,
-          name: `${follower.login}`,
-          stars: 0,
-          language: 'Profile',
-          topics: [],
+          display_name: follower.login,
+          avatar_url: `https://github.com/${follower.login}.png`,
+          bio: null,
+          followers_count: null,
+          following_count: null,
+          public_repos_count: null,
           grade: 5,
           graded_at: new Date().toISOString(),
           followed: isFollowedByUs,
@@ -166,51 +162,56 @@ export async function POST() {
           follow_back: true,
           unfollowed: false,
           follow_skipped: false,
+          follow_skip_reason: null,
+          whitelisted: false,
+          found_by: 'Organic Inbound Follower',
+          top_repos: [],
+          languages: [],
         });
       }
     }
 
     if (toMarkUnfollowed.length > 0) {
-      const ids = toMarkUnfollowed.map((r) => r.id);
-      for (let i = 0; i < ids.length; i += 200) {
-        const chunk = ids.slice(i, i + 200);
+      const owners = toMarkUnfollowed.map((r) => r.owner);
+      for (let i = 0; i < owners.length; i += 200) {
+        const chunk = owners.slice(i, i + 200);
         await supabase
-          .from('repos')
+          .from('profiles')
           .update({ unfollowed: true, followed: false })
-          .in('id', chunk);
+          .in('owner', chunk);
       }
     }
 
     if (toRestoreFollowed.length > 0) {
-      const ids = toRestoreFollowed.map((r) => r.id);
-      for (let i = 0; i < ids.length; i += 200) {
-        const chunk = ids.slice(i, i + 200);
+      const owners = toRestoreFollowed.map((r) => r.owner);
+      for (let i = 0; i < owners.length; i += 200) {
+        const chunk = owners.slice(i, i + 200);
         await supabase
-          .from('repos')
+          .from('profiles')
           .update({ followed: true, unfollowed: false })
-          .in('id', chunk);
+          .in('owner', chunk);
       }
     }
 
     if (toMarkFollowBack.length > 0) {
-      const ids = toMarkFollowBack.map((r) => r.id);
-      for (let i = 0; i < ids.length; i += 200) {
-        const chunk = ids.slice(i, i + 200);
+      const owners = toMarkFollowBack.map((r) => r.owner);
+      for (let i = 0; i < owners.length; i += 200) {
+        const chunk = owners.slice(i, i + 200);
         await supabase
-          .from('repos')
+          .from('profiles')
           .update({ follow_back: true })
-          .in('id', chunk);
+          .in('owner', chunk);
       }
     }
 
     if (toUnmarkFollowBack.length > 0) {
-      const ids = toUnmarkFollowBack.map((r) => r.id);
-      for (let i = 0; i < ids.length; i += 200) {
-        const chunk = ids.slice(i, i + 200);
+      const owners = toUnmarkFollowBack.map((r) => r.owner);
+      for (let i = 0; i < owners.length; i += 200) {
+        const chunk = owners.slice(i, i + 200);
         await supabase
-          .from('repos')
+          .from('profiles')
           .update({ follow_back: false })
-          .in('id', chunk);
+          .in('owner', chunk);
       }
     }
 
@@ -218,8 +219,8 @@ export async function POST() {
       for (let i = 0; i < missingInboundRows.length; i += 200) {
         const chunk = missingInboundRows.slice(i, i + 200);
         await supabase
-          .from('repos')
-          .upsert(chunk, { onConflict: 'id' });
+          .from('profiles')
+          .upsert(chunk, { onConflict: 'owner' });
       }
     }
 

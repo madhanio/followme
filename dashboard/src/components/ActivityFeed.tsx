@@ -1,0 +1,304 @@
+'use client';
+
+import { useState } from 'react';
+import type { Repo } from '@/lib/types';
+
+/* Build a flat event list from repos, sorted newest first, capped at 10 visible */
+
+type EventKind = 'followed' | 'unfollowed' | 'follow_back';
+
+interface ActivityEvent {
+  kind: EventKind;
+  login: string;
+  avatar_url?: string | null;
+  timestamp: string; /* ISO string */
+  grade?: number | null;
+}
+
+function buildEvents(repos: Repo[]): ActivityEvent[] {
+  const events: ActivityEvent[] = [];
+
+  for (const r of repos) {
+    const owner = r.owner ?? '';
+    if (!owner) continue;
+    const avatar = `https://github.com/${owner}.png?size=72`;
+
+    /* followed event */
+    if (r.followed && !r.unfollowed && (r.followed_at || r.created_at)) {
+      events.push({
+        kind: 'followed',
+        login: owner,
+        avatar_url: avatar,
+        timestamp: r.followed_at || r.created_at || '',
+        grade: r.grade ?? null,
+      });
+    }
+    /* follow_back event */
+    if (r.follow_back && !r.unfollowed && (r.followed_at || r.created_at)) {
+      events.push({
+        kind: 'follow_back',
+        login: owner,
+        avatar_url: avatar,
+        timestamp: r.followed_at || r.created_at || '',
+        grade: r.grade ?? null,
+      });
+    }
+  }
+
+  /* Sort newest first */
+  events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  /* Deduplicate: one event per (login, kind) — keep most recent */
+  const seen = new Set<string>();
+  return events.filter((e) => {
+    const key = `${e.login}:${e.kind}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function relTime(iso: string): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+const KIND_META: Record<EventKind, { label: string; color: string; bg: string; icon: string }> = {
+  followed: { label: 'Followed', color: 'var(--accent)', bg: 'var(--accent-tint)', icon: '＋' },
+  unfollowed: { label: 'Unfollowed', color: 'var(--warn)', bg: 'var(--warn-tint)', icon: '−' },
+  follow_back: { label: 'Followed back', color: 'var(--accent)', bg: 'var(--accent-tint)', icon: '↩' },
+};
+
+function EventRow({ event }: { event: ActivityEvent }) {
+  const meta = KIND_META[event.kind];
+  const displayScore = event.grade !== null && event.grade !== undefined
+    ? Math.min(100, Math.round(event.grade * 10))
+    : null;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        padding: '11px 18px',
+        borderBottom: '1px solid var(--line)',
+        color: 'var(--muted)',
+        fontSize: 13.5,
+        transition: 'background 0.15s ease',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+        {/* Kind pill */}
+        <span
+          style={{
+            fontSize: 11.5,
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: 99,
+            background: meta.bg,
+            color: meta.color,
+            flexShrink: 0,
+            textAlign: 'center',
+          }}
+        >
+          {meta.label}
+        </span>
+
+        {/* Avatar */}
+        {event.avatar_url ? (
+          <img
+            src={event.avatar_url}
+            alt={event.login}
+            width={24}
+            height={24}
+            style={{ borderRadius: '50%', flexShrink: 0, border: '1px solid var(--line)' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              flexShrink: 0,
+              background: 'var(--hover)',
+              border: '1px solid var(--line)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 10,
+              color: 'var(--muted)',
+              fontWeight: 600,
+            }}
+          >
+            {event.login[0]?.toUpperCase()}
+          </div>
+        )}
+
+        {/* Login */}
+        <a
+          href={`https://github.com/${event.login}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            fontSize: 13.5,
+            fontWeight: 600,
+            color: 'var(--ink)',
+            textDecoration: 'none',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {event.login}
+        </a>
+
+        {/* Score */}
+        {displayScore !== null && (
+          <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>
+            (score {displayScore})
+          </span>
+        )}
+      </div>
+
+      {/* Relative Time */}
+      <time style={{ color: 'var(--faint)', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>
+        {relTime(event.timestamp)}
+      </time>
+    </div>
+  );
+}
+
+const COLLAPSED_LIMIT = 10;
+
+export interface ActivityFeedProps {
+  repos: Repo[];
+  isLoading?: boolean;
+}
+
+export default function ActivityFeed({ repos, isLoading }: ActivityFeedProps) {
+  const [expanded, setExpanded] = useState(false);
+  const allEvents = buildEvents(repos);
+  const visible = expanded ? allEvents : allEvents.slice(0, COLLAPSED_LIMIT);
+
+  return (
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--r)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          borderBottom: allEvents.length > 0 ? '1px solid var(--line)' : 'none',
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+          Recent Activity
+        </span>
+        {!isLoading && (
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            {allEvents.length} events
+          </span>
+        )}
+      </div>
+
+      {/* Rows */}
+      {isLoading ? (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 16px',
+                borderBottom: '1px solid var(--line)',
+              }}
+            >
+              <div
+                style={{
+                  width: 80,
+                  height: 20,
+                  borderRadius: 99,
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                }}
+              />
+              <div
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                }}
+              />
+              <div
+                style={{
+                  width: 120,
+                  height: 14,
+                  borderRadius: 4,
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                  flex: 1,
+                }}
+              />
+              <div
+                style={{
+                  width: 50,
+                  height: 12,
+                  borderRadius: 4,
+                  background: 'var(--hover)',
+                  animation: 'fm-pulse 1.6s ease-in-out infinite',
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
+        <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+          No activity yet.
+        </div>
+      ) : (
+        visible.map((e, i) => <EventRow key={`${e.login}:${e.kind}:${i}`} event={e} />)
+      )}
+
+      {/* Expand / collapse toggle */}
+      {allEvents.length > COLLAPSED_LIMIT && (
+        <div style={{ padding: '10px 16px', borderTop: '1px solid var(--line)' }}>
+          <button
+            onClick={() => setExpanded((x) => !x)}
+            style={{
+              width: '100%',
+              padding: '7px 0',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r)',
+              background: 'var(--hover)',
+              color: 'var(--muted)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            {expanded ? 'Show less' : `Show all ${allEvents.length} events`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

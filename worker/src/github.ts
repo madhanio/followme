@@ -136,9 +136,107 @@ export async function fetchGitHub(
   throw new Error(`GitHub API request failed after ${maxRetries} attempts: ${url}`);
 }
 
+export interface CandidateTelemetry {
+  owner: string;
+  display_name: string | null;
+  avatar_url: string;
+  bio: string | null;
+  followers_count: number;
+  following_count: number;
+  public_repos_count: number;
+  account_created_at: string | null;
+  account_age_years: number;
+  last_pushed_at: string | null;
+  top_repos: Array<{
+    name: string;
+    stars: number;
+    language: string | null;
+    description: string | null;
+    pushed_at: string | null;
+  }>;
+  languages: Array<{ name: string; pct: number }>;
+}
+
 export interface OwnerProfileResult {
   shouldFollow: boolean;
   skipReason: string | null;
+  profile?: {
+    bio: string | null;
+    followers: number;
+    following: number;
+    created_at: string;
+  };
+}
+
+/**
+ * Fetches rich telemetry (public repos, top 3 projects, languages) for a candidate profile.
+ */
+export async function fetchCandidateDetails(username: string): Promise<CandidateTelemetry | null> {
+  try {
+    const userRes = await fetchGitHub(`https://api.github.com/users/${username}`);
+    if (!userRes.ok) return null;
+    const user = await userRes.json();
+
+    const reposRes = await fetchGitHub(`https://api.github.com/users/${username}/repos?per_page=100&sort=updated`);
+    let userRepos: any[] = [];
+    if (reposRes.ok) {
+      userRepos = await reposRes.json();
+    }
+
+    const sortedRepos = [...userRepos].sort((a, b) => {
+      const starDiff = (b.stargazers_count || 0) - (a.stargazers_count || 0);
+      if (starDiff !== 0) return starDiff;
+      return new Date(b.pushed_at || 0).getTime() - new Date(a.pushed_at || 0).getTime();
+    });
+
+    const langCounts: Record<string, number> = {};
+    let totalLangs = 0;
+    userRepos.forEach(r => {
+      if (r.language && r.language !== 'Profile') {
+        langCounts[r.language] = (langCounts[r.language] || 0) + 1;
+        totalLangs++;
+      }
+    });
+
+    const languages = Object.entries(langCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([lang, count]) => ({
+        name: lang,
+        pct: Math.round((count / Math.max(1, totalLangs)) * 100),
+      }));
+
+    const top_repos = sortedRepos.slice(0, 3).map(r => ({
+      name: r.name,
+      stars: r.stargazers_count || 0,
+      language: r.language || null,
+      description: r.description || null,
+      pushed_at: r.pushed_at || null,
+    }));
+
+    const accountCreatedAt = user.created_at || null;
+    const accountAgeYears = accountCreatedAt 
+      ? Math.max(1, Math.round((Date.now() - new Date(accountCreatedAt).getTime()) / (365.25 * 24 * 60 * 60 * 1000)))
+      : 1;
+
+    return {
+      owner: user.login || username,
+      display_name: user.name || null,
+      avatar_url: user.avatar_url || `https://github.com/${username}.png`,
+      bio: user.bio || null,
+      followers_count: user.followers || 0,
+      following_count: user.following || 0,
+      public_repos_count: user.public_repos || userRepos.length,
+      account_created_at: accountCreatedAt,
+      account_age_years: accountAgeYears,
+      last_pushed_at: userRepos[0]?.pushed_at || null,
+      top_repos,
+      languages,
+    };
+  } catch (err: any) {
+    console.error(`Error fetching candidate details for ${username}:`, err.message || err);
+    return null;
+  }
 }
 
 /**
@@ -171,41 +269,48 @@ export async function checkOwnerProfile(
     const followers: number = (profile.followers != null && profile.followers > 0) ? profile.followers : 0;
     const following: number = (profile.following != null && profile.following > 0) ? profile.following : 0;
 
+    const profileData = {
+      bio: profile.bio || null,
+      followers,
+      following,
+      created_at: profile.created_at || new Date(0).toISOString(),
+    };
+
     if (followers === 0 || following === 0) {
-      return { shouldFollow: false, skipReason: 'hidden-or-zero-stats' };
+      return { shouldFollow: false, skipReason: 'hidden-or-zero-stats', profile: profileData };
     }
     const createdAt = new Date(profile.created_at || 0);
     const accountAgeDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
 
     // Layer 1: High-profile skip (big name, almost never follows back)
     if (followers > MAX_OWNER_FOLLOWERS && following < MIN_OWNER_FOLLOWING) {
-      return { shouldFollow: false, skipReason: 'high-profile' };
+      return { shouldFollow: false, skipReason: 'high-profile', profile: profileData };
     }
 
     // Layer 2: Peer targeting — active, similar-sized, reciprocal-leaning accounts
     const ratio = following > 0 ? followers / following : 999;
 
     if (followers < 3) {
-      return { shouldFollow: false, skipReason: 'too-new (< 3 followers)' };
+      return { shouldFollow: false, skipReason: 'too-new (< 3 followers)', profile: profileData };
     }
     if (followers > MAX_OWNER_FOLLOWERS) {
-      return { shouldFollow: false, skipReason: 'too-popular (> ' + MAX_OWNER_FOLLOWERS + ' followers)' };
+      return { shouldFollow: false, skipReason: 'too-popular (> ' + MAX_OWNER_FOLLOWERS + ' followers)', profile: profileData };
     }
     if (following < MIN_OWNER_FOLLOWING) {
-      return { shouldFollow: false, skipReason: 'low-following (< ' + MIN_OWNER_FOLLOWING + ' following)' };
+      return { shouldFollow: false, skipReason: 'low-following (< ' + MIN_OWNER_FOLLOWING + ' following)', profile: profileData };
     }
     if (ratio < 0.1 || ratio > 5.0) {
-      return { shouldFollow: false, skipReason: `ratio-mismatch (ratio: ${ratio.toFixed(2)})` };
+      return { shouldFollow: false, skipReason: `ratio-mismatch (ratio: ${ratio.toFixed(2)})`, profile: profileData };
     }
     if (accountAgeDays < 30) {
-      return { shouldFollow: false, skipReason: 'account-too-new (< 30 days)' };
+      return { shouldFollow: false, skipReason: 'account-too-new (< 30 days)', profile: profileData };
     }
     if (MAX_OWNER_AGE_DAYS > 0 && accountAgeDays > MAX_OWNER_AGE_DAYS) {
-      return { shouldFollow: false, skipReason: `account-too-old (> ${MAX_OWNER_AGE_DAYS} days)` };
+      return { shouldFollow: false, skipReason: `account-too-old (> ${MAX_OWNER_AGE_DAYS} days)`, profile: profileData };
     }
 
     // Passed all filters — good follow candidate
-    return { shouldFollow: true, skipReason: null };
+    return { shouldFollow: true, skipReason: null, profile: profileData };
   } catch (err: any) {
     console.error(`Error checking owner profile for ${username}:`, err.message || err);
     return { shouldFollow: false, skipReason: 'error' };

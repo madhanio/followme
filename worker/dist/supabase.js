@@ -5,10 +5,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_RUNTIME_CONFIG = exports.supabase = void 0;
 exports.fetchAllRows = fetchAllRows;
-exports.isRepoGraded = isRepoGraded;
-exports.saveRepo = saveRepo;
+exports.isProfileGraded = isProfileGraded;
+exports.saveProfile = saveProfile;
 exports.logAction = logAction;
 exports.fetchSystemSettings = fetchSystemSettings;
+exports.getFollowsTodayCount = getFollowsTodayCount;
 const supabase_js_1 = require("@supabase/supabase-js");
 const ws_1 = __importDefault(require("ws"));
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -52,51 +53,70 @@ async function fetchAllRows(table, selectQuery = '*', filterFn, pageSize = 1000)
     }
     return allRows;
 }
-async function isRepoGraded(repoId) {
+async function isProfileGraded(owner) {
     try {
         const { data, error } = await exports.supabase
-            .from('repos')
-            .select('id')
-            .eq('id', repoId)
+            .from('profiles')
+            .select('id, updated_at, grade')
+            .ilike('owner', owner.replace(/[_%]/g, '\\$&'))
             .maybeSingle();
         if (error) {
-            console.error(`Error checking if repo ${repoId} is graded:`, error.message);
+            console.error(`Error checking if profile ${owner} is graded:`, error.message);
             return false;
         }
-        return data !== null;
+        if (!data)
+            return false;
+        // 7-day cooldown threshold: if updated in last 7 days, consider already evaluated
+        if (data.updated_at) {
+            const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+            if (new Date(data.updated_at).getTime() >= sevenDaysAgo) {
+                return true;
+            }
+        }
+        return false;
     }
     catch (err) {
-        console.error(`Failed to check if repo ${repoId} is graded:`, err.message || err);
+        console.error(`Failed to check if profile ${owner} is graded:`, err.message || err);
         return false;
     }
 }
-async function saveRepo(repo, followed, starred, followSkipped = false, followSkipReason = null) {
+async function saveProfile(candidate, followed, followSkipped = false, followSkipReason = null) {
     try {
-        const actualStarred = followSkipped ? false : starred;
         const upsertData = {
-            id: repo.id,
-            github_url: repo.github_url,
-            owner: repo.owner,
-            name: repo.name,
-            stars: repo.stars,
-            language: repo.language,
-            topics: repo.topics,
-            readme_snippet: repo.readme_snippet,
-            grade: repo.grade,
+            owner: candidate.owner,
+            display_name: candidate.display_name ?? null,
+            avatar_url: candidate.avatar_url ?? `https://github.com/${candidate.owner}.png`,
+            bio: candidate.bio ?? null,
+            followers_count: candidate.followers_count ?? 0,
+            following_count: candidate.following_count ?? 0,
+            public_repos_count: candidate.public_repos_count ?? 0,
+            account_created_at: candidate.account_created_at ?? null,
+            account_age_years: candidate.account_age_years ?? null,
+            last_pushed_at: candidate.last_pushed_at ?? null,
+            top_repos: candidate.top_repos ?? [],
+            languages: candidate.languages ?? [],
+            found_by: candidate.found_by ?? 'GitHub topic & open-source discovery',
+            grade: candidate.grade ?? 0,
             graded_at: new Date().toISOString(),
             followed,
-            starred: actualStarred,
             follow_skipped: followSkipped,
             follow_skip_reason: followSkipReason,
+            reason: candidate.reason ?? (followSkipped ? followSkipReason : null),
+            ai_evaluation: candidate.ai_evaluation ?? null,
+            updated_at: new Date().toISOString(),
         };
         if (followed) {
             upsertData.followed_at = new Date().toISOString();
+            upsertData.unfollowed = false;
         }
-        // Check if repo already exists to preserve follow_back and unfollowed state
+        if (candidate.whitelisted !== undefined) {
+            upsertData.whitelisted = candidate.whitelisted;
+        }
+        // Preserve existing follow_back, unfollowed, whitelisted state
         const { data: existing } = await exports.supabase
-            .from('repos')
-            .select('follow_back, unfollowed, followed_at')
-            .eq('id', repo.id)
+            .from('profiles')
+            .select('follow_back, unfollowed, followed_at, whitelisted')
+            .ilike('owner', candidate.owner.replace(/[_%]/g, '\\$&'))
             .maybeSingle();
         if (existing) {
             if (existing.follow_back !== undefined) {
@@ -108,23 +128,26 @@ async function saveRepo(repo, followed, starred, followSkipped = false, followSk
             if (existing.followed_at && !upsertData.followed_at) {
                 upsertData.followed_at = existing.followed_at;
             }
+            if (existing.whitelisted !== undefined && candidate.whitelisted === undefined) {
+                upsertData.whitelisted = existing.whitelisted;
+            }
         }
-        const { error } = await exports.supabase.from('repos').upsert(upsertData, { onConflict: 'id' });
+        const { error } = await exports.supabase.from('profiles').upsert(upsertData, { onConflict: 'owner' });
         if (error) {
-            console.error(`Error saving repo ${repo.owner}/${repo.name}:`, error.message);
+            console.error(`Error saving profile @${candidate.owner}:`, error.message);
             throw error;
         }
     }
     catch (err) {
-        console.error(`Failed to save repo ${repo.owner}/${repo.name}:`, err.message || err);
+        console.error(`Failed to save profile @${candidate.owner}:`, err.message || err);
         throw err;
     }
 }
-async function logAction(action, repoId, status, message) {
+async function logAction(action, owner, status, message) {
     try {
         const { error } = await exports.supabase.from('logs').insert({
             action,
-            repo_id: repoId,
+            owner,
             status,
             message: message || null,
             timestamp: new Date().toISOString(),
@@ -188,5 +211,21 @@ async function fetchSystemSettings() {
     catch (err) {
         console.warn('Failed to fetch settings from Supabase:', err.message || err);
         return exports.DEFAULT_RUNTIME_CONFIG;
+    }
+}
+async function getFollowsTodayCount() {
+    try {
+        const todayDate = new Date().toISOString().split('T')[0];
+        const { data, error } = await exports.supabase
+            .from('run_summary')
+            .select('profiles_followed')
+            .gte('ran_at', `${todayDate}T00:00:00.000Z`);
+        if (error || !data)
+            return 0;
+        return data.reduce((acc, row) => acc + (row.profiles_followed || 0), 0);
+    }
+    catch (err) {
+        console.error('Error fetching follows today count:', err);
+        return 0;
     }
 }
