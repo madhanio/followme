@@ -39,9 +39,9 @@ export const metadata: Metadata = {
       'Autonomous scout and LLM evaluation engine built for serious open source builders. Grades repositories with NVIDIA NIM (Llama 3.3 70B) on a 1–100 scale.',
     images: [
       {
-        url: '/og-image.png',
-        width: 1920,
-        height: 1080,
+        url: '/og.png',
+        width: 1200,
+        height: 630,
         alt: 'FollowMe AI Developer Platform Preview',
       },
     ],
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     title: 'FollowMe — Autonomous GitHub Discovery & AI Developer Networking',
     description:
       'Autonomous scout and LLM evaluation engine built for serious open source builders. Powered by NVIDIA NIM.',
-    images: ['/og-image.png'],
+    images: ['/og.png'],
     creator: '@madhan',
   },
   robots: {
