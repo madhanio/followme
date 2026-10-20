@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, ShieldAlert, LogIn, KeyRound } from 'lucide-react';
+import { ShieldAlert, LogIn, KeyRound } from 'lucide-react';
 
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -56,7 +56,6 @@ function LoginContent() {
       return;
     }
 
-    // Monitor popup close (e.g. user cancelled or closed dialog)
     const checkTimer = setInterval(() => {
       if (popup.closed) {
         clearInterval(checkTimer);
@@ -105,144 +104,366 @@ function LoginContent() {
         setError(data.error || 'Invalid credentials');
         setIsLoading(false);
       }
-    } catch (err: any) {
+    } catch {
       setError('Connection failed. Please try again.');
       setIsLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#f8f9fa] dark:bg-[#0a0a0c] text-[#1a1c1c] dark:text-[#f0f0f0] flex items-center justify-center p-4 relative overflow-hidden font-sans select-none transition-colors duration-300">
-      {/* Red & Soft Ambient Glows */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-red-500/5 blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-red-500/5 blur-[120px] pointer-events-none" />
+    <main
+      style={{
+        minHeight: '100vh',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px 16px',
+        background: 'var(--bg)',
+        color: 'var(--ink)',
+        position: 'relative',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Background glow decoration */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '30%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 500,
+          height: 500,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, var(--accent-tint) 0%, transparent 70%)',
+          pointerEvents: 'none',
+          opacity: 0.6,
+        }}
+      />
 
-      {/* Masonry Background Decor Cards */}
-      <div className="absolute inset-0 opacity-15 dark:opacity-10 pointer-events-none grid grid-cols-2 md:grid-cols-4 gap-4 p-8 overflow-hidden scale-105 rotate-1">
-        <div className="space-y-4">
-          <div className="h-40 rounded-2xl bg-gradient-to-b from-red-100 dark:from-red-950/30 to-zinc-100 dark:to-zinc-900 border border-red-200 dark:border-red-900/30" />
-          <div className="h-64 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800" />
-          <div className="h-48 rounded-2xl bg-zinc-100/70 dark:bg-zinc-900/50 border border-red-100 dark:border-red-900/20" />
-        </div>
-        <div className="space-y-4 pt-12">
-          <div className="h-56 rounded-2xl bg-zinc-100/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800" />
-          <div className="h-44 rounded-2xl bg-gradient-to-b from-red-100 dark:from-red-950/30 to-zinc-100 dark:to-zinc-900 border border-red-200 dark:border-red-900/30" />
-          <div className="h-52 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800" />
-        </div>
-        <div className="space-y-4 hidden md:block">
-          <div className="h-48 rounded-2xl bg-gradient-to-b from-red-100 dark:from-red-950/30 to-zinc-100 dark:to-zinc-900 border border-red-200 dark:border-red-900/30" />
-          <div className="h-52 rounded-2xl bg-zinc-100/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800" />
-          <div className="h-44 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-red-100 dark:border-red-900/20" />
-        </div>
-        <div className="space-y-4 pt-8 hidden md:block">
-          <div className="h-60 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800" />
-          <div className="h-40 rounded-2xl bg-gradient-to-b from-red-100 dark:from-red-950/30 to-zinc-100 dark:to-zinc-900 border border-red-200 dark:border-red-900/30" />
-          <div className="h-56 rounded-2xl bg-zinc-100/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800" />
-        </div>
-      </div>
-
-      {/* Main Access Control Card */}
-      <div className="w-full max-w-md bg-white dark:bg-[#121215] border border-[#dadada] dark:border-[#2a2a2a] rounded-3xl p-8 shadow-xl shadow-zinc-200/50 dark:shadow-none relative z-10 transition-all">
-        {/* Top Header Badge */}
-        <div className="flex flex-col items-center mb-6 text-center">
-          <div className="h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4 shadow-sm">
-            <Lock className="h-7 w-7 text-red-600" />
+      {/* Main Login Card */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          width: '100%',
+          maxWidth: 420,
+          background: 'var(--surface)',
+          border: '1px solid var(--line-strong)',
+          borderRadius: 14,
+          padding: '36px 32px',
+          boxShadow: 'var(--shadow-hover)',
+          boxSizing: 'border-box',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        {/* Brand Icon & Heading */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 10,
+              background: 'var(--ink)',
+              color: 'var(--bg)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: 20,
+              letterSpacing: '-0.03em',
+              marginBottom: 16,
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            F
           </div>
-          <h1 className="text-2xl font-black text-[#1a1c1c] dark:text-[#f0f0f0] tracking-tight font-jakarta">Access Control</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-mono tracking-wide">
-            FollowMe Gateway • Sign in or Onboard
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+              lineHeight: 1.25,
+              color: 'var(--ink)',
+              margin: 0,
+            }}
+          >
+            Access Control
+          </h1>
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--muted)',
+              marginTop: 6,
+              lineHeight: 1.4,
+            }}
+          >
+            FollowMe Gateway • Sign in to continue
           </p>
         </div>
 
-        {/* 1. GitHub OAuth Login / Onboarding Button */}
-        <div className="space-y-4 mb-6">
+        {/* 1. GitHub OAuth Login Button */}
+        <div style={{ marginBottom: 20 }}>
           <button
             type="button"
             onClick={handleGitHubOAuth}
             disabled={isOAuthLoading || isLoading}
-            className="w-full bg-[#24292e] hover:bg-[#1b1f23] dark:bg-[#1f2328] dark:hover:bg-[#2d333b] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-sm cursor-pointer font-sans text-sm tracking-wide disabled:opacity-60 active:scale-[0.99]"
+            style={{
+              width: '100%',
+              padding: '11px 16px',
+              fontSize: 13.5,
+              fontWeight: 600,
+              borderRadius: 'var(--r)',
+              border: '1px solid var(--line-strong)',
+              background: 'var(--hover)',
+              color: 'var(--ink)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 9,
+              cursor: isOAuthLoading || isLoading ? 'not-allowed' : 'pointer',
+              opacity: isOAuthLoading || isLoading ? 0.6 : 1,
+              transition: 'background 0.15s ease, border-color 0.15s ease',
+            }}
           >
             {isOAuthLoading ? (
-              <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  border: '2px solid var(--ink)',
+                  borderTopColor: 'transparent',
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
             ) : (
               <>
-                <GithubIcon className="h-4 w-4" />
+                <GithubIcon style={{ width: 16, height: 16 }} />
                 <span>Continue with GitHub</span>
               </>
             )}
           </button>
 
           {/* Divider */}
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-[#eeeeee] dark:border-[#2a2a2a]"></div>
-            <span className="flex-shrink mx-3 text-[10px] uppercase font-mono font-bold tracking-widest text-zinc-400 dark:text-zinc-600">OR WITH PASSWORD</span>
-            <div className="flex-grow border-t border-[#eeeeee] dark:border-[#2a2a2a]"></div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              margin: '20px 0 16px',
+            }}
+          >
+            <div style={{ flex: 1, height: 1, background: 'var(--line)' }} />
+            <span
+              style={{
+                fontSize: 10,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                fontWeight: 700,
+                color: 'var(--faint)',
+              }}
+            >
+              Or with master password
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'var(--line)' }} />
           </div>
         </div>
 
         {/* 2. Password Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label className="block text-[11px] uppercase font-mono tracking-widest text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1.5">
-              <KeyRound className="h-3.5 w-3.5 text-red-600" /> Master Password
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--muted)',
+                marginBottom: 7,
+              }}
+            >
+              <KeyRound style={{ width: 13, height: 13, color: 'var(--accent)' }} />
+              Master Password
             </label>
             <input
               type="password"
-              placeholder="Enter password..."
+              placeholder="Enter master password..."
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-zinc-50/50 dark:bg-[#18181c] border border-[#dadada] dark:border-[#2a2a2a] focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl py-3.5 px-4 text-sm text-[#1a1c1c] dark:text-[#f0f0f0] placeholder-zinc-400 outline-none transition-all font-mono"
               disabled={isLoading || isOAuthLoading}
               required
               autoFocus
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                fontSize: 14,
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--r)',
+                background: 'var(--bg)',
+                color: 'var(--ink)',
+                outline: 'none',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.15s ease',
+              }}
             />
           </div>
 
           <button
             type="submit"
             disabled={isLoading || isOAuthLoading || !password.trim()}
-            className="w-full bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/10 cursor-pointer font-sans text-sm tracking-wide"
+            style={{
+              width: '100%',
+              padding: '11px 16px',
+              fontSize: 13.5,
+              fontWeight: 600,
+              borderRadius: 'var(--r)',
+              border: 'none',
+              background: 'var(--accent)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              cursor: isLoading || isOAuthLoading || !password.trim() ? 'not-allowed' : 'pointer',
+              opacity: isLoading || isOAuthLoading || !password.trim() ? 0.6 : 1,
+              transition: 'opacity 0.15s ease',
+              boxShadow: 'var(--shadow-sm)',
+              marginTop: 4,
+            }}
           >
             {isLoading ? (
-              <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  border: '2px solid #ffffff',
+                  borderTopColor: 'transparent',
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
             ) : (
               <>
                 <span>Enter Dashboard</span>
-                <LogIn className="h-4 w-4" />
+                <LogIn style={{ width: 15, height: 15 }} />
               </>
             )}
           </button>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-2.5 text-xs text-red-600 font-mono animate-shake">
-              <ShieldAlert className="h-4 w-4 shrink-0 text-red-600" />
-              <span className="break-all">{error}</span>
+            <div
+              style={{
+                marginTop: 6,
+                padding: '10px 12px',
+                borderRadius: 'var(--r)',
+                border: '1px solid #ef444433',
+                background: '#ef444415',
+                color: '#ef4444',
+                fontSize: 12.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                wordBreak: 'break-word',
+              }}
+            >
+              <ShieldAlert style={{ width: 16, height: 16, flexShrink: 0 }} />
+              <span>{error}</span>
             </div>
           )}
         </form>
 
         {/* Redirecting Overlay after OAuth success */}
         {isRedirecting && (
-          <div className="absolute inset-0 bg-white/95 dark:bg-[#121215]/95 rounded-3xl z-30 flex flex-col items-center justify-center space-y-3.5 p-6 text-center backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-              <span className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-emerald-500 border-t-transparent" />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: 14,
+              background: 'var(--surface)',
+              zIndex: 30,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              padding: 24,
+              textAlign: 'center',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: 'var(--accent-tint)',
+                border: '1px solid var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  border: '2px solid var(--accent)',
+                  borderTopColor: 'transparent',
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
             </div>
             <div>
-              <h3 className="font-bold text-sm font-jakarta text-[#1a1c1c] dark:text-[#f0f0f0]">Authentication Successful!</h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mt-1">Connecting to FollowMe Dashboard...</p>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
+                Authentication Successful!
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                Connecting to FollowMe Dashboard...
+              </p>
             </div>
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </main>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0a0a0c] flex items-center justify-center text-xs font-mono text-zinc-400">Loading Access Control...</div>}>
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 13,
+            color: 'var(--muted)',
+            background: 'var(--bg)',
+          }}
+        >
+          Loading Access Control...
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );
 }
-
