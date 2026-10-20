@@ -221,6 +221,16 @@ If you prefer a seamless **"Continue with GitHub"** button on the login screen:
 
 ---
 
+---
+
+## Safety, Rate Limits & Anti-Abuse
+
+FollowMe is built as a responsible developer networking tool adhering strictly to GitHub API limits and acceptable use policies. Read the complete [Anti-Abuse & Rate Limits Policy](docs/ANTI_ABUSE_POLICY.md) for details on:
+- Automated GitHub Core and Search API rate limit monitoring (<20% quota auto-pause)
+- Conservative daily action caps (15–20 follows/day)
+- Jitter and randomized sleep intervals (12–28s) between actions
+- 7-day grace periods and whitelist protections against auto-unfollowing
+
 ## License
 
 Distributed under the [MIT License](LICENSE).
