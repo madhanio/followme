@@ -148,7 +148,7 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
   const followedProfiles   = profiles.filter(p => p.followed && !p.unfollowed);
   const mutualProfiles     = profiles.filter(p => p.followed && p.follow_back && !p.unfollowed);
   const pendingProfiles    = profiles.filter(p => p.followed && !p.follow_back && !p.unfollowed);
-  const topPickProfiles    = profiles.filter(p => p.grade >= 9);
+  const topPickProfiles    = profiles.filter(p => p.grade >= 90 || (p.grade >= 9 && p.grade <= 10));
 
   /* ── Counts ── */
   const followedTotal = followedProfiles.length;

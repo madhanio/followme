@@ -213,7 +213,7 @@ async function fetchCandidateDetails(username) {
 async function checkOwnerProfile(username, config) {
     const MAX_OWNER_FOLLOWERS = config?.maxOwnerFollowers ?? parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10);
     const MIN_OWNER_FOLLOWING = config?.minOwnerFollowing ?? parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10);
-    const MAX_OWNER_AGE_DAYS = config?.maxOwnerAgeDays ?? parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10);
+    const MAX_OWNER_AGE_DAYS = config?.maxOwnerAgeDays ?? parseInt(process.env.MAX_OWNER_AGE_DAYS || '0', 10);
     try {
         const url = `https://api.github.com/users/${username}`;
         const res = await fetchGitHub(url);

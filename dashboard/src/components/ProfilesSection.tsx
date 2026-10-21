@@ -15,7 +15,7 @@ const SEGMENTS: { key: Segment; label: string }[] = [
 
 function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
   switch (seg) {
-    case 'top':        return items.filter(p => (p.grade ?? 0) >= 9 && p.language !== 'Profile');
+    case 'top':        return items.filter(p => ((p.grade ?? 0) >= 90 || ((p.grade ?? 0) >= 9 && (p.grade ?? 0) <= 10)) && p.language !== 'Profile');
     case 'followed':   return items.filter(p => p.followed && !p.follow_back && !p.unfollowed);
     case 'mutual':     return items.filter(p => p.followed && p.follow_back && !p.unfollowed);
     default:           return items.filter(p => p.followed && !p.unfollowed);
@@ -83,7 +83,7 @@ function ProfileRow({
   const grade        = profile.grade ?? 0;
   const username     = profile.login || profile.owner;
   const fullName     = profile.display_name || (profile as any).name || null;
-  const displayScore = Math.min(100, Math.round(grade * 10));
+  const displayScore = Math.min(100, grade <= 10 && grade > 0 ? Math.round(grade * 10) : Math.round(grade));
   const isTopPick    = displayScore >= 90 && !profile.followStatus.follow_skipped;
 
   /* Status badge text & styling */

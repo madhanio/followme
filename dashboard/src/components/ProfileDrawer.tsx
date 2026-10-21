@@ -536,8 +536,8 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
     : 'GitHub topic & open-source discovery';
   const accountAge = liveData?.account_age_years || (profile as any).account_age_years || 1;
   const currentGradeRaw = evaluationData?.grade ?? profile.grade;
-  const scoreVal = currentGradeRaw
-    ? (currentGradeRaw <= 10 ? Math.round(currentGradeRaw * 10) : Math.round(currentGradeRaw))
+  const scoreVal = currentGradeRaw !== undefined && currentGradeRaw !== null
+    ? (currentGradeRaw <= 10 && currentGradeRaw > 0 ? Math.round(currentGradeRaw * 10) : Math.round(currentGradeRaw))
     : 85;
 
   const currentReason = evaluationData?.reason || profile.reason || 'Strong repos, clear docs, and frequent open source contributions.';

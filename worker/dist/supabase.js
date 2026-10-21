@@ -171,7 +171,7 @@ exports.DEFAULT_RUNTIME_CONFIG = {
     systemPrompt: 'Focus heavily on README quality, code architecture, commit frequency, and active open-source contribution patterns.',
     maxOwnerFollowers: parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10),
     minOwnerFollowing: parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10),
-    maxOwnerAgeDays: parseInt(process.env.MAX_OWNER_AGE_DAYS || '730', 10),
+    maxOwnerAgeDays: parseInt(process.env.MAX_OWNER_AGE_DAYS || '0', 10),
     recipientEmail: process.env.NOTIFICATION_EMAIL || process.env.RECIPIENT_EMAIL,
     resendApiKey: process.env.RESEND_API_KEY,
     githubToken: process.env.GITHUB_TOKEN,
