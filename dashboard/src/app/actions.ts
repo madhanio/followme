@@ -512,6 +512,31 @@ export async function triggerAiRescore(owner: string) {
 }
 
 export async function triggerClearStale() {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (supabaseUrl && supabaseServiceKey) {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .delete()
+        .eq('followed', false)
+        .eq('unfollowed', false)
+        .eq('follow_back', false)
+        .eq('follow_skipped', true)
+        .select('owner');
+
+      if (!error) {
+        const count = data ? data.length : 0;
+        revalidatePath('/');
+        return { success: true, message: `Successfully cleared ${count} stale profiles.` };
+      }
+    }
+  } catch (directErr) {
+    console.warn('Direct database clear stale fallback failed, delegating to worker:', directErr);
+  }
+
   const workerUrl = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8000';
   const secret = getWorkerSecret();
 

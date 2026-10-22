@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FatalAiQuotaError = void 0;
 exports.isAiQuotaOrAuthError = isAiQuotaOrAuthError;
+exports.calculateDemoEquivalentScore = calculateDemoEquivalentScore;
 exports.gradeCandidateProfile = gradeCandidateProfile;
 exports.gradeRepository = gradeRepository;
 const openai_1 = __importDefault(require("openai"));
@@ -166,62 +167,222 @@ async function getBestModel(client, preferred, isGroq) {
     }
     return preferred[0];
 }
-async function gradeCandidateProfile(candidate, customSystemPrompt) {
-    if (!nvidiaClient && !groqClient) {
-        const loudMsg = 'Neither NVIDIA_API_KEY nor GROQ_API_KEY is configured in worker environment.';
-        console.error(`🚨 [FATAL] ${loudMsg}`);
-        throw new FatalAiQuotaError(loudMsg, 401);
+/**
+ * Exact deterministic evaluation logic from Demo Dashboard (Check your GitHub score feature).
+ * Evaluates candidate across:
+ * - Activity (30% weight): push recency, public repository volume
+ * - Code Quality (35% weight): stars, descriptions, top project craftsmanship
+ * - Relevance (20% weight): bio clarity & verified languages
+ * - Reach (15% weight): organic follower count & follower-to-following ratio
+ */
+function calculateDemoEquivalentScore(candidate) {
+    const repos = candidate.top_repos || [];
+    const totalStars = repos.reduce((acc, r) => acc + (r.stars || 0), 0);
+    const realBio = (candidate.bio || '').trim();
+    // Days since last push
+    const now = Date.now();
+    let latestPushTs = candidate.last_pushed_at ? new Date(candidate.last_pushed_at).getTime() : 0;
+    repos.forEach(r => {
+        if (r.pushed_at) {
+            const t = new Date(r.pushed_at).getTime();
+            if (t > latestPushTs)
+                latestPushTs = t;
+        }
+    });
+    let daysSinceLastPush = 999;
+    if (latestPushTs > 0) {
+        daysSinceLastPush = Math.max(0, Math.floor((now - latestPushTs) / (1000 * 60 * 60 * 24)));
     }
+    // 1. Activity (30% weight)
+    let activity = 20;
+    if (daysSinceLastPush <= 2)
+        activity += 32;
+    else if (daysSinceLastPush <= 7)
+        activity += 24;
+    else if (daysSinceLastPush <= 21)
+        activity += 16;
+    else if (daysSinceLastPush <= 45)
+        activity += 8;
+    const repoCount = candidate.public_repos_count || repos.length;
+    if (repoCount >= 30)
+        activity += 40;
+    else if (repoCount >= 15)
+        activity += 30;
+    else if (repoCount >= 5)
+        activity += 20;
+    else if (repoCount >= 2)
+        activity += 10;
+    activity = Math.min(96, Math.max(15, activity));
+    // 2. Code Quality (35% weight)
+    let codeQuality = 25;
+    if (totalStars >= 300)
+        codeQuality += 42;
+    else if (totalStars >= 100)
+        codeQuality += 34;
+    else if (totalStars >= 40)
+        codeQuality += 25;
+    else if (totalStars >= 15)
+        codeQuality += 16;
+    else if (totalStars >= 3)
+        codeQuality += 8;
+    const descCount = repos.filter(r => r.description && r.description.trim().length > 15).length;
+    const descRatio = repos.length ? descCount / repos.length : 0;
+    if (descRatio >= 0.7)
+        codeQuality += 14;
+    else if (descRatio >= 0.4)
+        codeQuality += 7;
+    if (repos.length >= 3)
+        codeQuality += 12;
+    else if (repos.length <= 1 && totalStars < 5)
+        codeQuality -= 8;
+    codeQuality = Math.min(96, Math.max(15, codeQuality));
+    // 3. Relevance (20% weight)
+    const langList = (candidate.languages || []).map(l => l.name);
+    const dynamicLanguages = langList.length > 0 ? langList : ['Code'];
+    let relevance = 30;
+    if (realBio.length >= 50)
+        relevance += 25;
+    else if (realBio.length >= 15)
+        relevance += 15;
+    if (dynamicLanguages.length >= 2 && dynamicLanguages.length <= 5)
+        relevance += 20;
+    else if (dynamicLanguages.length === 1 && dynamicLanguages[0] !== 'Code')
+        relevance += 10;
+    if (repoCount >= 5)
+        relevance += 15;
+    else if (repoCount <= 1)
+        relevance -= 8;
+    relevance = Math.min(92, Math.max(20, relevance));
+    // 4. Reach (15% weight)
+    const followers = candidate.followers_count || 0;
+    const following = candidate.following_count || 0;
+    let reach = 20;
+    if (followers >= 1000)
+        reach += 58;
+    else if (followers >= 400)
+        reach += 46;
+    else if (followers >= 150)
+        reach += 35;
+    else if (followers >= 40)
+        reach += 24;
+    else if (followers >= 10)
+        reach += 14;
+    else if (followers >= 2)
+        reach += 6;
+    if (following > 0) {
+        const fRatio = followers / following;
+        if (fRatio >= 2.0 && followers >= 40)
+            reach += 14;
+        else if (fRatio >= 1.0)
+            reach += 8;
+        else if (fRatio < 0.3 && following > 80)
+            reach -= 14;
+    }
+    reach = Math.min(94, Math.max(15, reach));
+    const grade = Math.round((activity * 0.3) + (codeQuality * 0.35) + (relevance * 0.2) + (reach * 0.15));
+    // Generate short, instant scannable reason (matching Demo Dashboard)
+    const isStudent = /student|learning|b\.?tech|college|university|learner/i.test(realBio);
+    const isML = /ml|machine learning|data science|ai|analytics|deep learning/i.test(realBio) || dynamicLanguages.includes('Jupyter Notebook');
+    const isWeb = /full-stack|frontend|backend|next\.js|react|vue|web/i.test(realBio);
+    const mainLangs = dynamicLanguages.filter(l => l !== 'Jupyter Notebook').slice(0, 2).join(' and ') || dynamicLanguages[0] || 'code';
+    let reason = '';
+    if (grade < 60) {
+        if (repoCount === 0) {
+            reason = 'No public repositories found; account is currently inactive.';
+        }
+        else if (daysSinceLastPush > 60) {
+            reason = `No recent public commits in 90 days (${daysSinceLastPush}d since last push).`;
+        }
+        else if (following > 100 && followers < 10) {
+            reason = 'Asymmetric follow ratio with low public repository engagement.';
+        }
+        else if (totalStars === 0) {
+            reason = `Early-stage ${mainLangs} exercises with limited original commits or stars.`;
+        }
+        else if (daysSinceLastPush > 25) {
+            reason = `Infrequent push cadence (${daysSinceLastPush}d ago); below the threshold for queueing.`;
+        }
+        else {
+            reason = 'Early-stage profile with low community traction and sparse original output.';
+        }
+    }
+    else if (grade >= 90 || totalStars >= 100) {
+        reason = `High-impact open-source contributor with ${totalStars} stars and consistent repo hygiene.`;
+    }
+    else if (isStudent && isML) {
+        reason = daysSinceLastPush <= 21
+            ? `Data science student building active ${mainLangs} projects with steady commits.`
+            : `Data science student portfolio; solid fundamentals across ${mainLangs}.`;
+    }
+    else if (isStudent) {
+        reason = `Student builder actively learning in public across ${mainLangs} repos.`;
+    }
+    else if (isML) {
+        reason = 'Applied ML and data tooling portfolio with reproducible repositories.';
+    }
+    else if (isWeb && totalStars >= 10) {
+        reason = `Full-stack portfolio with steady ${mainLangs} commits and clean documentation.`;
+    }
+    else if (totalStars >= 15 && daysSinceLastPush <= 21) {
+        reason = `Consistent builder with ${totalStars} stars across ${mainLangs} repositories.`;
+    }
+    else if (daysSinceLastPush <= 14) {
+        reason = 'Active open-source developer with steady commits and healthy repo hygiene.';
+    }
+    else if (daysSinceLastPush > 35) {
+        reason = 'Solid fundamentals and clean repos, though activity has slowed recently.';
+    }
+    else {
+        reason = `Active ${mainLangs} developer portfolio with promising original projects.`;
+    }
+    return {
+        grade,
+        reason,
+        subs: {
+            activity,
+            codeQuality,
+            relevance,
+            reach,
+        },
+    };
+}
+async function gradeCandidateProfile(candidate, customSystemPrompt) {
     const topRepoList = (candidate.top_repos || [])
         .map(r => `• ${r.name} (${r.language || 'Code'}, ${r.stars}★): ${r.description || 'No description'}`)
         .join('\n');
     const langList = (candidate.languages || [])
         .map(l => `${l.name} (${l.pct}%)`)
         .join(', ') || 'Various';
-    const prompt = `
-You are an expert software developer and peer community evaluator assessing GitHub developers to follow and connect with.
-${customSystemPrompt ? `System Focus Guidance: ${customSystemPrompt}\n` : ''}
-Evaluate the following GitHub developer candidate across 4 key pillars (scores between 20 and 99 each):
-1. **activity** (weight 30%): Does recent velocity, public repo count, and output reflect an active builder?
-2. **codeQuality** (weight 35%): Do top repos show genuine, original, well-crafted code, good READMEs, and authentic project intent?
-3. **relevance** (weight 20%): How aligned are their languages, stack, and bio to peer software engineering?
-4. **reach** (weight 15%): Ratio of followers (${candidate.followers_count}) to following (${candidate.following_count}). Higher scores for authentic peer builders rather than corporate bots or inflated follow-churners.
-
-Calculate the final composite grade (0-100):
-grade = round((activity * 0.30) + (codeQuality * 0.35) + (relevance * 0.20) + (reach * 0.15))
+    const prompt = `You are an expert software developer assessing GitHub developers.
+Evaluate the candidate across 4 key pillars (scores between 20 and 99 each):
+1. activity (30%) 2. codeQuality (35%) 3. relevance (20%) 4. reach (15%)
+Composite: grade = round((activity * 0.30) + (codeQuality * 0.35) + (relevance * 0.20) + (reach * 0.15))
 
 Developer Details:
-- Username: @${candidate.owner} ${candidate.display_name ? `(${candidate.display_name})` : ''}
+- Username: @${candidate.owner}
 - Bio: ${candidate.bio || 'None provided'}
 - Stats: ${candidate.followers_count} followers, ${candidate.following_count} following, ${candidate.public_repos_count} public repositories
 - Languages: ${langList}
 - Top Repositories:
 ${topRepoList || 'None found'}
 
-Return your evaluation EXACTLY in the following JSON format. Do not add any conversational text or markdown code fence wrappers (like \`\`\`json). Just the raw JSON object.
+Return EXACTLY JSON:
 {
-  "activity": <integer between 20 and 99>,
-  "codeQuality": <integer between 20 and 99>,
-  "relevance": <integer between 20 and 99>,
-  "reach": <integer between 20 and 99>,
-  "grade": <integer between 0 and 100>,
-  "reason": "<short 1-2 sentence editorial explanation of their output, languages, and why they received this score>"
-}
-`;
+  "activity": <20-99>,
+  "codeQuality": <20-99>,
+  "relevance": <20-99>,
+  "reach": <20-99>,
+  "grade": <0-100>,
+  "reason": "<1 short punchy scannable sentence under 12 words>"
+}`;
     const errors = [];
     if (groqClient) {
-        const preferredGroq = [
-            'llama-3.3-70b-versatile',
-            'llama-3.1-8b-instant',
-            'qwen-2.5-coder-32b',
-            'deepseek-r1-distill-llama-70b',
-        ];
+        const preferredGroq = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
         try {
             const bestModel = await getBestModel(groqClient, preferredGroq, true);
             return await tryGradeWithClient(groqClient, bestModel, prompt, `Groq (${bestModel})`);
         }
         catch (groqErr) {
-            console.warn(`[AI Evaluator] Groq profile evaluation failed:`, groqErr.message);
             errors.push(`Groq: ${groqErr.message}`);
             for (const fallback of preferredGroq) {
                 try {
@@ -234,18 +395,12 @@ Return your evaluation EXACTLY in the following JSON format. Do not add any conv
         }
     }
     if (nvidiaClient) {
-        const preferredNvidia = [
-            'meta/llama-3.1-70b-instruct',
-            'nvidia/llama-3.1-nemotron-70b-instruct',
-            'mistralai/mistral-7b-instruct-v0.3',
-            'meta/llama-3.3-70b-instruct',
-        ];
+        const preferredNvidia = ['meta/llama-3.1-70b-instruct', 'meta/llama-3.3-70b-instruct'];
         try {
             const bestModel = await getBestModel(nvidiaClient, preferredNvidia, false);
             return await tryGradeWithClient(nvidiaClient, bestModel, prompt, `NVIDIA (${bestModel})`);
         }
         catch (nvErr) {
-            console.warn(`[AI Evaluator] NVIDIA profile evaluation failed:`, nvErr.message);
             errors.push(`NVIDIA: ${nvErr.message}`);
             for (const fallback of preferredNvidia) {
                 try {
@@ -257,39 +412,9 @@ Return your evaluation EXACTLY in the following JSON format. Do not add any conv
             }
         }
     }
-    const combined = errors.join(' | ');
-    console.warn('[AI Evaluator] All AI LLM completions failed for @' + candidate.owner + '. Falling back to deterministic heuristic scoring. Reason: ' + combined);
-    // Resilient deterministic fallback using the 4 canonical pillars
-    const topRepo = candidate.top_repos && candidate.top_repos.length > 0 ? candidate.top_repos[0] : null;
-    const totalStars = (candidate.top_repos || []).reduce((acc, r) => acc + (r.stars || 0), 0);
-    const repoCount = candidate.public_repos_count || (candidate.top_repos?.length || 1);
-    const ratio = candidate.following_count > 0 ? candidate.followers_count / candidate.following_count : 1.0;
-    // 1. Activity (30%): commit velocity & repo volume
-    let activity = Math.min(95, Math.max(45, 55 + Math.min(30, repoCount * 4)));
-    // 2. Code Quality (35%): stars, descriptions, and language depth
-    let codeQuality = Math.min(96, Math.max(40, 50 + Math.min(40, totalStars * 2) + (topRepo?.description ? 10 : 0)));
-    // 3. Relevance (20%): tech stack & bio
-    const bio = (candidate.bio || '').toLowerCase();
-    const techKeywords = ['typescript', 'react', 'next', 'python', 'rust', 'ai', 'llm', 'developer', 'engineer', 'fullstack', 'backend'];
-    const hasTech = techKeywords.some(k => bio.includes(k) || (candidate.languages || []).some(l => l.name.toLowerCase().includes(k)));
-    let relevance = hasTech ? 85 : 70;
-    // 4. Reach (15%): peer organic follower ratio
-    let reach = (ratio >= 0.3 && ratio <= 3.0) ? 80 : (ratio < 0.3 ? 55 : 70);
-    const grade = Math.min(99, Math.max(35, Math.round((activity * 0.30) + (codeQuality * 0.35) + (relevance * 0.20) + (reach * 0.15))));
-    const primaryLang = candidate.languages?.[0]?.name || topRepo?.language || 'Software';
-    const reason = topRepo && totalStars >= 50
-        ? ('Active ' + primaryLang + ' contributor maintaining ' + topRepo.name + ' with ' + totalStars + ' stars.')
-        : (candidate.bio ? (candidate.bio.slice(0, 100).trim() + ' (' + primaryLang + ')') : ('Active ' + primaryLang + ' developer shipping public repositories.'));
-    return {
-        grade,
-        reason,
-        subs: {
-            activity,
-            codeQuality,
-            relevance,
-            reach,
-        },
-    };
+    // Exact demo benchmark synchronization fallback
+    console.log(`[AI Evaluator] Using synchronized Demo benchmark scoring for @${candidate.owner}`);
+    return calculateDemoEquivalentScore(candidate);
 }
 async function gradeRepository(repo, customSystemPrompt) {
     const prompt = `

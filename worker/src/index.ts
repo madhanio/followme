@@ -186,9 +186,15 @@ async function runAutomationJob(isManual: boolean = false) {
         continue;
       }
 
-      // 4. Enforce follow cap per run
+      // 4. Enforce run caps & daily limits before evaluating
+      const followsToday = await getFollowsTodayCount();
+      if (followsToday >= config.dailyFollowLimit) {
+        console.log('Daily follow limit reached (' + followsToday + ' follows today). Stopping worker run.');
+        await logAction('SYSTEM', null, 'SUCCESS', 'Daily follow limit reached (' + followsToday + ' followed today). Halted.');
+        break;
+      }
       if (stats.followed >= config.maxProfilesPerRun) {
-        console.log(`Follow limit of ${config.maxProfilesPerRun} reached for this run. Stopping evaluation.`);
+        console.log('Follow limit reached for this run. Stopping evaluation.');
         break;
       }
 
@@ -646,7 +652,6 @@ app.post('/clearstale', async (req: Request, res: Response) => {
       .from('profiles')
       .delete()
       .eq('followed', false)
-      .eq('starred', false)
       .eq('unfollowed', false)
       .eq('follow_back', false)
       .eq('follow_skipped', true)
@@ -658,8 +663,8 @@ app.post('/clearstale', async (req: Request, res: Response) => {
     }
 
     const count = data ? data.length : 0;
-    await logAction('SYSTEM', null, 'SUCCESS', `Cleared ${count} stale profiles.`);
-    return res.json({ success: true, message: `Successfully cleared ${count} stale profiles.` });
+    await logAction('SYSTEM', null, 'SUCCESS', 'Cleared ' + count + ' stale profiles.');
+    return res.json({ success: true, message: 'Successfully cleared ' + count + ' stale profiles.' });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message || 'Error occurred during stale profiles cleanup' });
   }

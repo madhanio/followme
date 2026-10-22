@@ -166,9 +166,15 @@ async function runAutomationJob(isManual = false) {
                 stats.alreadyGraded++;
                 continue;
             }
-            // 4. Enforce follow cap per run
+            // 4. Enforce run caps & daily limits before evaluating
+            const followsToday = await (0, supabase_1.getFollowsTodayCount)();
+            if (followsToday >= config.dailyFollowLimit) {
+                console.log('Daily follow limit reached (' + followsToday + ' follows today). Stopping worker run.');
+                await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', 'Daily follow limit reached (' + followsToday + ' followed today). Halted.');
+                break;
+            }
             if (stats.followed >= config.maxProfilesPerRun) {
-                console.log(`Follow limit of ${config.maxProfilesPerRun} reached for this run. Stopping evaluation.`);
+                console.log('Follow limit reached for this run. Stopping evaluation.');
                 break;
             }
             // Check if profile exists and was previously followed or unfollowed
@@ -558,7 +564,6 @@ app.post('/clearstale', async (req, res) => {
             .from('profiles')
             .delete()
             .eq('followed', false)
-            .eq('starred', false)
             .eq('unfollowed', false)
             .eq('follow_back', false)
             .eq('follow_skipped', true)
@@ -568,8 +573,8 @@ app.post('/clearstale', async (req, res) => {
             return res.status(500).json({ success: false, error: error.message });
         }
         const count = data ? data.length : 0;
-        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Cleared ${count} stale profiles.`);
-        return res.json({ success: true, message: `Successfully cleared ${count} stale profiles.` });
+        await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', 'Cleared ' + count + ' stale profiles.');
+        return res.json({ success: true, message: 'Successfully cleared ' + count + ' stale profiles.' });
     }
     catch (err) {
         return res.status(500).json({ success: false, error: err.message || 'Error occurred during stale profiles cleanup' });
