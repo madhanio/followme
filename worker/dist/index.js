@@ -719,8 +719,8 @@ app.post('/rescore', async (req, res) => {
         if (!telemetry) {
             return res.status(404).json({ error: 'Could not fetch candidate telemetry from GitHub' });
         }
-        const config = await (0, supabase_1.fetchSystemSettings)();
-        const grading = await (0, nvidia_1.gradeCandidateProfile)({
+        // Strict deterministic re-scoring synchronized with demo algorithm
+        const candidateInput = {
             owner: telemetry.owner,
             display_name: telemetry.display_name,
             bio: telemetry.bio,
@@ -729,7 +729,8 @@ app.post('/rescore', async (req, res) => {
             public_repos_count: telemetry.public_repos_count,
             languages: telemetry.languages,
             top_repos: telemetry.top_repos,
-        }, config.systemPrompt);
+        };
+        const grading = (0, nvidia_1.calculateDemoEquivalentScore)(candidateInput);
         const { error: updateErr } = await supabase_1.supabase
             .from('profiles')
             .update({

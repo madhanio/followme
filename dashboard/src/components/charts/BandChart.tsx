@@ -35,16 +35,20 @@ export default function BandChart({ repos, isLoading }: BandChartProps) {
     (r.grade ?? 0) > 0 && r.language !== 'Profile' && r.followed === true
   );
 
-  /* Grade bands 60-69, 70-79, 80-89, 90-100 (matching demo scale) */
+  /* Grade bands 60-69, 70-79, 80-89, 90-100 (supports both 0-100 and legacy 1-10 scales) */
   const bands = [
-    { label: '60–69', min: 6, max: 6.9 },
-    { label: '70–79', min: 7, max: 7.9 },
-    { label: '80–89', min: 8, max: 8.9 },
-    { label: '90+',   min: 9, max: 10 },
+    { label: '60–69', min: 60, max: 69.9 },
+    { label: '70–79', min: 70, max: 79.9 },
+    { label: '80–89', min: 80, max: 89.9 },
+    { label: '90+',   min: 90, max: 100 },
   ];
 
   const rows = bands.map(b => {
-    const group = eligible.filter(r => (r.grade ?? 0) >= b.min && (r.grade ?? 0) <= b.max);
+    const group = eligible.filter(r => {
+      const g = r.grade ?? 0;
+      const normalizedGrade = g <= 10 && g > 0 ? g * 10 : g;
+      return normalizedGrade >= b.min && normalizedGrade <= b.max;
+    });
     const count = group.length;
     const backCount = group.filter(r => r.follow_back === true).length;
     const rate = count > 0 ? Math.round((backCount / count) * 100) : null;

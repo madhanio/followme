@@ -74,7 +74,8 @@ async function tryGradeWithClient(client, model, prompt, providerName) {
                 content: prompt,
             },
         ],
-        temperature: 0.1,
+        temperature: 0.0,
+        seed: 42,
         max_tokens: 350,
     });
     const content = response.choices[0]?.message?.content?.trim();

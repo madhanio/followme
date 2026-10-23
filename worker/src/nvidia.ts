@@ -91,7 +91,8 @@ async function tryGradeWithClient(
         content: prompt,
       },
     ],
-    temperature: 0.1,
+    temperature: 0.0,
+    seed: 42,
     max_tokens: 350,
   });
 

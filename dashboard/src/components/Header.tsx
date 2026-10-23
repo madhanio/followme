@@ -95,15 +95,16 @@ export default function Header({
             width: 22,
             height: 22,
             borderRadius: 6,
-            background: 'var(--ink)',
-            display: 'grid',
-            placeItems: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             flexShrink: 0,
+            overflow: 'hidden',
             transition: 'transform 0.2s cubic-bezier(0.16,1,0.3,1)',
           }}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M3 2v8M3 2h6M3 6h4" stroke="var(--surface)" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
+            {/* Real FollowMe 'F' Brand Logo */}
+            <img src="/logo-black-cropped.png" alt="FollowMe Logo" className="block dark:hidden" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img src="/logo-white-cropped.png" alt="FollowMe Logo" className="hidden dark:block" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </span>
           <span style={{ display: 'flex', alignItems: 'center', lineHeight: 1 }}>FollowMe</span>
         </div>

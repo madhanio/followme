@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { searchRecentRepos, fetchRepoReadme, starRepo, followUser, unfollowUser, checkIfFollowsBack, checkOwnerProfile, unstarRepo, getGitHubFollowing, getGitHubFollowers, getGitHubFollowersDetails, getAuthenticatedUserStats, FatalGitHubAuthError, FatalGitHubRateLimitError, setRuntimeGitHubCredentials, fetchCandidateDetails } from './github';
-import { gradeCandidateProfile, FatalAiQuotaError, isAiQuotaOrAuthError } from './nvidia';
+import { gradeCandidateProfile, calculateDemoEquivalentScore, FatalAiQuotaError, isAiQuotaOrAuthError } from './nvidia';
 import { supabase, isProfileGraded, saveProfile, logAction, fetchSystemSettings, SystemRuntimeConfig, fetchAllRows, DEFAULT_RUNTIME_CONFIG, getFollowsTodayCount } from './supabase';
 import { sendIncidentEmail } from './email';
 
@@ -830,20 +830,18 @@ app.post('/rescore', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Could not fetch candidate telemetry from GitHub' });
     }
 
-    const config = await fetchSystemSettings();
-    const grading = await gradeCandidateProfile(
-      {
-        owner: telemetry.owner,
-        display_name: telemetry.display_name,
-        bio: telemetry.bio,
-        followers_count: telemetry.followers_count,
-        following_count: telemetry.following_count,
-        public_repos_count: telemetry.public_repos_count,
-        languages: telemetry.languages,
-        top_repos: telemetry.top_repos,
-      },
-      config.systemPrompt
-    );
+    // Strict deterministic re-scoring synchronized with demo algorithm
+    const candidateInput = {
+      owner: telemetry.owner,
+      display_name: telemetry.display_name,
+      bio: telemetry.bio,
+      followers_count: telemetry.followers_count,
+      following_count: telemetry.following_count,
+      public_repos_count: telemetry.public_repos_count,
+      languages: telemetry.languages,
+      top_repos: telemetry.top_repos,
+    };
+    const grading = calculateDemoEquivalentScore(candidateInput);
 
     const { error: updateErr } = await supabase
       .from('profiles')

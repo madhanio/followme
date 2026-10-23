@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import type { ProfileItem } from '@/lib/types';
 
-type Segment = 'all' | 'top' | 'followed' | 'mutual';
+type Segment = 'all' | 'top' | 'followed' | 'mutual' | 'queued' | 'skipped';
 type QuickPill = 'stars' | 'active' | 'highvol' | null;
 
 const SEGMENTS: { key: Segment; label: string }[] = [
@@ -11,6 +11,8 @@ const SEGMENTS: { key: Segment; label: string }[] = [
   { key: 'top',        label: 'Top Picks' },
   { key: 'followed',   label: 'Followed' },
   { key: 'mutual',     label: 'Mutual' },
+  { key: 'queued',     label: 'In Queue' },
+  { key: 'skipped',    label: 'Skipped' },
 ];
 
 function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
@@ -18,7 +20,9 @@ function applySegment(items: ProfileItem[], seg: Segment): ProfileItem[] {
     case 'top':        return items.filter(p => ((p.grade ?? 0) >= 90 || ((p.grade ?? 0) >= 9 && (p.grade ?? 0) <= 10)) && p.language !== 'Profile');
     case 'followed':   return items.filter(p => p.followed && !p.follow_back && !p.unfollowed);
     case 'mutual':     return items.filter(p => p.followed && p.follow_back && !p.unfollowed);
-    default:           return items.filter(p => p.followed && !p.unfollowed);
+    case 'queued':     return items.filter(p => !p.followed && !p.unfollowed && !p.followStatus.follow_skipped);
+    case 'skipped':    return items.filter(p => p.followStatus.follow_skipped || ((p.grade ?? 0) > 0 && (p.grade ?? 0) < 60 && !p.followed));
+    default:           return items;
   }
 }
 

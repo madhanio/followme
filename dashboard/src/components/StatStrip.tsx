@@ -1,25 +1,84 @@
 'use client';
 
+import React, { useState } from 'react';
 import type { Repo } from '@/lib/types';
 
-function Sparkline({ values, color }: { values: number[]; color: string }) {
+function InteractiveSparkline({ values, color }: { values: number[]; color: string }) {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   if (values.length < 2) return null;
-  const W = 64, H = 24;
+
+  const W = 84, H = 28;
   const max = Math.max(...values, 1);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+
   const pts = values.map((v, i) => {
     const x = (i / (values.length - 1)) * W;
-    const y = H - (v / max) * H;
+    const y = H - 3 - ((v - min) / range) * (H - 6);
     return `${x},${y}`;
   }).join(' ');
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = Math.max(0, Math.min(W, ((e.clientX - rect.left) / rect.width) * W));
+    const idx = Math.max(0, Math.min(values.length - 1, Math.round((px / W) * (values.length - 1))));
+    setHoverIndex(idx);
+  };
+
+  const currentVal = hoverIndex !== null ? values[hoverIndex] : null;
+  const posX = hoverIndex !== null ? (hoverIndex / (values.length - 1)) * W : 0;
+  const posY = hoverIndex !== null ? H - 3 - ((values[hoverIndex] - min) / range) * (H - 6) : 0;
+
+  // Approximate relative date label: 30 days back to today
+  const getRelativeDay = (idx: number) => {
+    const daysAgo = values.length - 1 - idx;
+    if (daysAgo === 0) return 'Today';
+    if (daysAgo === 1) return 'Yesterday';
+    return `${daysAgo}d ago`;
+  };
+
   return (
-    <svg width={W} height={H} style={{ display:'block', overflow:'visible' }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    <div style={{ position: 'relative', width: W, height: H, flex: 'none', cursor: 'crosshair' }}>
+      <svg
+        width={W}
+        height={H}
+        style={{ display: 'block', overflow: 'visible' }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIndex(null)}
+      >
+        <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+        {hoverIndex !== null && (
+          <>
+            <line x1={posX} y1={0} x2={posX} y2={H} stroke="var(--ink)" strokeWidth={1} strokeDasharray="2,2" opacity={0.6} />
+            <circle cx={posX} cy={posY} r={3} fill={color} stroke="var(--surface)" strokeWidth={1.5} />
+          </>
+        )}
+      </svg>
+      {hoverIndex !== null && (
+        <div style={{
+          position: 'absolute',
+          left: posX,
+          top: -22,
+          transform: 'translateX(-50%)',
+          background: 'var(--ink)',
+          color: 'var(--surface)',
+          fontSize: 10.5,
+          fontWeight: 600,
+          padding: '2px 6px',
+          borderRadius: 4,
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+          zIndex: 10,
+        }}>
+          {getRelativeDay(hoverIndex)}: {currentVal}
+        </div>
+      )}
+    </div>
   );
 }
 
-/* Returns a 30-element array (oldest → today) of daily counts.
-   isoDate field: the date column to bucket by (YYYY-MM-DD prefix match on created_at). */
+/* Returns a 30-element array (oldest → today) of daily counts. */
 function dailyCounts(
   rows: Array<{ created_at?: string | null }>,
   days = 30
@@ -86,7 +145,7 @@ function StatCell({
             animation: 'fm-pulse 1.6s ease-in-out infinite',
           }} />
         ) : (
-          <Sparkline values={spark} color={sparkColor} />
+          <InteractiveSparkline values={spark} color={sparkColor} />
         )}
       </div>
       {isLoading ? (
@@ -109,12 +168,12 @@ export interface StatStripProps {
 }
 
 export default function StatStrip({ repos, isLoading }: StatStripProps) {
-
   /* ── Deduplicate repos by owner for profile-accurate metrics ── */
   const ownersMap = new Map<string, {
     followed: boolean;
     follow_back: boolean;
     unfollowed: boolean;
+    follow_skipped: boolean;
     grade: number;
     created_at?: string | null;
     followed_at?: string | null;
@@ -129,6 +188,7 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
         followed: !!r.followed,
         follow_back: !!r.follow_back,
         unfollowed: !!r.unfollowed,
+        follow_skipped: !!r.follow_skipped,
         grade: r.grade ?? 0,
         created_at: r.created_at,
         followed_at: r.followed_at,
@@ -137,6 +197,7 @@ export default function StatStrip({ repos, isLoading }: StatStripProps) {
       if (r.followed) existing.followed = true;
       if (r.follow_back) existing.follow_back = true;
       if (r.unfollowed) existing.unfollowed = true;
+      if (r.follow_skipped) existing.follow_skipped = true;
       if ((r.grade ?? 0) > existing.grade) existing.grade = r.grade ?? 0;
       if (r.followed_at && !existing.followed_at) existing.followed_at = r.followed_at;
     }

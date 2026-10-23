@@ -429,8 +429,8 @@ export default function ProfileDrawer({ profile, repos, onClose, onUnfollow, onU
       }
       const evalData = res.data?.evaluation;
       const newGrade = res.data?.grade ?? evalData?.grade;
-      const newReason = evalData?.reason;
-      const subs = evalData?.subs;
+      const newReason = res.data?.reason ?? evalData?.reason;
+      const subs = res.data?.subs ?? evalData?.subs;
 
       setEvaluationData({
         grade: newGrade,

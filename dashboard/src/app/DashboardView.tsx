@@ -72,6 +72,7 @@ import BandChart from '@/components/charts/BandChart';
 import ProfilesSection from '@/components/ProfilesSection';
 import ProfileDrawer from '@/components/ProfileDrawer';
 import ActivityFeed from '@/components/ActivityFeed';
+import ScoreChecker from '@/components/ScoreChecker';
 
 let globalRateLimitCache: { data: GitHubRateLimitData; timestamp: number } | null = null;
 
@@ -1541,6 +1542,13 @@ export default function DashboardView({
                   </button>
                 </div>
               )}
+
+              {/* ── Check your GitHub score interactive tool ── */}
+              <ScoreChecker
+                onProfileScored={(scoredProfile) => {
+                  handleProfileClick(scoredProfile);
+                }}
+              />
             </div>
           </div>
         </section>
