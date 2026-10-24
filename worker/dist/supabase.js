@@ -216,14 +216,25 @@ async function fetchSystemSettings() {
 }
 async function getFollowsTodayCount() {
     try {
-        const todayDate = new Date().toISOString().split('T')[0];
-        const { data, error } = await exports.supabase
+        // 24-hour rolling window cutoff & calendar day cutoff
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const todayDatePrefix = new Date().toISOString().split('T')[0];
+        // Source of Truth 1: Live profiles marked followed within the last 24h
+        const { data: profileFollows, error: pErr } = await exports.supabase
+            .from('profiles')
+            .select('owner')
+            .eq('followed', true)
+            .gte('followed_at', twentyFourHoursAgo);
+        const liveProfileCount = (profileFollows && !pErr) ? profileFollows.length : 0;
+        // Source of Truth 2: Historical run_summary records
+        const { data: runSummaryData, error: rErr } = await exports.supabase
             .from('run_summary')
             .select('profiles_followed')
-            .gte('ran_at', `${todayDate}T00:00:00.000Z`);
-        if (error || !data)
-            return 0;
-        return data.reduce((acc, row) => acc + (row.profiles_followed || 0), 0);
+            .gte('ran_at', todayDatePrefix + 'T00:00:00.000Z');
+        const summaryCount = (runSummaryData && !rErr)
+            ? runSummaryData.reduce((acc, row) => acc + (row.profiles_followed || 0), 0)
+            : 0;
+        return Math.max(liveProfileCount, summaryCount);
     }
     catch (err) {
         console.error('Error fetching follows today count:', err);

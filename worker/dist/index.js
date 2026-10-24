@@ -168,13 +168,14 @@ async function runAutomationJob(isManual = false) {
             }
             // 4. Enforce run caps & daily limits before evaluating
             const followsToday = await (0, supabase_1.getFollowsTodayCount)();
-            if (followsToday >= config.dailyFollowLimit) {
-                console.log('Daily follow limit reached (' + followsToday + ' follows today). Stopping worker run.');
-                await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', 'Daily follow limit reached (' + followsToday + ' followed today). Halted.');
+            const effectiveFollowsToday = followsToday + stats.followed;
+            if (effectiveFollowsToday >= config.dailyFollowLimit) {
+                console.log('Daily follow limit reached (' + effectiveFollowsToday + ' follows today, limit: ' + config.dailyFollowLimit + '). Stopping worker run.');
+                await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', 'Daily follow limit reached (' + effectiveFollowsToday + ' followed today, limit: ' + config.dailyFollowLimit + '). Halted.');
                 break;
             }
             if (stats.followed >= config.maxProfilesPerRun) {
-                console.log('Follow limit reached for this run. Stopping evaluation.');
+                console.log('Follow limit reached for this run (' + stats.followed + '/' + config.maxProfilesPerRun + '). Stopping evaluation.');
                 break;
             }
             // Check if profile exists and was previously followed or unfollowed
@@ -255,8 +256,14 @@ async function runAutomationJob(isManual = false) {
             const effectiveThreshold = config.gradeThreshold <= 10 ? config.gradeThreshold * 10 : config.gradeThreshold;
             if (grading.grade >= effectiveThreshold) {
                 const followsToday = await (0, supabase_1.getFollowsTodayCount)();
-                if (followsToday >= config.dailyFollowLimit) {
-                    console.log(`Daily follow limit of ${config.dailyFollowLimit} reached (${followsToday} follows today). Stopping follows.`);
+                const effectiveFollowsToday = followsToday + stats.followed;
+                if (effectiveFollowsToday >= config.dailyFollowLimit) {
+                    console.log(`Daily follow limit of ${config.dailyFollowLimit} reached (${effectiveFollowsToday} follows today). Stopping follows.`);
+                    await (0, supabase_1.logAction)('SYSTEM', null, 'SUCCESS', `Daily follow limit of ${config.dailyFollowLimit} reached (${effectiveFollowsToday} follows today). Stopping.`);
+                    break;
+                }
+                if (stats.followed >= config.maxProfilesPerRun) {
+                    console.log(`Run limit of ${config.maxProfilesPerRun} reached (${stats.followed} followed). Stopping follows.`);
                     break;
                 }
                 console.log(`Following user @${telemetry.owner}...`);
