@@ -282,14 +282,15 @@ async function runAutomationJob(isManual: boolean = false) {
         continue;
       }
 
-      console.log(`Candidate @${telemetry.owner} | Score: ${grading.grade}/10 | Reason: ${grading.reason}`);
+      console.log(`Candidate @${telemetry.owner} | Score: ${grading.grade}/100 | Reason: ${grading.reason}`);
 
       let followed = false;
-      let followResult: { success: boolean; message: string } | null = null;
 
-      // 8. Follow candidate if grade meets threshold
+      // 8. Follow candidate only if score >= 60 (strictly threshold based evaluation)
       const effectiveThreshold = config.gradeThreshold <= 10 ? config.gradeThreshold * 10 : config.gradeThreshold;
-      if (grading.grade >= effectiveThreshold) {
+      const passesThreshold = grading.grade >= Math.max(60, effectiveThreshold);
+
+      if (passesThreshold) {
         const followsToday = await getFollowsTodayCount();
         const effectiveFollowsToday = followsToday + stats.followed;
         if (effectiveFollowsToday >= config.dailyFollowLimit) {
@@ -302,35 +303,63 @@ async function runAutomationJob(isManual: boolean = false) {
           break;
         }
 
-        console.log(`Following user @${telemetry.owner}...`);
+        console.log(`Following user @${telemetry.owner} (Score: ${grading.grade})...`);
         const followSuccess = await followUser(telemetry.owner);
         if (followSuccess) {
           followed = true;
           stats.followed++;
-          followResult = { success: true, message: `Followed user @${telemetry.owner}` };
+          // Single unified follow log immediately after evaluation & follow execution
+          await logAction(
+            'FOLLOW',
+            telemetry.owner,
+            'SUCCESS',
+            `evaluated and followed @${telemetry.owner} (Score: ${grading.grade}/100)`
+          );
 
-          // Optional bonus: Star candidate's #1 top project as a friendly impression
-          if (telemetry.top_repos.length > 0 && stats.starred < config.maxProfilesPerRun) {
+          // Star candidate's top repository only if followed
+          if (telemetry.top_repos && telemetry.top_repos.length > 0 && stats.starred < config.maxProfilesPerRun) {
             const topProject = telemetry.top_repos[0];
             try {
+              // Gentle pause before starring
+              await new Promise((resolve) => setTimeout(resolve, 1000));
               const starSuccess = await starRepo(telemetry.owner, topProject.name);
               if (starSuccess) {
                 stats.starred++;
-                await logAction('STAR', telemetry.owner, 'SUCCESS', `Starred top repo ${telemetry.owner}/${topProject.name}`);
+                await logAction(
+                  'STAR',
+                  telemetry.owner,
+                  'SUCCESS',
+                  `starred @${telemetry.owner} repo's (${topProject.name})`
+                );
               }
             } catch (starErr: any) {
               console.debug(`Could not star top repo for ${telemetry.owner}:`, starErr.message || starErr);
             }
           }
         } else {
-          followResult = { success: false, message: `Failed to follow user @${telemetry.owner}` };
+          console.warn(`Failed to follow user @${telemetry.owner}`);
+          await logAction(
+            'FOLLOW',
+            telemetry.owner,
+            'FAILED',
+            `evaluated and failed to follow @${telemetry.owner} (Score: ${grading.grade}/100)`
+          );
         }
+      } else {
+        // Score is less than 60 / threshold -> evaluated and skipped
+        console.log(`Skipping candidate @${telemetry.owner} — score ${grading.grade} < 60 threshold`);
+        await logAction(
+          'SKIP_FOLLOW',
+          telemetry.owner,
+          'SUCCESS',
+          `evaluated and skipped @${telemetry.owner} (Score: ${grading.grade}/100)`
+        );
       }
 
       // 9. Save candidate profile to profiles table
       const isCandidateSkipped = !followed;
       const skipReason = isCandidateSkipped
-        ? `Grade ${grading.grade} < ${config.gradeThreshold <= 10 ? config.gradeThreshold * 10 : config.gradeThreshold}: ${grading.reason}`
+        ? `Grade ${grading.grade} < 60: ${grading.reason}`
         : null;
 
       await saveProfile(
@@ -359,17 +388,6 @@ async function runAutomationJob(isManual: boolean = false) {
         followed,
         isCandidateSkipped,
         skipReason
-      );
-
-      if (followResult) {
-        await logAction('FOLLOW', telemetry.owner, followResult.success ? 'SUCCESS' : 'FAILED', followResult.message);
-      }
-
-      await logAction(
-        'GRADE',
-        telemetry.owner,
-        'SUCCESS',
-        `Graded @${telemetry.owner}. Score: ${grading.grade}. Reason: ${grading.reason}`
       );
 
       // Pacing pause between candidate evaluations
