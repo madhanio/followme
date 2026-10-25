@@ -222,7 +222,7 @@ export interface SystemRuntimeConfig {
 
 export const DEFAULT_RUNTIME_CONFIG: SystemRuntimeConfig = {
   maxProfilesPerRun: parseInt(process.env.MAX_PROFILES_PER_RUN || '50', 10),
-  gradeThreshold: parseInt(process.env.GRADE_THRESHOLD || '7', 10),
+  gradeThreshold: parseInt(process.env.GRADE_THRESHOLD || '60', 10),
   activeWorkingHours: '00:00 - 24:00',
   dailyFollowLimit: parseInt(process.env.DAILY_FOLLOW_LIMIT || '30', 10),
   unfollowGracePeriod: parseInt(process.env.UNFOLLOW_GRACE_PERIOD || '7', 10),
@@ -279,30 +279,23 @@ export async function fetchSystemSettings(): Promise<SystemRuntimeConfig> {
 
 export async function getFollowsTodayCount(): Promise<number> {
   try {
-    // 24-hour rolling window cutoff & calendar day cutoff
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Exact calendar day in UTC (from 00:00:00.000Z to now)
     const todayDatePrefix = new Date().toISOString().split('T')[0];
+    const startOfTodayUtc = `${todayDatePrefix}T00:00:00.000Z`;
 
-    // Source of Truth 1: Live profiles marked followed within the last 24h
+    // Count live profiles that were followed today
     const { data: profileFollows, error: pErr } = await supabase
       .from('profiles')
       .select('owner')
       .eq('followed', true)
-      .gte('followed_at', twentyFourHoursAgo);
+      .gte('followed_at', startOfTodayUtc);
 
-    const liveProfileCount = (profileFollows && !pErr) ? profileFollows.length : 0;
+    if (pErr) {
+      console.error('Error fetching today profile follows:', pErr.message);
+    }
 
-    // Source of Truth 2: Historical run_summary records
-    const { data: runSummaryData, error: rErr } = await supabase
-      .from('run_summary')
-      .select('profiles_followed')
-      .gte('ran_at', todayDatePrefix + 'T00:00:00.000Z');
-
-    const summaryCount = (runSummaryData && !rErr)
-      ? runSummaryData.reduce((acc, row) => acc + (row.profiles_followed || 0), 0)
-      : 0;
-
-    return Math.max(liveProfileCount, summaryCount);
+    const todayFollowsCount = profileFollows ? profileFollows.length : 0;
+    return todayFollowsCount;
   } catch (err) {
     console.error('Error fetching follows today count:', err);
     return 0;
