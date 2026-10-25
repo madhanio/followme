@@ -38,7 +38,7 @@ function InteractiveSparkline({ values, color }: { values: number[]; color: stri
   };
 
   return (
-    <div style={{ position: 'relative', width: W, height: H, flex: 'none', cursor: 'crosshair' }}>
+    <div style={{ position: 'relative', width: W, height: H, flex: 'none', cursor: 'default' }}>
       <svg
         width={W}
         height={H}

@@ -25,7 +25,7 @@ function formatRelativeTime(dateStr?: string | null): string {
   return `${Math.floor(diffHours / 24)}d ago`;
 }
 
-function getActionBadge(action: string, status: string) {
+function getActionBadge(action: string, status: string, message?: string) {
   const isErr = status === 'FAILED' || status === 'ERROR';
   if (isErr) {
     return {
@@ -34,7 +34,14 @@ function getActionBadge(action: string, status: string) {
       color: '#dc2626',
     };
   }
-  switch (action.toUpperCase()) {
+  const normalizedAction = action.toUpperCase();
+  if (normalizedAction === 'GRADE') {
+    if (message && message.toLowerCase().includes('re-score')) {
+      return { label: 'RE-SCORED', bg: '#e0e7ff', color: '#4338ca' };
+    }
+    return { label: 'EVALUATED', bg: '#e0e7ff', color: '#4338ca' };
+  }
+  switch (normalizedAction) {
     case 'FOLLOW':
       return { label: 'FOLLOWED', bg: 'var(--accent-tint)', color: 'var(--accent)' };
     case 'UNFOLLOW':
@@ -42,8 +49,6 @@ function getActionBadge(action: string, status: string) {
       return { label: 'UNFOLLOWED', bg: 'var(--warn-tint)', color: 'var(--warn)' };
     case 'STAR':
       return { label: 'STARRED', bg: '#fef3c7', color: '#d97706' };
-    case 'GRADE':
-      return { label: 'EVALUATED', bg: '#e0e7ff', color: '#4338ca' };
     case 'SKIP_FOLLOW':
       return { label: 'SKIPPED', bg: 'var(--hover)', color: 'var(--muted)' };
     case 'SYSTEM':
@@ -168,7 +173,7 @@ export default function ActivityFeed({ logs = [], isLoading = false, workerStatu
         </div>
       ) : (
         displayed.map((log) => {
-          const badge = getActionBadge(log.action, log.status);
+          const badge = getActionBadge(log.action, log.status, log.message);
           const time = formatRelativeTime(log.timestamp);
           return (
             <div
