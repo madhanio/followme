@@ -110,7 +110,31 @@ async function runAutomationJob(isManual: boolean = false) {
       await logAction('SYSTEM', null, 'SUCCESS', 'Worker is paused via settings. Skipped automated cycle.');
       return { status: 'skipped', reason: 'worker_paused' };
     }
-    console.log(`Loaded runtime settings: maxProfilesPerRun=${config.maxProfilesPerRun}, gradeThreshold=${config.gradeThreshold}, activeWorkingHours=${config.activeWorkingHours}`);
+    console.log(`Loaded runtime settings: maxProfilesPerRun=${config.maxProfilesPerRun}, gradeThreshold=${config.gradeThreshold}, activeWorkingHours=${config.activeWorkingHours}, cronFrequency=${config.cronFrequency}h`);
+
+    // Dynamic Cron Frequency Gating: Check interval since last run (unless manual trigger)
+    if (!isManual && config.cronFrequency && config.cronFrequency > 0) {
+      try {
+        const { data: lastRunEntry } = await supabase
+          .from('run_summary')
+          .select('ran_at')
+          .order('ran_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lastRunEntry && lastRunEntry.ran_at) {
+          const msSinceLastRun = Date.now() - new Date(lastRunEntry.ran_at).getTime();
+          const requiredIntervalMs = config.cronFrequency * 60 * 60 * 1000 - (5 * 60 * 1000); // 5 min clock-drift tolerance
+          if (msSinceLastRun < requiredIntervalMs) {
+            const hoursElapsed = (msSinceLastRun / (60 * 60 * 1000)).toFixed(1);
+            console.log(`Frequency gate: Last run was ${hoursElapsed}h ago. Configured frequency is every ${config.cronFrequency}h. Skipping cycle.`);
+            return { status: 'skipped', reason: 'frequency_gated', hoursElapsed };
+          }
+        }
+      } catch (gateErr: any) {
+        console.warn('Could not verify last run timestamp for frequency gating:', gateErr.message || gateErr);
+      }
+    }
 
     // Synchronize dynamic credentials from DB settings if provided
     if (config.githubToken) {

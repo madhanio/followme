@@ -214,6 +214,7 @@ export interface SystemRuntimeConfig {
   maxOwnerFollowers: number;
   minOwnerFollowing: number;
   maxOwnerAgeDays: number;
+  cronFrequency: number;
   recipientEmail?: string;
   resendApiKey?: string;
   githubToken?: string;
@@ -233,6 +234,7 @@ export const DEFAULT_RUNTIME_CONFIG: SystemRuntimeConfig = {
   maxOwnerFollowers: parseInt(process.env.MAX_OWNER_FOLLOWERS || '500', 10),
   minOwnerFollowing: parseInt(process.env.MIN_OWNER_FOLLOWING || '10', 10),
   maxOwnerAgeDays: parseInt(process.env.MAX_OWNER_AGE_DAYS || '0', 10),
+  cronFrequency: parseInt(process.env.CRON_FREQUENCY || '6', 10),
   recipientEmail: process.env.NOTIFICATION_EMAIL || process.env.RECIPIENT_EMAIL,
   resendApiKey: process.env.RESEND_API_KEY,
   githubToken: process.env.GITHUB_TOKEN,
@@ -266,6 +268,7 @@ export async function fetchSystemSettings(): Promise<SystemRuntimeConfig> {
       maxOwnerFollowers: settingsMap.maxOwnerFollowers != null ? Number(settingsMap.maxOwnerFollowers) : DEFAULT_RUNTIME_CONFIG.maxOwnerFollowers,
       minOwnerFollowing: settingsMap.minOwnerFollowing != null ? Number(settingsMap.minOwnerFollowing) : DEFAULT_RUNTIME_CONFIG.minOwnerFollowing,
       maxOwnerAgeDays: settingsMap.maxOwnerAgeDays != null ? Number(settingsMap.maxOwnerAgeDays) : DEFAULT_RUNTIME_CONFIG.maxOwnerAgeDays,
+      cronFrequency: settingsMap.cronFrequency != null ? Number(settingsMap.cronFrequency) : DEFAULT_RUNTIME_CONFIG.cronFrequency,
       recipientEmail: settingsMap.recipientEmail || DEFAULT_RUNTIME_CONFIG.recipientEmail,
       resendApiKey: settingsMap.resend_api_key || settingsMap.resendApiKey || DEFAULT_RUNTIME_CONFIG.resendApiKey,
       githubToken: settingsMap.github_token || DEFAULT_RUNTIME_CONFIG.githubToken,
