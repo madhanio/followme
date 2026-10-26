@@ -56,7 +56,14 @@ input{font:inherit;color:inherit}
 /* header */
 header{border-bottom:1px solid var(--line);background:var(--surface);transition:background 0.25s ease, border-color 0.25s ease}
 .bar{display:flex;align-items:center;justify-content:space-between;height:56px;gap:16px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:-.01em}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:-.01em;text-decoration:none;color:inherit;transition:opacity 0.16s ease}
+.brand:hover{opacity:0.85}
+.back-link{
+  display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;
+  color:var(--muted);text-decoration:none;padding:5px 9px;border-radius:6px;
+  border:1px solid var(--line);background:var(--hover);transition:all 0.16s ease;
+}
+.back-link:hover{color:var(--ink);border-color:var(--line-strong);background:var(--surface);transform:translateX(-1px)}
 .mark-svg{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:transform 0.2s cubic-bezier(0.16,1,0.3,1);overflow:hidden}
 .mark-svg img{width:100%;height:100%;object-fit:contain}
 .logo-white{display:none}
@@ -444,14 +451,18 @@ body.open .drawer{transform:none}
 
 <header>
   <div class="wrap bar">
-    <div class="brand">
+    <a href="https://followme-landing.vercel.app" class="brand" title="Back to FollowMe Home">
       <span class="mark-svg">
         <img src="/logo-black-cropped.png" alt="FollowMe Logo" class="logo-black">
         <img src="/logo-white-cropped.png" alt="FollowMe Logo" class="logo-white">
       </span>
       FollowMe
-    </div>
+    </a>
     <div class="status">
+      <a href="https://followme-landing.vercel.app" class="back-link hide-m" title="Return to Landing Page">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Landing Page
+      </a>
       <span><span class="dot" id="dot"></span><span id="wstate">Worker idle</span></span>
       <span class="hide-m" id="lastrun">Last run 2h ago, next in 4h</span>
       <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" title="Toggle theme">
@@ -472,7 +483,7 @@ body.open .drawer{transform:none}
   </div>
 </header>
 
-<div class="notice" role="note"><div class="wrap">This is a demo. Every developer shown here is fictional, and nothing connects to GitHub. <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">View the real project</a></div></div>
+<div class="notice" role="note"><div class="wrap">This is a demo. Every developer shown here is fictional, and nothing connects to GitHub. <a href="https://followme-landing.vercel.app">Home</a> · <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">View the real project</a></div></div>
 
 <main class="wrap">
   <section class="welcome" id="welcome" aria-label="Welcome"></section>
@@ -524,6 +535,7 @@ body.open .drawer{transform:none}
       <div>Designed &amp; engineered by <a href="https://github.com/madhanio" target="_blank" rel="noopener" style="color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:3px;">Madhan (@madhanio) <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;"><path d="M7 17L17 7M7 7h10v10"/></svg></a>.</div>
     </div>
     <div class="f-right">
+      <a href="https://followme-landing.vercel.app">Landing Page</a>
       <a href="https://github.com/madhanio/followme/blob/main/LICENSE" target="_blank" rel="noopener" class="license-badge">MIT License</a>
       <a href="https://github.com/madhanio/followme" target="_blank" rel="noopener">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
