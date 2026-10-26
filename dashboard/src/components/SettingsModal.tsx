@@ -110,7 +110,8 @@ export function SettingsModal({
 
   if (!isOpen) return null;
 
-  const gradeThreshold = Number(tempSettings.gradeThreshold ?? 7);
+  const rawGrade = Number(tempSettings.gradeThreshold ?? 60);
+  const gradeThreshold = rawGrade <= 10 ? rawGrade * 10 : rawGrade;
 
   function handleExportCSV() {
     onExport?.();
@@ -237,11 +238,11 @@ export function SettingsModal({
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <SettingRow label="Grade threshold" hint="Worker follows profiles scoring ≥ this value (default 7)">
+                  <SettingRow label="Grade threshold (0-100)" hint="Worker follows profiles scoring ≥ this value (default 60)">
                     <input
                       type="number"
                       min={1}
-                      max={10}
+                      max={100}
                       value={gradeThreshold}
                       onChange={(e) => setTempSettings({ ...tempSettings, gradeThreshold: Number(e.target.value) })}
                       style={INPUT_STYLE}
@@ -258,15 +259,32 @@ export function SettingsModal({
                   </SettingRow>
                 </div>
 
-                <SettingRow label="Active Operating Window">
-                  <input
-                    type="text"
-                    value={tempSettings.activeWorkingHours ?? ''}
-                    onChange={(e) => setTempSettings({ ...tempSettings, activeWorkingHours: e.target.value })}
-                    style={INPUT_STYLE}
-                    placeholder="e.g. 09:00 - 22:00"
-                  />
-                </SettingRow>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <SettingRow label="Active Operating Window">
+                    <input
+                      type="text"
+                      value={tempSettings.activeWorkingHours ?? ''}
+                      onChange={(e) => setTempSettings({ ...tempSettings, activeWorkingHours: e.target.value })}
+                      style={INPUT_STYLE}
+                      placeholder="e.g. 09:00 - 22:00"
+                    />
+                  </SettingRow>
+
+                  <SettingRow label="Automation Run Frequency" hint="Interval between background cycles">
+                    <select
+                      value={tempSettings.cronFrequency ?? '6'}
+                      onChange={(e) => setTempSettings({ ...tempSettings, cronFrequency: e.target.value })}
+                      style={INPUT_STYLE}
+                    >
+                      <option value="1">Every 1 hour</option>
+                      <option value="2">Every 2 hours</option>
+                      <option value="4">Every 4 hours</option>
+                      <option value="6">Every 6 hours (Default)</option>
+                      <option value="12">Every 12 hours</option>
+                      <option value="24">Every 24 hours (Daily)</option>
+                    </select>
+                  </SettingRow>
+                </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink)', cursor: 'pointer' }}>

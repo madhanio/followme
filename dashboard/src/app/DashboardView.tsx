@@ -188,7 +188,7 @@ export default function DashboardView({
     maxProfilesPerRun: 50,
     activeWorkingHours: '00:00 - 24:00',
     dailyFollowLimit: 30,
-    gradeThreshold: 7,
+    gradeThreshold: 60,
     unfollowGracePeriod: 7,
     autoUnfollowNonMutuals: true,
     excludeOrgAccounts: true,
