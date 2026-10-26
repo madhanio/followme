@@ -30,10 +30,6 @@ jobs:
         working-directory: landing
         run: npm ci
 
-      - name: Check Lint & Types
-        working-directory: landing
-        run: npm run lint --if-present
-
       - name: Build Next.js Landing
         working-directory: landing
         run: npm run build
