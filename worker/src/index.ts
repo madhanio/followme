@@ -1356,8 +1356,42 @@ async function reconcileFollowing() {
       'owner, followed, unfollowed'
     );
 
+    const dbOwnerSet = new Set<string>();
+    (allDbProfiles || []).forEach(p => dbOwnerSet.add(p.owner.toLowerCase()));
+
     const ownersToMarkUnfollowed: string[] = [];
     const ownersToRestoreFollowed: string[] = [];
+    const missingFollowingRows: any[] = [];
+
+    // 1. Identify users you follow on GitHub who aren't in the database yet
+    for (const login of actualFollowingList) {
+      const lower = login.toLowerCase();
+      if (!dbOwnerSet.has(lower)) {
+        missingFollowingRows.push({
+          owner: login,
+          display_name: login,
+          avatar_url: `https://github.com/${login}.png`,
+          bio: null,
+          followers_count: null,
+          following_count: null,
+          public_repos_count: null,
+          grade: 60,
+          followed: true,
+          starred: false,
+          followed_at: new Date().toISOString(),
+          follow_back: false,
+          unfollowed: false,
+          follow_skipped: false,
+          follow_skip_reason: null,
+          whitelisted: false,
+          found_by: 'Existing GitHub Following',
+          top_repos: [],
+          languages: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
 
     for (const p of (allDbProfiles || [])) {
       const isActuallyFollowed = actualFollowingSet.has(p.owner.toLowerCase());
@@ -1370,7 +1404,22 @@ async function reconcileFollowing() {
       }
     }
 
-    console.log(`Reconciliation: ${ownersToMarkUnfollowed.length} to mark unfollowed, ${ownersToRestoreFollowed.length} to restore to active followed.`);
+    console.log(`Reconciliation: ${missingFollowingRows.length} missing to insert, ${ownersToMarkUnfollowed.length} to mark unfollowed, ${ownersToRestoreFollowed.length} to restore to active followed.`);
+
+    // Insert missing following profiles into database
+    if (missingFollowingRows.length > 0) {
+      for (let i = 0; i < missingFollowingRows.length; i += 200) {
+        const chunk = missingFollowingRows.slice(i, i + 200);
+        const { error: insertErr } = await supabase
+          .from('profiles')
+          .upsert(chunk, { onConflict: 'owner' });
+
+        if (insertErr) {
+          console.error('Error inserting missing following chunk during reconciliation:', insertErr.message);
+        }
+      }
+      console.log(`Successfully inserted ${missingFollowingRows.length} existing following into profiles table.`);
+    }
 
     if (ownersToMarkUnfollowed.length > 0) {
       for (let i = 0; i < ownersToMarkUnfollowed.length; i += 200) {

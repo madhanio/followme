@@ -141,6 +141,38 @@ export async function POST() {
       (row) => !actualFollowersMap.has(row.owner.toLowerCase()) && row.follow_back === true
     ) ?? [];
 
+    // Identify users you follow on GitHub who are not in profiles table
+    const missingFollowingRows: any[] = [];
+    for (const login of Array.from(actualFollowing)) {
+      if (!dbOwnerSet.has(login)) {
+        const isMutual = actualFollowersMap.has(login);
+        missingFollowingRows.push({
+          owner: login,
+          display_name: login,
+          avatar_url: `https://github.com/${login}.png`,
+          bio: null,
+          followers_count: null,
+          following_count: null,
+          public_repos_count: null,
+          grade: 60,
+          followed: true,
+          starred: false,
+          followed_at: new Date().toISOString(),
+          follow_back: isMutual,
+          unfollowed: false,
+          follow_skipped: false,
+          follow_skip_reason: null,
+          whitelisted: false,
+          found_by: 'Existing GitHub Following',
+          top_repos: [],
+          languages: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        dbOwnerSet.add(login); // prevent duplicate insertion
+      }
+    }
+
     // Identify organic / inbound followers who are not in profiles table at all
     const missingInboundRows: any[] = [];
     for (const [lowerLogin, follower] of actualFollowersMap.entries()) {
@@ -211,6 +243,15 @@ export async function POST() {
           .from('profiles')
           .update({ follow_back: false })
           .in('owner', chunk);
+      }
+    }
+
+    if (missingFollowingRows.length > 0) {
+      for (let i = 0; i < missingFollowingRows.length; i += 200) {
+        const chunk = missingFollowingRows.slice(i, i + 200);
+        await supabase
+          .from('profiles')
+          .upsert(chunk, { onConflict: 'owner' });
       }
     }
 
