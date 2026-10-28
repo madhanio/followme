@@ -140,8 +140,13 @@ export async function GET(request: Request) {
     const authorizedUsername = process.env.GITHUB_USERNAME;
 
     // 3. Security check: ensure only the configured dashboard owner can log in via GitHub OAuth
-    if (!authorizedUsername || userData.login.toLowerCase() !== authorizedUsername.toLowerCase()) {
-      console.warn(`Unauthorized login attempt by GitHub user: ${userData.login}. Expected: ${authorizedUsername || '(none configured)'}`);
+    // 3. Security check: allow configured dashboard owner (fallback to 'madhanio' or trimmed match)
+    const configuredOwner = (authorizedUsername || 'madhanio').trim().toLowerCase();
+    const currentLogin = (userData.login || '').trim().toLowerCase();
+    const allowedOwners = configuredOwner.split(',').map((s) => s.trim());
+
+    if (!allowedOwners.includes(currentLogin)) {
+      console.warn(`Unauthorized login attempt by GitHub user: ${userData.login}. Expected: ${configuredOwner}`);
       return renderHtmlResponse(false, `Unauthorized account (@${userData.login}). Only the owner can sign in.`, `${appUrl}/login?error=Unauthorized%20account`);
     }
 
