@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ShieldAlert, LogIn, KeyRound } from 'lucide-react';
+import { ShieldAlert, LogIn, KeyRound, Eye, EyeOff } from 'lucide-react';
 
 const GithubIcon = ({ size = 16, style, ...props }: React.SVGProps<SVGSVGElement> & { size?: number }) => (
   <svg
@@ -22,11 +22,50 @@ function LoginContent() {
   const urlError = searchParams.get('error');
 
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isDark, setIsDark] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(urlError);
   const [isLoading, setIsLoading] = useState(false);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const updateThemeState = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    updateThemeState();
+
+    window.addEventListener('themechange', updateThemeState);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      const explicit = localStorage.getItem('fm-theme') || localStorage.getItem('theme');
+      if (!explicit) {
+        document.documentElement.classList.toggle('dark', e.matches);
+        setIsDark(e.matches);
+      }
+    };
+    mediaQuery.addEventListener('change', handleMediaChange);
+
+    return () => {
+      window.removeEventListener('themechange', updateThemeState);
+      mediaQuery.removeEventListener('change', handleMediaChange);
+    };
+  }, []);
+
+  function toggleDark() {
+    const isCurrentlyDark = document.documentElement.classList.contains('dark');
+    const nextDark = !isCurrentlyDark;
+    document.documentElement.classList.toggle('dark', nextDark);
+    document.documentElement.style.colorScheme = nextDark ? 'dark' : 'light';
+    const val = nextDark ? 'dark' : 'light';
+    localStorage.setItem('fm-theme', val);
+    localStorage.setItem('theme', val);
+    document.cookie = `fm-theme=${val}; path=/; max-age=31536000; SameSite=Lax`;
+    document.cookie = `theme=${val}; path=/; max-age=31536000; SameSite=Lax`;
+    setIsDark(nextDark);
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { isDark: nextDark } }));
+  }
 
   useEffect(() => {
     if (urlError) {
@@ -139,6 +178,42 @@ function LoginContent() {
         }}
       />
 
+      {/* Top right Theme toggle */}
+      <div style={{ position: 'absolute', top: 20, right: 24, zIndex: 20 }}>
+        <button
+          type="button"
+          onClick={toggleDark}
+          aria-label="Toggle dark mode"
+          title="Toggle theme"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            border: '1px solid var(--line-strong)',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'var(--muted)',
+            background: 'var(--surface)',
+            cursor: 'pointer',
+            transition: 'all 0.18s cubic-bezier(0.16,1,0.3,1)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          {/* Sun in dark mode */}
+          <svg className="hidden dark:block" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          {/* Moon in light mode */}
+          <svg className="block dark:hidden" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+        </button>
+      </div>
+
       {/* Main Login Card */}
       <div
         style={{
@@ -159,22 +234,30 @@ function LoginContent() {
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
-              background: 'var(--ink)',
-              color: 'var(--bg)',
+              width: 52,
+              height: 52,
+              borderRadius: 12,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: 20,
-              letterSpacing: '-0.03em',
               marginBottom: 16,
+              overflow: 'hidden',
               boxShadow: 'var(--shadow-sm)',
             }}
           >
-            F
+            {/* Real FollowMe Brand Logo */}
+            <img
+              src="/logo-black-cropped.png"
+              alt="FollowMe Logo"
+              className="block dark:hidden"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+            <img
+              src="/logo-white-cropped.png"
+              alt="FollowMe Logo"
+              className="hidden dark:block"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
           </div>
           <h1
             style={{
@@ -288,27 +371,56 @@ function LoginContent() {
               <KeyRound style={{ width: 13, height: 13, color: 'var(--accent)' }} />
               Master Password
             </label>
-            <input
-              type="password"
-              placeholder="Enter master password..."
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading || isOAuthLoading}
-              required
-              autoFocus
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                fontSize: 14,
-                border: '1px solid var(--line)',
-                borderRadius: 'var(--r)',
-                background: 'var(--bg)',
-                color: 'var(--ink)',
-                outline: 'none',
-                boxSizing: 'border-box',
-                transition: 'border-color 0.15s ease',
-              }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter master password..."
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading || isOAuthLoading}
+                required
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '10px 40px 10px 14px',
+                  fontSize: 14,
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--r)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  transition: 'border-color 0.15s ease',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  padding: 4,
+                  cursor: 'pointer',
+                  color: 'var(--muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {showPassword ? (
+                  <EyeOff style={{ width: 16, height: 16 }} />
+                ) : (
+                  <Eye style={{ width: 16, height: 16 }} />
+                )}
+              </button>
+            </div>
           </div>
 
           <button
