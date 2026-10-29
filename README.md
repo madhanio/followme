@@ -1,3 +1,5 @@
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/madhanio/badge.svg)](https://hub.xerj.org/contributors/madhanio)
+
 # FollowMe
 
 Automated GitHub repository discovery, NVIDIA NIM LLM evaluation, and intelligent developer community networking tool.
